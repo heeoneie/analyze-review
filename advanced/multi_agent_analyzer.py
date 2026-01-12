@@ -12,7 +12,6 @@ from openai import OpenAI
 import config
 from collections import Counter
 from openai import OpenAIError
-import json
 
 class ClassificationAgent:
     """리뷰 분류 전문 에이전트"""
@@ -75,7 +74,7 @@ Output JSON:
         try:
             result = json.loads(response.choices[0].message.content)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON response from API: {e}")
+            raise ValueError(f"Invalid JSON response from API: {e}") from e
         result['agent_id'] = self.agent_id
         
         return result
@@ -110,6 +109,12 @@ class CoordinatorAgent:
 
     def weighted_consensus(self, predictions):
         """신뢰도 기반 가중 합의"""
+        if not predictions:
+            return {
+                'final_category': 'other',
+                'weighted_score': 0.0,
+                'total_weight': 0.0
+            }
         weighted_votes = {}
 
         for pred in predictions:
