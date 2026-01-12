@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 import json
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 import config
 from datetime import datetime
 from evaluation.evaluate import Evaluator
@@ -55,18 +55,21 @@ Use concise category names in English (lowercase with underscores).
 Common categories might include: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue, missing_parts, customer_service, etc.
 """
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback and identifying patterns."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=temperature,
-            response_format={"type": "json_object"}
-        )
-
-        result = json.loads(response.choices[0].message.content)
-        return result
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback and identifying patterns."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=temperature,
+                response_format={"type": "json_object"}
+            )
+            result = json.loads(response.choices[0].message.content)
+            return result
+        except (OpenAIError, json.JSONDecodeError) as e:
+            print(f"API call failed: {e}")
+            return {"categories": []}
 
     def categorize_few_shot(self, reviews_text_list, num_examples=3, temperature=0.3):
         """실험 2: Few-shot Learning"""
@@ -115,18 +118,21 @@ Use concise category names in English (lowercase with underscores).
 Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue, missing_parts, not_as_described, customer_service, price_issue, other
 """
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=temperature,
-            response_format={"type": "json_object"}
-        )
-
-        result = json.loads(response.choices[0].message.content)
-        return result
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=temperature,
+                response_format={"type": "json_object"}
+            )
+            result = json.loads(response.choices[0].message.content)
+            return result
+        except (OpenAIError, json.JSONDecodeError) as e:
+            print(f"API call failed: {e}")
+            return {"categories": []}
 
     def categorize_cot(self, reviews_text_list, temperature=0.3):
         """실험 3: Chain-of-Thought"""
@@ -167,18 +173,21 @@ Output format (JSON):
 Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue, missing_parts, not_as_described, customer_service, price_issue, other
 """
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback. Think step by step."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=temperature,
-            response_format={"type": "json_object"}
-        )
-
-        result = json.loads(response.choices[0].message.content)
-        return result
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback. Think step by step."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=temperature,
+                response_format={"type": "json_object"}
+            )
+            result = json.loads(response.choices[0].message.content)
+            return result
+        except (OpenAIError, json.JSONDecodeError) as e:
+            print(f"API call failed: {e}")
+            return {"categories": []}
 
     def extract_predictions(self, categorization_result, num_reviews):
         """카테고리화 결과에서 예측 리스트 추출"""
