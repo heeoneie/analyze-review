@@ -11,6 +11,8 @@ import json
 from openai import OpenAI
 import config
 from collections import Counter
+from openai import OpenAIError
+import json
 
 class ClassificationAgent:
     """리뷰 분류 전문 에이전트"""
@@ -70,9 +72,12 @@ Output JSON:
             temperature=0.3,
             response_format={"type": "json_object"}
         )
-
-        result = json.loads(response.choices[0].message.content)
+        try:
+            result = json.loads(response.choices[0].message.content)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON response from API: {e}")
         result['agent_id'] = self.agent_id
+        
         return result
 
 
@@ -85,6 +90,13 @@ class CoordinatorAgent:
 
     def aggregate_votes(self, predictions):
         """다수결 투표"""
+        if not predictions:
+            return {                
+                'final_category': 'other',
+                'vote_count': 0,
+                'total_votes': 0,
+                'agreement_rate': 0.0
+            }
         categories = [p['category'] for p in predictions]
         counter = Counter(categories)
         most_common = counter.most_common(1)[0]
@@ -187,7 +199,7 @@ class MultiAgentAnalyzer:
                 pred = agent.categorize(review_text)
                 predictions.append(pred)
                 print(f"  Agent {pred['agent_id']}: {pred['category']} (confidence: {pred.get('confidence', 'N/A')})")
-            except Exception as e:
+            except (OpenAIError, json.JSONDecodeError, ValueError) as e:
                 print(f"  Agent {agent.agent_id} 에러: {e}")
 
         if not predictions:

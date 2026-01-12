@@ -26,8 +26,9 @@ class Evaluator:
         df = pd.read_csv(self.ground_truth_file)
 
         # manual_label이 비어있는지 확인
-        if df['manual_label'].isna().any():
-            missing_count = df['manual_label'].isna().sum()
+        missing_mask = df['manual_label'].isna() | (df['manual_label'].str.strip() == '')
+        if missing_mask.any():
+            missing_count = missing_mask.sum()
             print(f"⚠️  경고: {missing_count}개 리뷰가 아직 라벨링되지 않았습니다.")
             print(f"   모든 리뷰를 라벨링한 후 다시 실행하세요.")
             return None
@@ -107,7 +108,7 @@ class Evaluator:
     def analyze_errors(self, df, y_true, y_pred):
         """에러 케이스 분석"""
         errors = []
-        for idx, (true_label, pred_label) in enumerate(zip(y_true, y_pred)):
+        for idx, (true_label, pred_label) in enumerate(zip(y_true, y_pred, strict=True)):
             if true_label != pred_label:
                 errors.append({
                     'review_id': df.iloc[idx]['review_id'],

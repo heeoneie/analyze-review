@@ -180,7 +180,7 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
         result = json.loads(response.choices[0].message.content)
         return result
 
-    def extract_predictions(self, categorization_result):
+    def extract_predictions(self, categorization_result, num_reviews):
         """카테고리화 결과에서 예측 리스트 추출"""
         predictions = {}
         for item in categorization_result.get('categories', []):
@@ -188,8 +188,7 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
             predictions[review_num] = item['category']
 
         # 순서대로 리스트 생성
-        max_idx = max(predictions.keys()) if predictions else 0
-        pred_list = [predictions.get(i, 'other') for i in range(max_idx + 1)]
+        pred_list = [predictions.get(i, 'other') for i in range(num_reviews)]
         return pred_list
 
     def run_all_experiments(self):
@@ -212,8 +211,8 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
         # 실험 1: Zero-shot
         print("\n" + "-"*80)
         result_zero = self.categorize_zero_shot(reviews)
-        y_pred_zero = self.extract_predictions(result_zero)
-        accuracy_zero = sum([1 for t, p in zip(y_true, y_pred_zero) if t == p]) / len(y_true)
+        y_pred_zero = self.extract_predictions(result_zero, len(reviews))
+        accuracy_zero = sum([1 for t, p in zip(y_true, y_pred_zero, strict=True) if t == p]) / len(y_true)
         results['zero_shot'] = {
             'accuracy': round(accuracy_zero, 4),
             'description': 'Baseline - No examples'
@@ -223,8 +222,8 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
         # 실험 2: Few-shot (3-shot)
         print("\n" + "-"*80)
         result_few = self.categorize_few_shot(reviews, num_examples=3)
-        y_pred_few = self.extract_predictions(result_few)
-        accuracy_few = sum([1 for t, p in zip(y_true, y_pred_few) if t == p]) / len(y_true)
+        y_pred_few = self.extract_predictions(result_few, len(reviews))
+        accuracy_few = sum([1 for t, p in zip(y_true, y_pred_few, strict=True) if t == p]) / len(y_true)
         results['few_shot_3'] = {
             'accuracy': round(accuracy_few, 4),
             'description': 'Few-shot with 3 examples per category'
@@ -234,8 +233,8 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
         # 실험 3: Chain-of-Thought
         print("\n" + "-"*80)
         result_cot = self.categorize_cot(reviews)
-        y_pred_cot = self.extract_predictions(result_cot)
-        accuracy_cot = sum([1 for t, p in zip(y_true, y_pred_cot) if t == p]) / len(y_true)
+        y_pred_cot = self.extract_predictions(result_cot, len(reviews))
+        accuracy_cot = sum([1 for t, p in zip(y_true, y_pred_cot, strict=True) if t == p]) / len(y_true)
         results['cot'] = {
             'accuracy': round(accuracy_cot, 4),
             'description': 'Chain-of-Thought reasoning'
@@ -248,8 +247,8 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
         temps = [0.0, 0.5, 0.7]
         for temp in temps:
             result_temp = self.categorize_few_shot(reviews, temperature=temp)
-            y_pred_temp = self.extract_predictions(result_temp)
-            accuracy_temp = sum([1 for t, p in zip(y_true, y_pred_temp) if t == p]) / len(y_true)
+            y_pred_temp = self.extract_predictions(result_temp, len(reviews))
+            accuracy_temp = sum([1 for t, p in zip(y_true, y_pred_temp, strict=True) if t == p]) / len(y_true)
             results[f'temperature_{temp}'] = {
                 'accuracy': round(accuracy_temp, 4),
                 'description': f'Few-shot with temperature={temp}'
