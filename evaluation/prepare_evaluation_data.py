@@ -16,6 +16,16 @@ from data_loader import DataLoader
 
 
 def main():
+    """
+    Prepare a CSV evaluation dataset of sampled negative reviews for manual labeling.
+    
+    Loads reviews from DataLoader (or a custom CSV provided via --csv), filters to negative reviews,
+    samples up to 100 rows deterministically (seed 42), and writes an output CSV (configurable via
+    --output, default "evaluation/evaluation_dataset.csv"). The output contains columns:
+    `review_id`, `review_text`, `rating`, `manual_label` (empty), and `notes` (empty). The function
+    also creates the output directory if needed and prints progress messages, a rating distribution,
+    and a small preview of the first three samples.
+    """
     print("=" * 80)
     print("  Preparing evaluation dataset")
     print("=" * 80)
