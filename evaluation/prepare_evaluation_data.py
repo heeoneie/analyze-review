@@ -1,64 +1,99 @@
 """
-Step 1: 평가용 데이터셋 생성
-부정 리뷰 100개를 추출하여 수동 라벨링용 CSV 생성
+Step 1: Prepare evaluation dataset.
+Creates a CSV for manual labeling by sampling negative reviews.
 """
 
-import pandas as pd
-from data_loader import DataLoader
+import argparse
+import os
 import random
+import sys
+
+import pandas as pd
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from data_loader import DataLoader
+
 
 def main():
+    """
+    Prepare a CSV evaluation dataset of sampled negative reviews for manual labeling.
+    
+    Loads reviews from DataLoader (or a custom CSV provided via --csv), filters to negative reviews,
+    samples up to 100 rows deterministically (seed 42), and writes an output CSV (configurable via
+    --output, default "evaluation/evaluation_dataset.csv"). The output contains columns:
+    `review_id`, `review_text`, `rating`, `manual_label` (empty), and `notes` (empty). The function
+    also creates the output directory if needed and prints progress messages, a rating distribution,
+    and a small preview of the first three samples.
+    """
     print("=" * 80)
-    print("  평가 데이터셋 생성 중...")
+    print("  Preparing evaluation dataset")
     print("=" * 80)
 
-    # 데이터 로드
+    parser = argparse.ArgumentParser(description="Prepare evaluation dataset")
+    parser.add_argument(
+        "--csv",
+        type=str,
+        default=None,
+        help="Path to custom CSV with Ratings/Reviews columns",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=os.path.join("evaluation", "evaluation_dataset.csv"),
+        help="Output CSV path",
+    )
+    args = parser.parse_args()
+
     loader = DataLoader()
-    print("\n1. 데이터 로딩 중...")
-    df = loader.load_reviews()
+    print("\n1. Loading data...")
+    if args.csv:
+        df = loader.load_custom_csv(args.csv)
+    else:
+        df = loader.load_reviews()
 
-    # 부정 리뷰 필터링
-    print("\n2. 부정 리뷰 필터링 중...")
+    print("\n2. Filtering negative reviews...")
     negative_df = loader.filter_negative_reviews(df)
 
-    # 랜덤 샘플링 (재현 가능하도록 seed 고정)
-    print("\n3. 100개 샘플링 중...")
+    print("\n3. Sampling 100 reviews...")
     random.seed(42)
     sampled_df = negative_df.sample(n=min(100, len(negative_df)), random_state=42)
 
-    # 평가용 데이터프레임 생성
-    eval_df = pd.DataFrame({
-        'review_id': sampled_df['review_id'],
-        'review_text': sampled_df['review_text'],
-        'rating': sampled_df['rating'],
-        'manual_label': '',  # 수동 라벨링용 빈 컬럼
-        'notes': ''  # 메모용
-    })
+    eval_df = pd.DataFrame(
+        {
+            "review_id": sampled_df["review_id"],
+            "review_text": sampled_df["review_text"],
+            "rating": sampled_df["rating"],
+            "manual_label": "",
+            "notes": "",
+        }
+    )
 
-    # CSV 저장
-    output_file = 'evaluation_dataset.csv'
-    eval_df.to_csv(output_file, index=False, encoding='utf-8-sig')
+    output_file = args.output
+    output_dir = os.path.dirname(output_file)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    eval_df.to_csv(output_file, index=False, encoding="utf-8-sig")
 
-    print(f"\n✅ 완료!")
-    print(f"   파일: {output_file}")
-    print(f"   샘플 수: {len(eval_df)}")
-    print(f"\n다음 단계:")
-    print(f"   1. {output_file} 파일을 엑셀에서 열기")
-    print(f"   2. 'manual_label' 컬럼에 카테고리 입력")
-    print(f"   3. labeling_guide.md 참고하여 일관성 있게 라벨링")
+    print("\nDone!")
+    print(f"  File: {output_file}")
+    print(f"  Samples: {len(eval_df)}")
+    print("\nNext steps:")
+    print(f"  1. Open {output_file} in Excel/Sheets")
+    print("  2. Fill the 'manual_label' column")
+    print("  3. Refer to evaluation/labeling_guide.md for categories")
 
-    # 카테고리 통계 (참고용)
-    print(f"\n📊 평점 분포:")
-    print(eval_df['rating'].value_counts().sort_index())
+    print("\nRating distribution:")
+    print(eval_df["rating"].value_counts().sort_index())
 
-    # 샘플 미리보기
-    print(f"\n🔍 샘플 미리보기 (처음 3개):")
+    print("\nSample preview (first 3):")
     print("-" * 80)
-    for idx, row in eval_df.head(3).iterrows():
+    for _, row in eval_df.head(3).iterrows():
         print(f"\nID: {row['review_id']}")
         print(f"Rating: {row['rating']}")
         print(f"Text: {row['review_text'][:200]}...")
         print("-" * 80)
+
 
 if __name__ == "__main__":
     main()
