@@ -53,15 +53,15 @@ class ErrorAnalyzer:
         for error in self.errors:
             true_label = error['true_label']
             pred_label = error['predicted_label']
-            pair = tuple(sorted([true_label, pred_label]))
+            pair = (true_label, pred_label)  # 방향성 보존
             confusion_pairs[pair] += 1
 
         print("\n가장 많이 혼동되는 카테고리 쌍 (Top 5):\n")
         print("{:<25} {:<25} {:<10}".format("True Label", "Predicted Label", "Count"))
         print("-" * 80)
 
-        for (label1, label2), count in confusion_pairs.most_common(5):
-            print(f"{label1:<25} ↔ {label2:<25} {count:<10}")
+        for (label_true, label_pred), count in confusion_pairs.most_common(5):
+            print(f"{label_true:<25} → {label_pred:<25} {count:<10}")
 
         return confusion_pairs
 
