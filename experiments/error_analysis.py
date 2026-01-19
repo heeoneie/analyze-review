@@ -192,9 +192,9 @@ class ErrorAnalyzer:
         suggestions = []
 
         # 1. 혼동 쌍 기반 제안
-        top_confusion = confusion_pairs.most_common(1)[0]
-        if top_confusion:
-            pair, count = top_confusion
+        top_confusion_list = confusion_pairs.most_common(1)
+        if top_confusion_list:
+            pair, count = top_confusion_list[0]
             suggestion = {
                 'issue': f"'{pair[0]}' 와 '{pair[1]}' 혼동 ({count}건)",
                 'solution': "프롬프트에 두 카테고리의 명확한 차이점을 예시와 함께 추가",
