@@ -57,7 +57,7 @@ class ErrorAnalyzer:
             confusion_pairs[pair] += 1
 
         print("\n가장 많이 혼동되는 카테고리 쌍 (Top 5):\n")
-        print(f"{'True Label':<25} {'Predicted Label':<25} {'Count':<10}")
+        print("{:<25} {:<25} {:<10}".format("True Label", "Predicted Label", "Count"))
         print("-" * 80)
 
         for (label1, label2), count in confusion_pairs.most_common(5):
@@ -122,6 +122,23 @@ class ErrorAnalyzer:
         print("  3. 에러 케이스 공통 키워드")
         print("="*80)
 
+        # Stopwords 정의
+        stopwords = {
+            'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+            'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+            'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare',
+            'ought', 'used', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by',
+            'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above',
+            'below', 'between', 'under', 'again', 'further', 'then', 'once',
+            'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few',
+            'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only',
+            'own', 'same', 'so', 'than', 'too', 'very', 'just', 'and', 'but',
+            'if', 'or', 'because', 'until', 'while', 'this', 'that', 'these',
+            'those', 'am', 'it', 'its', 'i', 'me', 'my', 'myself', 'we', 'our',
+            'you', 'your', 'he', 'him', 'his', 'she', 'her', 'they', 'them',
+            'what', 'which', 'who', 'whom', 'also', 'get', 'got', 'like', 'even'
+        }
+
         # 혼동 쌍별로 공통 키워드 찾기
         confusion_keywords = defaultdict(list)
         confusion_top_keywords = {}
@@ -140,15 +157,31 @@ class ErrorAnalyzer:
         for confusion, count in top_confusions.most_common(3):
             print(f"\n{confusion} ({count}건):")
             reviews = confusion_keywords[confusion]
-            tokens = [tok for review in reviews for tok in review.split()]
-            confusion_top_keywords[confusion] = [w for w, _ in Counter(tokens).most_common(5)]
-            print(f"   키워드: {', '.join(confusion_top_keywords[confusion])}")
+
+            # 토큰화 및 정규화
+            all_tokens = []
+            for review in reviews:
+                # 소문자로 변환, 알파벳만 추출
+                tokens = review.lower().split()
+                # 특수문자 제거 및 필터링
+                cleaned_tokens = []
+                for tok in tokens:
+                    clean_tok = ''.join(c for c in tok if c.isalpha())
+                    # 길이 2 이상, stopword 아닌 것만
+                    if len(clean_tok) >= 2 and clean_tok not in stopwords:
+                        cleaned_tokens.append(clean_tok)
+                all_tokens.extend(cleaned_tokens)
+
+            # 상위 10개 키워드 추출
+            top_keywords = [w for w, _ in Counter(all_tokens).most_common(10)]
+            confusion_top_keywords[confusion] = top_keywords
+            print(f"   키워드: {', '.join(top_keywords[:5])}")
 
             # 짧은 예시 3개만
             for i, review in enumerate(reviews[:3], 1):
                 print(f"   {i}. {review[:100]}...")
 
-        return {"examples": confusion_keywords, "keywords": confusion_top_keywords}
+        return {"examples": dict(confusion_keywords), "keywords": confusion_top_keywords}
 
     def suggest_improvements(self, confusion_pairs, patterns):
         """개선 방안 제안"""
@@ -260,6 +293,10 @@ def main():
 
     if args.results:
         results_file = args.results
+        if not os.path.exists(results_file):
+            print("\n❌ 지정한 결과 파일을 찾을 수 없습니다.")
+            print(f"경로: {results_file}")
+            return
     else:
         # 가장 최근 결과 파일 자동 찾기
         results_dir = 'results'
