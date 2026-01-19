@@ -30,8 +30,13 @@ class ErrorAnalyzer:
             data = json.load(f)
 
         # 에러 케이스 파일 찾기
-        error_file = self.results_file.replace('_metrics_', '_errors_')
-        if os.path.exists(error_file):
+        error_file = None
+        if '_metrics_' in self.results_file:
+            error_file = self.results_file.replace('_metrics_', '_errors_')
+        elif self.results_file.endswith('_metrics.json'):
+            error_file = self.results_file.replace('_metrics.json', '_errors.json')
+
+        if error_file and os.path.exists(error_file):
             with open(error_file, 'r', encoding='utf-8') as f:
                 self.errors = json.load(f)
 
@@ -51,7 +56,7 @@ class ErrorAnalyzer:
             pair = tuple(sorted([true_label, pred_label]))
             confusion_pairs[pair] += 1
 
-        print(f"\n가장 많이 혼동되는 카테고리 쌍 (Top 5):\n")
+        print("\n가장 많이 혼동되는 카테고리 쌍 (Top 5):\n")
         print(f"{'True Label':<25} {'Predicted Label':<25} {'Count':<10}")
         print("-" * 80)
 
@@ -119,6 +124,7 @@ class ErrorAnalyzer:
 
         # 혼동 쌍별로 공통 키워드 찾기
         confusion_keywords = defaultdict(list)
+        confusion_top_keywords = {}
 
         for error in self.errors:
             key = f"{error['true_label']} → {error['predicted_label']}"
@@ -134,12 +140,15 @@ class ErrorAnalyzer:
         for confusion, count in top_confusions.most_common(3):
             print(f"\n{confusion} ({count}건):")
             reviews = confusion_keywords[confusion]
+            tokens = [tok for review in reviews for tok in review.split()]
+            confusion_top_keywords[confusion] = [w for w, _ in Counter(tokens).most_common(5)]
+            print(f"   키워드: {', '.join(confusion_top_keywords[confusion])}")
 
             # 짧은 예시 3개만
             for i, review in enumerate(reviews[:3], 1):
                 print(f"   {i}. {review[:100]}...")
 
-        return confusion_keywords
+        return {"examples": confusion_keywords, "keywords": confusion_top_keywords}
 
     def suggest_improvements(self, confusion_pairs, patterns):
         """개선 방안 제안"""
@@ -155,7 +164,7 @@ class ErrorAnalyzer:
             pair, count = top_confusion
             suggestion = {
                 'issue': f"'{pair[0]}' 와 '{pair[1]}' 혼동 ({count}건)",
-                'solution': f"프롬프트에 두 카테고리의 명확한 차이점을 예시와 함께 추가",
+                'solution': "프롬프트에 두 카테고리의 명확한 차이점을 예시와 함께 추가",
                 'example': f"- '{pair[0]}': [구체적 예시]\n- '{pair[1]}': [구체적 예시]"
             }
             suggestions.append(suggestion)
@@ -179,7 +188,7 @@ class ErrorAnalyzer:
                 suggestion = {
                     'issue': f"'{top_error_category}' 카테고리에서 에러 많음 ({count}건)",
                     'solution': f"'{top_error_category}' 정의를 명확히 하고 Few-shot 예시 추가",
-                    'example': f"해당 카테고리의 대표적인 3-5개 예시를 프롬프트에 포함"
+                    'example': "해당 카테고리의 대표적인 3-5개 예시를 프롬프트에 포함"
                 }
                 suggestions.append(suggestion)
 
@@ -213,9 +222,14 @@ class ErrorAnalyzer:
 
         # 결과 저장
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        confusion_pairs_serialized = [
+            {"label_a": a, "label_b": b, "count": count}
+            for (a, b), count in confusion_pairs.most_common()
+        ]
         report = {
             'total_errors': len(self.errors),
-            'confusion_pairs': dict(confusion_pairs),
+            'confusion_pairs': confusion_pairs_serialized,
+            'keywords': keywords,
             'patterns': {
                 'review_length': dict(patterns['review_length']),
                 'rating': dict(patterns['rating']),
@@ -250,7 +264,10 @@ def main():
         # 가장 최근 결과 파일 자동 찾기
         results_dir = 'results'
         if os.path.exists(results_dir):
-            metric_files = [f for f in os.listdir(results_dir) if f.endswith('_metrics.json')]
+            metric_files = [
+                f for f in os.listdir(results_dir)
+                if f.endswith('.json') and '_metrics' in f
+            ]
             if metric_files:
                 # 가장 최근 파일
                 metric_files.sort(reverse=True)
