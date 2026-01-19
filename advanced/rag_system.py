@@ -8,6 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
+from uuid import uuid4
 from openai import OpenAI
 import config
 import pandas as pd
@@ -47,10 +48,11 @@ class RAGReviewAnalyzer:
         ))
 
         # 컬렉션 생성 또는 가져오기
+        self.collection_name = collection_name
         try:
             self.collection = self.chroma_client.get_collection(collection_name)
             print(f"✓ 기존 컬렉션 로드: {collection_name} ({self.collection.count()}개 문서)")
-        except:
+        except ValueError:
             self.collection = self.chroma_client.create_collection(
                 name=collection_name,
                 metadata={"description": "Review categorization examples"}
@@ -61,7 +63,7 @@ class RAGReviewAnalyzer:
         """Vector DB에 예시 추가"""
         embedding = self.embedding_model.encode(review_text).tolist()
 
-        doc_id = f"review_{self.collection.count()}"
+        doc_id = f"review_{uuid4()}"
         self.collection.add(
             embeddings=[embedding],
             documents=[review_text],
@@ -199,11 +201,20 @@ Output JSON:
 
     def clear_database(self):
         """Vector DB 초기화"""
+        if self.collection is None:
+            print("⚠️  컬렉션이 초기화되지 않았습니다.")
+            return
+
+        collection_name = self.collection.name
         try:
-            self.chroma_client.delete_collection(self.collection.name)
-            print(f"✓ 컬렉션 '{self.collection.name}' 삭제됨")
-        except:
-            print(f"⚠️  컬렉션을 찾을 수 없습니다.")
+            self.chroma_client.delete_collection(collection_name)
+            self.collection = None
+            print(f"✓ 컬렉션 '{collection_name}' 삭제됨")
+        except ValueError as e:
+            print(f"⚠️  컬렉션을 찾을 수 없습니다: {e}")
+            self.collection = None
+        except Exception as e:
+            print(f"⚠️  컬렉션 삭제 중 오류 발생: {e}")
 
 
 def demo():
