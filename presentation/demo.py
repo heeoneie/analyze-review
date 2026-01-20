@@ -8,6 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analyzer import ReviewAnalyzer
+from collections.abc import Iterable
 import time
 
 def print_header(title):
@@ -44,7 +45,21 @@ def demo_basic_analysis():
 
     # 분석 실행
     analyzer = ReviewAnalyzer()
-    result = analyzer.categorize_issues(sample_reviews)
+    try:
+        result = analyzer.categorize_issues(sample_reviews)
+    except Exception as exc:
+        print("\n⚠️  분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+        print(f"   상세: {exc}")
+        result = {'categories': []}
+
+    if not isinstance(result, dict):
+        print("\n⚠️  분석 결과 형식이 올바르지 않습니다.")
+        result = {'categories': []}
+
+    categories = result.get('categories', [])
+    if not isinstance(categories, Iterable) or isinstance(categories, (str, bytes)):
+        print("\n⚠️  분석 결과의 categories 형식이 올바르지 않습니다.")
+        categories = []
 
     print(" 완료!\n")
 
@@ -52,22 +67,30 @@ def demo_basic_analysis():
     print_header("🎯 분석 결과")
 
     categories_count = {}
-    for item in result.get('categories', []):
-        category = item['category']
+    for item in categories:
+        if not isinstance(item, dict):
+            continue
+        category = item.get('category') or "unknown"
         categories_count[category] = categories_count.get(category, 0) + 1
 
     print("📊 문제 분류:\n")
     for category, count in sorted(categories_count.items(), key=lambda x: x[1], reverse=True):
-        percentage = (count / len(sample_reviews)) * 100
+        if len(sample_reviews) > 0:
+            percentage = (count / len(sample_reviews)) * 100
+        else:
+            percentage = 0
         print(f"   • {category.replace('_', ' ').title()}: {count}건 ({percentage:.0f}%)")
 
     print("\n📋 상세 분석:\n")
-    for item in result.get('categories', []):
-        num = item['review_number']
-        category = item['category']
-        brief = item.get('brief_issue', '')
+    for item in categories:
+        if not isinstance(item, dict):
+            continue
+        num = item.get('review_number')
+        category = item.get('category') or "unknown"
+        brief = item.get('brief_issue') or ''
 
-        print(f"{num}. [{category.replace('_', ' ').upper()}]")
+        print(f"{num if num is not None else '-'}."
+              f" [{category.replace('_', ' ').upper()}]")
         print(f"   → {brief}")
         print()
 
@@ -149,7 +172,11 @@ def demo_live_input():
     analyzer = ReviewAnalyzer()
     reviews = []
 
+    max_reviews = 200
     while True:
+        if len(reviews) >= max_reviews:
+            print(f"\n⚠️  최대 {max_reviews}개까지만 입력할 수 있습니다.")
+            break
         review = input(f"리뷰 #{len(reviews)+1}: ").strip()
         if not review:
             break
@@ -160,13 +187,32 @@ def demo_live_input():
         return
 
     print(f"\n⏳ {len(reviews)}개 리뷰 분석 중...")
-    result = analyzer.categorize_issues(reviews)
+    try:
+        result = analyzer.categorize_issues(reviews)
+    except Exception as exc:
+        print("\n⚠️  분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+        print(f"   상세: {exc}")
+        return
+
+    if not isinstance(result, dict):
+        print("\n⚠️  분석 결과 형식이 올바르지 않습니다.")
+        return
+
+    categories = result.get('categories', [])
+    if not isinstance(categories, Iterable) or isinstance(categories, (str, bytes)):
+        print("\n⚠️  분석 결과의 categories 형식이 올바르지 않습니다.")
+        return
 
     print("\n✅ 분석 완료!\n")
-    for item in result.get('categories', []):
-        num = item['review_number']
-        category = item['category']
-        brief = item.get('brief_issue', '')
+    for item in categories:
+        if not isinstance(item, dict):
+            continue
+        num = item.get('review_number')
+        if not isinstance(num, int) or not (1 <= num <= len(reviews)):
+            print("⚠️  잘못된 review_number로 항목을 건너뜁니다.")
+            continue
+        category = item.get('category') or "unknown"
+        brief = item.get('brief_issue') or ''
 
         print(f"{num}. {reviews[num-1][:60]}...")
         print(f"   → [{category.replace('_', ' ').upper()}] {brief}\n")

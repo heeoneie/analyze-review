@@ -140,7 +140,7 @@ class ResultsVisualizer:
             accuracies.append(acc)
 
             # 베이스라인보다 높으면 녹색, 낮으면 빨간색
-            if baseline_acc and acc >= baseline_acc:
+            if baseline_acc is not None and acc >= baseline_acc:
                 colors.append('green')
             else:
                 colors.append('red')
@@ -243,6 +243,10 @@ class ResultsVisualizer:
                 stages.append('Few-shot')
                 accuracies.append(prompt_results['few_shot_3']['accuracy'] * 100)
                 costs.append(cost_map['few_shot_3'])
+            if 'cot' in prompt_results:
+                stages.append('CoT')
+                accuracies.append(prompt_results['cot']['accuracy'] * 100)
+                costs.append(cost_map['cot'])
 
         if 'improved' in results:
             stages.append('Improved')
@@ -256,7 +260,7 @@ class ResultsVisualizer:
 
         # 플롯 생성
         plt.figure(figsize=(10, 6))
-        scatter = plt.scatter(costs, accuracies, s=200, alpha=0.6, c=range(len(stages)), cmap='viridis')
+        plt.scatter(costs, accuracies, s=200, alpha=0.6, c=range(len(stages)), cmap='viridis')
 
         # 라벨 표시
         for i, (cost, acc, stage) in enumerate(zip(costs, accuracies, stages)):
