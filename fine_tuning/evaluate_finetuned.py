@@ -38,7 +38,8 @@ Categories:
 - price_issue: Price-related complaints
 - other: Cannot be categorized
 
-Respond with ONLY the category name, nothing else."""
+Return a JSON object only with this schema:
+{"category": "<one of the categories above>"}"""
 
         response = self.client.chat.completions.create(
             model=self.model_name,
@@ -46,11 +47,24 @@ Respond with ONLY the category name, nothing else."""
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Categorize this review: {review_text}"}
             ],
-            temperature=0.0  # Deterministic
+            temperature=0.0,  # Deterministic
+            response_format={"type": "json_object"},
         )
 
-        category = response.choices[0].message.content.strip()
-        return category
+        raw_content = response.choices[0].message.content
+        try:
+            parsed = json.loads(raw_content)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON response: {raw_content}") from exc
+
+        if not isinstance(parsed, dict) or "category" not in parsed:
+            raise ValueError(f"Unexpected response format: {parsed}")
+
+        category = parsed.get("category")
+        if not isinstance(category, str) or not category.strip():
+            raise ValueError(f"Invalid category value: {category}")
+
+        return category.strip()
 
     def evaluate(self, ground_truth_file):
         """전체 평가 실행"""
@@ -69,14 +83,14 @@ Respond with ONLY the category name, nothing else."""
         print("🤖 Fine-tuned 모델로 예측 중...")
         predictions = []
 
-        for idx, row in df.iterrows():
-            print(f"   [{idx+1}/{len(df)}] 예측 중...", end='\r')
+        for i, (_, row) in enumerate(df.iterrows(), start=1):
+            print(f"   [{i}/{len(df)}] 예측 중...", end='\r')
 
             try:
                 pred = self.categorize_single(row['review_text'])
                 predictions.append(pred)
             except Exception as e:
-                print(f"\n   ⚠️  에러 (Review {idx+1}): {e}")
+                print(f"\n   ⚠️  에러 (Review {i}): {e}")
                 predictions.append('other')
 
         print(f"\n   ✓ 완료!\n")
