@@ -6,6 +6,8 @@ E-commerce Review Analysis PoC - Custom CSV Version
 3. 개선 액션 제안 생성
 """
 
+# pylint: disable=duplicate-code
+
 import sys
 import os
 from data_loader import DataLoader

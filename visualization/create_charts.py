@@ -3,6 +3,8 @@ Day 6: 실험 결과 시각화
 정확도 개선, Confusion Matrix, 비용 분석 등 차트 생성
 """
 
+# pylint: disable=duplicate-code
+
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
