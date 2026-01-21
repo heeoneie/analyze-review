@@ -1,7 +1,37 @@
 import json
+import logging
+import re
 from openai import OpenAI
 import config
 from collections import Counter
+
+logger = logging.getLogger(__name__)
+
+
+def extract_json_from_text(text):
+    """Extract JSON content from a response string with basic sanitization."""
+    match = re.search(r"```(?:json)?\n(.*?)\n```", text, re.S | re.I)
+    if match:
+        candidate = match.group(1).strip()
+    else:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            candidate = text[start:end + 1]
+        else:
+            candidate = text.strip()
+
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        logger.warning("Initial JSON parse failed: %s; raw response: %s", exc, text)
+        repaired = candidate.replace("{{", "{").replace("}}", "}")
+        repaired = re.sub(r",\s*([}\]])", r"\1", repaired)
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError:
+            logger.error("Repaired JSON still invalid. Returning empty object.")
+            return {}
 
 class ReviewAnalyzer:
     def __init__(self):
@@ -54,7 +84,7 @@ Common categories might include: delivery_delay, wrong_item, poor_quality, damag
             response_format={"type": "json_object"}
         )
 
-        result = json.loads(response.choices[0].message.content)
+        result = extract_json_from_text(response.choices[0].message.content)
         return result
 
     def get_top_issues(self, categorization_result, top_n=3):
@@ -170,5 +200,5 @@ Output format (JSON):
             response_format={"type": "json_object"}
         )
 
-        result = json.loads(response.choices[0].message.content)
+        result = extract_json_from_text(response.choices[0].message.content)
         return result.get('recommendations', [])
