@@ -14,11 +14,12 @@ try:
     from sentence_transformers import SentenceTransformer
     import chromadb
     from chromadb.config import Settings
-except ImportError:
-    print("⚠️  필요한 패키지가 설치되지 않았습니다.")
-    print("다음 명령어로 설치하세요:")
-    print("pip install sentence-transformers chromadb")
-    sys.exit(1)
+    _IMPORT_ERROR = None
+except ImportError as exc:
+    SentenceTransformer = None
+    chromadb = None
+    Settings = None
+    _IMPORT_ERROR = exc
 
 import config
 
@@ -32,6 +33,10 @@ class RAGReviewAnalyzer:
             collection_name: ChromaDB 컬렉션 이름
             embedding_model: Sentence Transformer 모델 이름
         """
+        if SentenceTransformer is None or chromadb is None or Settings is None:
+            raise ImportError(
+                "Required packages not installed. Install: sentence-transformers chromadb"
+            ) from _IMPORT_ERROR
         self.client = OpenAI(api_key=config.OPENAI_API_KEY)
         self.llm_model = config.LLM_MODEL
         self.temperature = config.LLM_TEMPERATURE
