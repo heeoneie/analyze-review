@@ -13,6 +13,19 @@ from openai import OpenAI
 import config
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
+ALLOWED_CATEGORIES = {
+    "delivery_delay",
+    "wrong_item",
+    "poor_quality",
+    "damaged_packaging",
+    "size_issue",
+    "missing_parts",
+    "not_as_described",
+    "customer_service",
+    "price_issue",
+    "other",
+}
+
 class FinetunedEvaluator:
     def __init__(self, model_name):
         """
@@ -24,7 +37,7 @@ class FinetunedEvaluator:
 
     def categorize_single(self, review_text):
         """단일 리뷰 분류"""
-        system_prompt = """You are an expert at analyzing e-commerce customer reviews and categorizing their primary complaints.
+        system_prompt = """You are an e-commerce feedback analyst expert at analyzing customer reviews and categorizing their primary complaints.
 
 Categories:
 - delivery_delay: Shipping or delivery issues
@@ -45,7 +58,7 @@ Return a JSON object only with this schema:
             model=self.model_name,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Categorize this review: {review_text}"}
+                {"role": "user", "content": f"Categorize this review. Reply with JSON only, exactly {{\"category\": \"...\"}}.\nExample: \"Package arrived late\" -> {{\"category\": \"delivery_delay\"}}\nReview: {review_text}"}
             ],
             temperature=0.0,  # Deterministic
             response_format={"type": "json_object"},
@@ -64,7 +77,11 @@ Return a JSON object only with this schema:
         if not isinstance(category, str) or not category.strip():
             raise ValueError(f"Invalid category value: {category}")
 
-        return category.strip()
+        category_norm = category.strip().lower()
+        if category_norm not in ALLOWED_CATEGORIES:
+            raise ValueError(f"Invalid category value: {category}")
+
+        return category_norm
 
     def evaluate(self, ground_truth_file):
         """전체 평가 실행"""
@@ -82,6 +99,8 @@ Return a JSON object only with this schema:
         # 예측 실행
         print("🤖 Fine-tuned 모델로 예측 중...")
         predictions = []
+        failures = []
+        failure_reviews = []
 
         for i, (_, row) in enumerate(df.iterrows(), start=1):
             print(f"   [{i}/{len(df)}] 예측 중...", end='\r')
@@ -91,13 +110,21 @@ Return a JSON object only with this schema:
                 predictions.append(pred)
             except Exception as e:
                 print(f"\n   ⚠️  에러 (Review {i}): {e}")
-                predictions.append('other')
+                failures.append(i)
+                failure_reviews.append(row['review_text'])
+                predictions.append(None)
 
         print(f"\n   ✓ 완료!\n")
 
         # 평가
-        y_true = df['manual_label'].tolist()
-        y_pred = predictions
+        successes = []
+        for pred, (_, row) in zip(predictions, df.iterrows()):
+            if pred is None:
+                continue
+            successes.append((row['manual_label'], pred, row['review_text']))
+
+        y_true = [true for true, _, _ in successes]
+        y_pred = [pred for _, pred, _ in successes]
 
         # 메트릭스 계산
         accuracy = accuracy_score(y_true, y_pred)
@@ -118,10 +145,10 @@ Return a JSON object only with this schema:
 
         # 에러 분석
         errors = []
-        for i, (true, pred) in enumerate(zip(y_true, y_pred)):
+        for i, (true, pred, review_text) in enumerate(successes):
             if true != pred:
                 errors.append({
-                    'review': df.iloc[i]['review_text'],
+                    'review': review_text,
                     'true': true,
                     'predicted': pred
                 })
@@ -141,7 +168,10 @@ Return a JSON object only with this schema:
             'recall': recall,
             'f1': f1,
             'total_samples': len(df),
-            'errors': len(errors)
+            'errors': len(errors),
+            'failure_count': len(failures),
+            'failures': failures,
+            'failure_reviews': failure_reviews
         }
 
         os.makedirs('results', exist_ok=True)
