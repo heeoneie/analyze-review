@@ -13,6 +13,19 @@ from openai import OpenAI
 import config
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
+ALLOWED_CATEGORIES = {
+    "delivery_delay",
+    "wrong_item",
+    "poor_quality",
+    "damaged_packaging",
+    "size_issue",
+    "missing_parts",
+    "not_as_described",
+    "customer_service",
+    "price_issue",
+    "other",
+}
+
 class FinetunedEvaluator:
     def __init__(self, model_name):
         """
@@ -24,7 +37,7 @@ class FinetunedEvaluator:
 
     def categorize_single(self, review_text):
         """단일 리뷰 분류"""
-        system_prompt = """You are an expert at analyzing e-commerce customer reviews and categorizing their primary complaints.
+        system_prompt = """You are an e-commerce feedback analyst expert at analyzing customer reviews and categorizing their primary complaints.
 
 Categories:
 - delivery_delay: Shipping or delivery issues
@@ -45,7 +58,7 @@ Return a JSON object only with this schema:
             model=self.model_name,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Categorize this review: {review_text}"}
+                {"role": "user", "content": f"Categorize this review. Reply with JSON only, exactly {{\"category\": \"...\"}}.\nExample: \"Package arrived late\" -> {{\"category\": \"delivery_delay\"}}\nReview: {review_text}"}
             ],
             temperature=0.0,  # Deterministic
             response_format={"type": "json_object"},
@@ -64,7 +77,11 @@ Return a JSON object only with this schema:
         if not isinstance(category, str) or not category.strip():
             raise ValueError(f"Invalid category value: {category}")
 
-        return category.strip()
+        category_norm = category.strip().lower()
+        if category_norm not in ALLOWED_CATEGORIES:
+            raise ValueError(f"Invalid category value: {category}")
+
+        return category_norm
 
     def evaluate(self, ground_truth_file):
         """전체 평가 실행"""
