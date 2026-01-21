@@ -4,11 +4,11 @@ Vector DB를 사용한 동적 Few-shot Learning
 """
 
 import sys
-import json
 from uuid import uuid4
 
 import pandas as pd
 from openai import OpenAI
+from utils.json_utils import extract_json_from_text
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -165,7 +165,7 @@ Output JSON:
             response_format={"type": "json_object"}
         )
 
-        result = json.loads(response.choices[0].message.content)
+        result = extract_json_from_text(response.choices[0].message.content)
         result['retrieved_examples'] = similar_examples
         return result
 

@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
 from openai import OpenAI
 import config
+from utils.json_utils import extract_json_from_text
 from collections import Counter
 from openai import OpenAIError
 
@@ -72,7 +73,7 @@ Output JSON:
             response_format={"type": "json_object"}
         )
         try:
-            result = json.loads(response.choices[0].message.content)
+            result = extract_json_from_text(response.choices[0].message.content)
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON response from API: {e}") from e
         result['agent_id'] = self.agent_id
@@ -171,7 +172,7 @@ Output JSON:
             response_format={"type": "json_object"}
         )
 
-        result = json.loads(response.choices[0].message.content)
+        result = extract_json_from_text(response.choices[0].message.content)
         return result
 
 

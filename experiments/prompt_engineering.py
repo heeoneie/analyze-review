@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
 from openai import OpenAI, OpenAIError
 import config
+from utils.json_utils import extract_json_from_text
 from datetime import datetime
 from evaluation.evaluate import Evaluator
 
@@ -64,7 +65,7 @@ Common categories might include: delivery_delay, wrong_item, poor_quality, damag
                 temperature=temperature,
                 response_format={"type": "json_object"}
             )
-            result = json.loads(response.choices[0].message.content)
+            result = extract_json_from_text(response.choices[0].message.content)
             return result
         except (OpenAIError, json.JSONDecodeError) as e:
             print(f"API call failed: {e}")
@@ -127,7 +128,7 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
                 temperature=temperature,
                 response_format={"type": "json_object"}
             )
-            result = json.loads(response.choices[0].message.content)
+            result = extract_json_from_text(response.choices[0].message.content)
             return result
         except (OpenAIError, json.JSONDecodeError) as e:
             print(f"API call failed: {e}")
@@ -182,7 +183,7 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
                 temperature=temperature,
                 response_format={"type": "json_object"}
             )
-            result = json.loads(response.choices[0].message.content)
+            result = extract_json_from_text(response.choices[0].message.content)
             return result
         except (OpenAIError, json.JSONDecodeError) as e:
             print(f"API call failed: {e}")
