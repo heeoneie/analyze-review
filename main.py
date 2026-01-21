@@ -9,6 +9,7 @@ E-commerce Review Analysis PoC
 import sys
 from data_loader import DataLoader
 from analyzer import ReviewAnalyzer
+from report_utils import print_top_issues, print_emerging_issues
 
 
 def print_section(title):
@@ -37,7 +38,8 @@ def main():
     print_section("Step 1: Loading Data")
     try:
         df = loader.load_reviews()
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
+        # Data loading can fail for multiple IO or parsing reasons.
         print(f"\n❌ Error loading data: {e}")
         print("\nTip: Make sure you have Kaggle API configured properly.")
         sys.exit(1)
@@ -73,14 +75,12 @@ def main():
     print_section("Step 6: Identifying Top 3 Issues")
     top_issues = analyzer.get_top_issues(recent_categorization, top_n=3)
 
-    print("\n📊 TOP 3 문제점 (부정 리뷰 기준):\n")
-    for i, issue in enumerate(top_issues, 1):
-        print(f"{i}. {issue['category'].replace('_', ' ').title()}")
-        print(f"   빈도: {issue['count']}회 ({issue['percentage']}%)")
-        print(f"   예시:")
-        for example in issue['examples']:
-            print(f"   - {example}")
-        print()
+    print_top_issues(
+        top_issues,
+        header="📊 TOP 3 문제점 (부정 리뷰 기준):",
+        count_format="   빈도: {count}회 ({percentage}%)",
+        examples_label="   예시:"
+    )
 
     # Step 7: Detect emerging issues
     print_section("Step 7: Detecting Emerging Issues")
@@ -89,15 +89,13 @@ def main():
         comparison_categorization
     )
 
-    if emerging_issues:
-        print("\n📈 최근 급증한 이슈:\n")
-        for i, issue in enumerate(emerging_issues, 1):
-            print(f"{i}. {issue['category'].replace('_', ' ').title()}")
-            print(f"   증가율: +{issue['increase_rate']}%")
-            print(f"   이전: {issue['comparison_count']}회 → 최근: {issue['recent_count']}회")
-            print()
-    else:
-        print("\n✓ 최근 급증한 이슈 없음 (안정적 상태)")
+    print_emerging_issues(
+        emerging_issues,
+        header="📈 최근 급증한 이슈:",
+        empty_message="✓ 최근 급증한 이슈 없음 (안정적 상태)",
+        increase_format="   증가율: +{increase_rate}%",
+        comparison_format="   이전: {comparison_count}회 → 최근: {recent_count}회"
+    )
 
     # Step 8: Generate action plan
     print_section("Step 8: Generating Action Plan")

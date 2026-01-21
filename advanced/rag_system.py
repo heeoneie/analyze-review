@@ -4,14 +4,11 @@ Vector DB를 사용한 동적 Few-shot Learning
 """
 
 import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import json
 from uuid import uuid4
-from openai import OpenAI
-import config
+
 import pandas as pd
+from openai import OpenAI
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -22,6 +19,8 @@ except ImportError:
     print("다음 명령어로 설치하세요:")
     print("pip install sentence-transformers chromadb")
     sys.exit(1)
+
+import config
 
 
 class RAGReviewAnalyzer:
@@ -42,7 +41,7 @@ class RAGReviewAnalyzer:
         self.embedding_model = SentenceTransformer(embedding_model)
 
         # ChromaDB 초기화
-        print(f"💾 Vector DB 초기화...")
+        print("💾 Vector DB 초기화...")
         self.chroma_client = chromadb.Client(Settings(
             anonymized_telemetry=False
         ))
@@ -85,7 +84,7 @@ class RAGReviewAnalyzer:
 
         print(f"   {len(df)}개 예시 추가 중...")
 
-        for idx, row in df.iterrows():
+        for _, row in df.iterrows():
             self.add_examples(
                 review_text=row['review_text'],
                 category=row['manual_label'],
@@ -187,7 +186,8 @@ Output JSON:
                     'confidence': result.get('confidence', 0),
                     'retrieved_examples': len(result.get('retrieved_examples', []))
                 })
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
+                # Keep batch processing even if a single review fails.
                 print(f"\n   ⚠️  에러 발생 (Review {idx+1}): {e}")
                 results.append({
                     'review_number': idx + 1,
@@ -196,7 +196,7 @@ Output JSON:
                     'confidence': 0
                 })
 
-        print(f"\n✓ 완료!")
+        print("\n✓ 완료!")
         return {'categories': results}
 
     def clear_database(self):
@@ -213,7 +213,8 @@ Output JSON:
         except ValueError as e:
             print(f"⚠️  컬렉션을 찾을 수 없습니다: {e}")
             self.collection = None
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
+            # ChromaDB can raise various runtime errors; log and continue cleanup.
             print(f"⚠️  컬렉션 삭제 중 오류 발생: {e}")
 
 
@@ -263,7 +264,7 @@ def demo():
         print(f"   이유: {result.get('reasoning', 'N/A')}")
 
         if 'retrieved_examples' in result:
-            print(f"   참고한 예시:")
+            print("   참고한 예시:")
             for i, ex in enumerate(result['retrieved_examples'], 1):
                 print(f"      {i}. [{ex['category']}] {ex['text'][:50]}...")
 
@@ -294,7 +295,7 @@ def main():
     if args.load_ground_truth:
         analyzer.load_ground_truth(args.load_ground_truth)
         print("\n✓ RAG 시스템 준비 완료!")
-        print(f"   이제 이 시스템을 사용하여 리뷰를 분류할 수 있습니다.")
+        print("   이제 이 시스템을 사용하여 리뷰를 분류할 수 있습니다.")
     else:
         print("\n사용법:")
         print("  --demo: 데모 실행")

@@ -30,7 +30,7 @@ class Evaluator:
         if missing_mask.any():
             missing_count = missing_mask.sum()
             print(f"⚠️  경고: {missing_count}개 리뷰가 아직 라벨링되지 않았습니다.")
-            print(f"   모든 리뷰를 라벨링한 후 다시 실행하세요.")
+            print("   모든 리뷰를 라벨링한 후 다시 실행하세요.")
             return None
 
         return df
@@ -145,13 +145,13 @@ class Evaluator:
         print("  평가 결과")
         print("="*80)
 
-        print(f"\n📊 Overall Metrics:")
+        print("\n📊 Overall Metrics:")
         print(f"   Accuracy:  {metrics['accuracy']*100:.2f}%")
         print(f"   Precision: {metrics['precision_weighted']*100:.2f}%")
         print(f"   Recall:    {metrics['recall_weighted']*100:.2f}%")
         print(f"   F1 Score:  {metrics['f1_weighted']*100:.2f}%")
 
-        print(f"\n📈 Per-Class Metrics:")
+        print("\n📈 Per-Class Metrics:")
         print(f"{'Category':<25} {'Precision':<12} {'Recall':<12} {'F1':<12} {'Support':<8}")
         print("-" * 80)
 
@@ -164,7 +164,7 @@ class Evaluator:
 
         if errors:
             print(f"\n❌ 총 {len(errors)}개 에러 케이스")
-            print(f"\n   에러 예시 (처음 3개):")
+            print("\n   에러 예시 (처음 3개):")
             for i, error in enumerate(errors[:3], 1):
                 print(f"\n   {i}. Review ID: {error['review_id']}")
                 print(f"      Text: {error['review_text'][:100]}...")
@@ -190,7 +190,7 @@ class Evaluator:
         y_pred = self.predict_categories(reviews)
         y_true = df['manual_label'].tolist()
 
-        print(f"   ✓ 예측 완료")
+        print("   ✓ 예측 완료")
 
         # 메트릭스 계산
         print("\n3. 메트릭스 계산 중...")
