@@ -7,28 +7,10 @@ disable =
     missing-class-docstring,
     missing-function-docstring,
     too-few-public-methods,
-    import-error,
-    line-too-long,
-    trailing-whitespace,
-    wrong-import-position,
-    wrong-import-order,
-    ungrouped-imports,
-    import-outside-toplevel,
-    too-many-locals,
-    too-many-statements,
-    inconsistent-return-statements,
-    consider-using-generator,
-    unused-import,
-    unused-variable,
-    disallowed-name,
-    consider-using-f-string,
-    missing-final-newline,
-    superfluous-parens,
-    unspecified-encoding,
-    duplicate-code
+    import-error
 
 [FORMAT]
-max-line-length = 240
+max-line-length = 100
 
 [REPORTS]
 score = no
