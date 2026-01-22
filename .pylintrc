@@ -1,0 +1,19 @@
+[MASTER]
+jobs = 0
+
+[MESSAGES CONTROL]
+disable =
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    too-few-public-methods,
+    import-error
+
+[FORMAT]
+max-line-length = 100
+
+[REPORTS]
+score = no
+
+[BASIC]
+good-names = i,j,k,x,y,df,dt,id

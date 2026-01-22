@@ -3,73 +3,58 @@ Level 2: 프롬프트 엔지니어링 실험
 Zero-shot, Few-shot, CoT, Temperature 등 다양한 전략 비교
 """
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import pandas as pd
-import json
-from openai import OpenAI, OpenAIError
-import config
 from datetime import datetime
+import json
+import os
+
+from openai import OpenAIError
+
 from evaluation.evaluate import Evaluator
+from utils.json_utils import extract_json_from_text
+from utils.openai_client import call_openai_json, get_client
+from utils.prompt_templates import build_zero_shot_prompt, format_reviews
+
+SYSTEM_PROMPT_ANALYST = (
+    "You are an expert at analyzing e-commerce customer "
+    "feedback and identifying patterns."
+)
+
+SYSTEM_PROMPT_COT = (
+    "You are an expert at analyzing e-commerce customer "
+    "feedback. Think step by step."
+)
+
 
 class PromptExperiments:
     def __init__(self):
-        self.client = OpenAI(api_key=config.OPENAI_API_KEY)
-        self.model = config.LLM_MODEL
+        self.client = get_client()
         self.evaluator = Evaluator()
+
+    def _safe_call(self, prompt, system_prompt, temperature=0.3):
+        """?????? OpenAI API ???"""
+        try:
+            content = call_openai_json(
+                self.client,
+                prompt,
+                system_prompt=system_prompt,
+                temperature=temperature,
+            )
+            result = extract_json_from_text(content)
+            if result is None:
+                raise ValueError("Failed to parse JSON response.")
+            return result
+        except (OpenAIError, json.JSONDecodeError, ValueError) as e:
+            raise RuntimeError(f"API call failed: {e}") from e
 
     def categorize_zero_shot(self, reviews_text_list, temperature=0.3):
         """실험 1: Zero-shot (현재 방식)"""
         print("\n🔬 실험 1: Zero-shot")
 
         sampled_reviews = reviews_text_list[:min(100, len(reviews_text_list))]
-        reviews_text = "\n---\n".join([f"{i+1}. {text[:500]}" for i, text in enumerate(sampled_reviews)])
+        reviews_text = format_reviews(sampled_reviews)
+        prompt = build_zero_shot_prompt(reviews_text, len(sampled_reviews))
 
-        prompt = f"""You are analyzing customer reviews for an e-commerce platform.
-
-Below are {len(sampled_reviews)} negative customer reviews (rating ≤ 3/5).
-
-Your task:
-1. Read all reviews carefully
-2. Identify the main problem categories (e.g., delivery, product quality, wrong item, packaging, customer service, etc.)
-3. For each review, assign ONE primary problem category
-
-Reviews:
-{reviews_text}
-
-Output format (JSON):
-{{
-  "categories": [
-    {{
-      "review_number": 1,
-      "category": "delivery_delay",
-      "brief_issue": "Package arrived 2 weeks late"
-    }},
-    ...
-  ]
-}}
-
-Use concise category names in English (lowercase with underscores).
-Common categories might include: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue, missing_parts, customer_service, etc.
-"""
-
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback and identifying patterns."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=temperature,
-                response_format={"type": "json_object"}
-            )
-            result = json.loads(response.choices[0].message.content)
-            return result
-        except (OpenAIError, json.JSONDecodeError) as e:
-            print(f"API call failed: {e}")
-            return {"categories": []}
+        return self._safe_call(prompt, SYSTEM_PROMPT_ANALYST, temperature)
 
     def categorize_few_shot(self, reviews_text_list, num_examples=3, temperature=0.3):
         """실험 2: Few-shot Learning"""
@@ -86,7 +71,9 @@ Examples:
 """
 
         sampled_reviews = reviews_text_list[:min(100, len(reviews_text_list))]
-        reviews_text = "\n---\n".join([f"{i+1}. {text[:500]}" for i, text in enumerate(sampled_reviews)])
+        reviews_text = "\n---\n".join(
+            [f"{i+1}. {text[:500]}" for i, text in enumerate(sampled_reviews)]
+        )
 
         prompt = f"""You are analyzing customer reviews for an e-commerce platform.
 
@@ -115,31 +102,20 @@ Output format (JSON):
 }}
 
 Use concise category names in English (lowercase with underscores).
-Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue, missing_parts, not_as_described, customer_service, price_issue, other
+Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue,
+missing_parts, not_as_described, customer_service, price_issue, other
 """
 
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=temperature,
-                response_format={"type": "json_object"}
-            )
-            result = json.loads(response.choices[0].message.content)
-            return result
-        except (OpenAIError, json.JSONDecodeError) as e:
-            print(f"API call failed: {e}")
-            return {"categories": []}
+        return self._safe_call(prompt, SYSTEM_PROMPT_ANALYST, temperature)
 
     def categorize_cot(self, reviews_text_list, temperature=0.3):
         """실험 3: Chain-of-Thought"""
         print("\n🔬 실험 3: Chain-of-Thought")
 
         sampled_reviews = reviews_text_list[:min(100, len(reviews_text_list))]
-        reviews_text = "\n---\n".join([f"{i+1}. {text[:500]}" for i, text in enumerate(sampled_reviews)])
+        reviews_text = "\n---\n".join(
+            [f"{i+1}. {text[:500]}" for i, text in enumerate(sampled_reviews)]
+        )
 
         prompt = f"""You are analyzing customer reviews for an e-commerce platform.
 
@@ -170,24 +146,11 @@ Output format (JSON):
   ]
 }}
 
-Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue, missing_parts, not_as_described, customer_service, price_issue, other
+Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue,
+missing_parts, not_as_described, customer_service, price_issue, other
 """
 
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback. Think step by step."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=temperature,
-                response_format={"type": "json_object"}
-            )
-            result = json.loads(response.choices[0].message.content)
-            return result
-        except (OpenAIError, json.JSONDecodeError) as e:
-            print(f"API call failed: {e}")
-            return {"categories": []}
+        return self._safe_call(prompt, SYSTEM_PROMPT_COT, temperature)
 
     def extract_predictions(self, categorization_result, num_reviews):
         """카테고리화 결과에서 예측 리스트 추출"""
@@ -200,71 +163,22 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
         pred_list = [predictions.get(i, 'other') for i in range(num_reviews)]
         return pred_list
 
-    def run_all_experiments(self):
-        """모든 실험 실행"""
-        print("="*80)
-        print("  프롬프트 엔지니어링 실험")
-        print("="*80)
+    def _compute_accuracy(self, y_true, y_pred):
+        correct = sum(1 for t, p in zip(y_true, y_pred, strict=True) if t == p)
+        return correct / len(y_true)
 
-        # Ground Truth 로드
-        print("\n📂 Ground Truth 로딩...")
-        df = self.evaluator.load_ground_truth()
-        if df is None:
-            return
+    def _run_categorization(self, reviews, y_true, method, **kwargs):
+        result = method(reviews, **kwargs)
+        y_pred = self.extract_predictions(result, len(reviews))
+        return self._compute_accuracy(y_true, y_pred)
 
-        reviews = df['review_text'].tolist()
-        y_true = df['manual_label'].tolist()
-
-        results = {}
-
-        # 실험 1: Zero-shot
-        print("\n" + "-"*80)
-        result_zero = self.categorize_zero_shot(reviews)
-        y_pred_zero = self.extract_predictions(result_zero, len(reviews))
-        accuracy_zero = sum([1 for t, p in zip(y_true, y_pred_zero, strict=True) if t == p]) / len(y_true)
-        results['zero_shot'] = {
-            'accuracy': round(accuracy_zero, 4),
-            'description': 'Baseline - No examples'
+    def _add_result(self, results, key, accuracy, description):
+        results[key] = {
+            'accuracy': round(accuracy, 4),
+            'description': description
         }
-        print(f"   ✓ Accuracy: {accuracy_zero*100:.2f}%")
 
-        # 실험 2: Few-shot (3-shot)
-        print("\n" + "-"*80)
-        result_few = self.categorize_few_shot(reviews, num_examples=3)
-        y_pred_few = self.extract_predictions(result_few, len(reviews))
-        accuracy_few = sum([1 for t, p in zip(y_true, y_pred_few, strict=True) if t == p]) / len(y_true)
-        results['few_shot_3'] = {
-            'accuracy': round(accuracy_few, 4),
-            'description': 'Few-shot with 3 examples per category'
-        }
-        print(f"   ✓ Accuracy: {accuracy_few*100:.2f}%")
-
-        # 실험 3: Chain-of-Thought
-        print("\n" + "-"*80)
-        result_cot = self.categorize_cot(reviews)
-        y_pred_cot = self.extract_predictions(result_cot, len(reviews))
-        accuracy_cot = sum([1 for t, p in zip(y_true, y_pred_cot, strict=True) if t == p]) / len(y_true)
-        results['cot'] = {
-            'accuracy': round(accuracy_cot, 4),
-            'description': 'Chain-of-Thought reasoning'
-        }
-        print(f"   ✓ Accuracy: {accuracy_cot*100:.2f}%")
-
-        # 실험 4: Temperature 실험
-        print("\n" + "-"*80)
-        print("\n🔬 실험 4: Temperature Optimization")
-        temps = [0.0, 0.5, 0.7]
-        for temp in temps:
-            result_temp = self.categorize_few_shot(reviews, temperature=temp)
-            y_pred_temp = self.extract_predictions(result_temp, len(reviews))
-            accuracy_temp = sum([1 for t, p in zip(y_true, y_pred_temp, strict=True) if t == p]) / len(y_true)
-            results[f'temperature_{temp}'] = {
-                'accuracy': round(accuracy_temp, 4),
-                'description': f'Few-shot with temperature={temp}'
-            }
-            print(f"   Temperature {temp}: {accuracy_temp*100:.2f}%")
-
-        # 결과 저장
+    def _save_results(self, results):
         os.makedirs('results', exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         output_file = f'results/prompt_experiments_{timestamp}.json'
@@ -272,7 +186,9 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
 
-        # 결과 요약
+        return output_file
+
+    def _print_summary(self, results, output_file):
         print("\n" + "="*80)
         print("  실험 결과 요약")
         print("="*80)
@@ -287,11 +203,88 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
 
         print(f"\n📊 결과 저장: {output_file}")
 
-        # 최적 전략 추천
         best_strategy = max(results.items(), key=lambda x: x[1]['accuracy'])
         print(f"\n🏆 최적 전략: {best_strategy[0]}")
         print(f"   Accuracy: {best_strategy[1]['accuracy']*100:.2f}%")
-        print(f"   Improvement: +{(best_strategy[1]['accuracy'] - baseline_acc)*100:.1f}%")
+        print(
+            "   Improvement: "
+            f"+{(best_strategy[1]['accuracy'] - baseline_acc)*100:.1f}%"
+        )
+
+    def run_all_experiments(self):
+        """모든 실험 실행"""
+        print("="*80)
+        print("  프롬프트 엔지니어링 실험")
+        print("="*80)
+
+        # Ground Truth 로드
+        print("\n📂 Ground Truth 로딩...")
+        df = self.evaluator.load_ground_truth()
+        if df is None:
+            return {}
+
+        reviews = df['review_text'].tolist()
+        y_true = df['manual_label'].tolist()
+
+        results = {}
+
+        # 실험 1: Zero-shot
+        print("\n" + "-"*80)
+        accuracy_zero = self._run_categorization(
+            reviews,
+            y_true,
+            self.categorize_zero_shot,
+        )
+        self._add_result(results, 'zero_shot', accuracy_zero, 'Baseline - No examples')
+        print(f"   ✓ Accuracy: {accuracy_zero*100:.2f}%")
+
+        # 실험 2: Few-shot (3-shot)
+        print("\n" + "-"*80)
+        accuracy_few = self._run_categorization(
+            reviews,
+            y_true,
+            self.categorize_few_shot,
+            num_examples=3,
+        )
+        self._add_result(
+            results,
+            'few_shot_3',
+            accuracy_few,
+            'Few-shot with 3 examples per category',
+        )
+        print(f"   ✓ Accuracy: {accuracy_few*100:.2f}%")
+
+        # 실험 3: Chain-of-Thought
+        print("\n" + "-"*80)
+        accuracy_cot = self._run_categorization(
+            reviews,
+            y_true,
+            self.categorize_cot,
+        )
+        self._add_result(results, 'cot', accuracy_cot, 'Chain-of-Thought reasoning')
+        print(f"   ✓ Accuracy: {accuracy_cot*100:.2f}%")
+
+        # 실험 4: Temperature 실험
+        print("\n" + "-"*80)
+        print("\n🔬 실험 4: Temperature Optimization")
+        temps = [0.0, 0.5, 0.7]
+        for temp in temps:
+            accuracy_temp = self._run_categorization(
+                reviews,
+                y_true,
+                self.categorize_few_shot,
+                temperature=temp,
+            )
+            self._add_result(
+                results,
+                f'temperature_{temp}',
+                accuracy_temp,
+                f'Few-shot with temperature={temp}',
+            )
+            print(f"   Temperature {temp}: {accuracy_temp*100:.2f}%")
+
+        output_file = self._save_results(results)
+        self._print_summary(results, output_file)
 
         return results
 

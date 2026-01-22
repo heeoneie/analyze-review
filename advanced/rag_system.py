@@ -3,25 +3,27 @@ Level 4-2: RAG (Retrieval-Augmented Generation) System
 Vector DB를 사용한 동적 Few-shot Learning
 """
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import json
+import argparse
 from uuid import uuid4
-from openai import OpenAI
-import config
+
 import pandas as pd
+from openai import OpenAI
 
 try:
     from sentence_transformers import SentenceTransformer
     import chromadb
     from chromadb.config import Settings
-except ImportError:
-    print("⚠️  필요한 패키지가 설치되지 않았습니다.")
-    print("다음 명령어로 설치하세요:")
-    print("pip install sentence-transformers chromadb")
-    sys.exit(1)
+    _IMPORT_ERROR = None
+except ImportError as exc:
+    SentenceTransformer = None
+    chromadb = None
+    Settings = None
+    _IMPORT_ERROR = exc
+
+import config
+from utils.json_utils import extract_json_from_text
+from utils.prompt_templates import SINGLE_REVIEW_JSON_FORMAT
+from utils.review_categories import CATEGORIES_BULLETS
 
 
 class RAGReviewAnalyzer:
@@ -33,6 +35,10 @@ class RAGReviewAnalyzer:
             collection_name: ChromaDB 컬렉션 이름
             embedding_model: Sentence Transformer 모델 이름
         """
+        if SentenceTransformer is None or chromadb is None or Settings is None:
+            raise ImportError(
+                "Required packages not installed. Install: sentence-transformers chromadb"
+            ) from _IMPORT_ERROR
         self.client = OpenAI(api_key=config.OPENAI_API_KEY)
         self.llm_model = config.LLM_MODEL
         self.temperature = config.LLM_TEMPERATURE
@@ -42,7 +48,7 @@ class RAGReviewAnalyzer:
         self.embedding_model = SentenceTransformer(embedding_model)
 
         # ChromaDB 초기화
-        print(f"💾 Vector DB 초기화...")
+        print("💾 Vector DB 초기화...")
         self.chroma_client = chromadb.Client(Settings(
             anonymized_telemetry=False
         ))
@@ -85,7 +91,7 @@ class RAGReviewAnalyzer:
 
         print(f"   {len(df)}개 예시 추가 중...")
 
-        for idx, row in df.iterrows():
+        for _, row in df.iterrows():
             self.add_examples(
                 review_text=row['review_text'],
                 category=row['manual_label'],
@@ -128,45 +134,35 @@ class RAGReviewAnalyzer:
                 examples_text += f"{i}. Review: \"{example['text'][:150]}...\"\n"
                 examples_text += f"   Category: {example['category']}\n\n"
 
-        prompt = f"""{examples_text}
-
-Now, categorize this new review:
-
-Review: "{review_text}"
-
-Categories:
-- delivery_delay: Shipping/delivery took too long
-- wrong_item: Received incorrect product
-- poor_quality: Product quality is bad
-- damaged_packaging: Package or product was damaged
-- size_issue: Size doesn't fit
-- missing_parts: Parts are missing
-- not_as_described: Product doesn't match description
-- customer_service: Customer service issues
-- price_issue: Price-related complaints
-- other: Cannot be categorized
-
-Based on the similar examples above, select the most appropriate category.
-
-Output JSON:
-{{
-  "category": "category_name",
-  "confidence": 0.9,
-  "reasoning": "brief explanation"
-}}
-"""
+        prompt = (
+            f"{examples_text}\n\n"
+            "Now, categorize this new review:\n\n"
+            f"Review: \"{review_text}\"\n\n"
+            "Categories:\n"
+            f"{CATEGORIES_BULLETS}\n\n"
+            "Based on the similar examples above, select the most appropriate category.\n\n"
+            f"{SINGLE_REVIEW_JSON_FORMAT}"
+        )
 
         response = self.client.chat.completions.create(
             model=self.llm_model,
             messages=[
-                {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback with retrieval-augmented generation."},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert at analyzing e-commerce customer "
+                        "feedback with retrieval-augmented generation."
+                    ),
+                },
                 {"role": "user", "content": prompt}
             ],
             temperature=self.temperature,
             response_format={"type": "json_object"}
         )
 
-        result = json.loads(response.choices[0].message.content)
+        result = extract_json_from_text(response.choices[0].message.content)
+        if result is None:
+            raise ValueError("Failed to parse RAG categorization JSON response.")
         result['retrieved_examples'] = similar_examples
         return result
 
@@ -187,7 +183,8 @@ Output JSON:
                     'confidence': result.get('confidence', 0),
                     'retrieved_examples': len(result.get('retrieved_examples', []))
                 })
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
+                # Keep batch processing even if a single review fails.
                 print(f"\n   ⚠️  에러 발생 (Review {idx+1}): {e}")
                 results.append({
                     'review_number': idx + 1,
@@ -196,7 +193,7 @@ Output JSON:
                     'confidence': 0
                 })
 
-        print(f"\n✓ 완료!")
+        print("\n✓ 완료!")
         return {'categories': results}
 
     def clear_database(self):
@@ -213,7 +210,8 @@ Output JSON:
         except ValueError as e:
             print(f"⚠️  컬렉션을 찾을 수 없습니다: {e}")
             self.collection = None
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
+            # ChromaDB can raise various runtime errors; log and continue cleanup.
             print(f"⚠️  컬렉션 삭제 중 오류 발생: {e}")
 
 
@@ -263,15 +261,13 @@ def demo():
         print(f"   이유: {result.get('reasoning', 'N/A')}")
 
         if 'retrieved_examples' in result:
-            print(f"   참고한 예시:")
+            print("   참고한 예시:")
             for i, ex in enumerate(result['retrieved_examples'], 1):
                 print(f"      {i}. [{ex['category']}] {ex['text'][:50]}...")
 
 
 def main():
     """실제 Ground Truth로 RAG 시스템 구축"""
-    import argparse
-
     parser = argparse.ArgumentParser(description='RAG 기반 리뷰 분석')
     parser.add_argument('--demo', action='store_true',
                         help='데모 모드 실행')
@@ -294,7 +290,7 @@ def main():
     if args.load_ground_truth:
         analyzer.load_ground_truth(args.load_ground_truth)
         print("\n✓ RAG 시스템 준비 완료!")
-        print(f"   이제 이 시스템을 사용하여 리뷰를 분류할 수 있습니다.")
+        print("   이제 이 시스템을 사용하여 리뷰를 분류할 수 있습니다.")
     else:
         print("\n사용법:")
         print("  --demo: 데모 실행")

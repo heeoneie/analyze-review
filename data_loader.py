@@ -1,7 +1,9 @@
 import os
-import pandas as pd
-import kagglehub
 from datetime import datetime, timedelta
+
+import kagglehub
+import pandas as pd
+
 import config
 
 class DataLoader:
@@ -97,7 +99,10 @@ class DataLoader:
         processed_df.reset_index(drop=True, inplace=True)
 
         print(f"\nLoaded {len(processed_df)} reviews with text")
-        print(f"Date range: {processed_df['created_at'].min()} to {processed_df['created_at'].max()}")
+        print(
+            f"Date range: {processed_df['created_at'].min()} to "
+            f"{processed_df['created_at'].max()}"
+        )
         print(f"Rating distribution:\n{processed_df['rating'].value_counts().sort_index()}")
 
         return processed_df
@@ -133,6 +138,9 @@ class DataLoader:
         ].copy()
 
         print(f"\nRecent period ({recent_days} days): {len(recent_df)} reviews")
-        print(f"Comparison period ({comparison_days-recent_days} days): {len(comparison_df)} reviews")
+        print(
+            f"Comparison period ({comparison_days - recent_days} days): "
+            f"{len(comparison_df)} reviews"
+        )
 
         return recent_df, comparison_df

@@ -3,12 +3,12 @@ Day 7: Fine-tuning 학습 데이터 준비
 OpenAI Fine-tuning API 형식으로 변환
 """
 
-import sys
+import argparse
+import json
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
-import json
+from utils.review_categories import CATEGORIES_BULLETS_FINETUNE
 
 CATEGORIES_DESCRIPTION = {
     'delivery_delay': 'Shipping or delivery took too long',
@@ -35,30 +35,50 @@ class TrainingDataPreparator:
 
         df = pd.read_csv(self.ground_truth_file)
 
-        # manual_label이 있는 것만 필터
-        df = df[df['manual_label'].notna()]
+        required_columns = {"manual_label", "review_text"}
+        missing_columns = required_columns - set(df.columns)
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {sorted(missing_columns)}")
 
-        print(f"   ✓ {len(df)}개 라벨링된 리뷰 로드")
+        initial_count = len(df)
+        allowed_categories = set(CATEGORIES_DESCRIPTION.keys())
+
+        df = df[df["manual_label"].notna()].copy()
+        df["manual_label"] = df["manual_label"].astype(str).str.strip().str.lower()
+        df = df[df["manual_label"] != ""]
+        df = df[df["manual_label"].isin(allowed_categories)]
+
+        df = df[df["review_text"].notna()].copy()
+        df["review_text"] = df["review_text"].astype(str).str.strip()
+        df = df[df["review_text"] != ""]
+
+        if "category" in df.columns:
+            df = df[df["category"].notna()].copy()
+            df["category"] = df["category"].astype(str).str.strip().str.lower()
+            df = df[df["category"] != ""]
+            df = df[df["category"].isin(allowed_categories)]
+
+        before_dedup = len(df)
+        df = df.drop_duplicates(subset=["review_text"])
+        deduped_count = before_dedup - len(df)
+        removed_total = initial_count - len(df)
+
+        print(
+            f"   ✓ {len(df)}개 라벨링된 리뷰 로드 "
+            f"(필터링 {removed_total}건 / 중복제거 {deduped_count}건)"
+        )
 
         return df
 
     def create_training_example(self, review_text, category):
         """단일 학습 예시 생성 (OpenAI Format)"""
-        system_prompt = """You are an expert at analyzing e-commerce customer reviews and categorizing their primary complaints.
-
-Categories:
-- delivery_delay: Shipping or delivery issues
-- wrong_item: Received incorrect product
-- poor_quality: Product quality problems
-- damaged_packaging: Damaged package or product
-- size_issue: Size-related issues
-- missing_parts: Missing parts or accessories
-- not_as_described: Product doesn't match description
-- customer_service: Customer service issues
-- price_issue: Price-related complaints
-- other: Cannot be categorized
-
-Respond with ONLY the category name, nothing else."""
+        system_prompt = (
+            "You are an expert at analyzing e-commerce customer reviews and "
+            "categorizing their primary complaints.\n\n"
+            "Categories:\n"
+            f"{CATEGORIES_BULLETS_FINETUNE}\n"
+            "Respond with ONLY the category name, nothing else."
+        )
 
         example = {
             "messages": [
@@ -89,7 +109,7 @@ Respond with ONLY the category name, nothing else."""
         train_df = df[:split_idx]
         val_df = df[split_idx:]
 
-        print(f"\n📊 데이터 분리:")
+        print("\n📊 데이터 분리:")
         print(f"   Train: {len(train_df)}개")
         print(f"   Validation: {len(val_df)}개")
 
@@ -131,7 +151,7 @@ Respond with ONLY the category name, nothing else."""
         train_file = os.path.join(output_dir, 'training_data.jsonl')
         val_file = os.path.join(output_dir, 'validation_data.jsonl')
 
-        print(f"\n💾 저장 중...")
+        print("\n💾 저장 중...")
         with open(train_file, 'w', encoding='utf-8') as f:
             for example in self.training_data:
                 f.write(json.dumps(example, ensure_ascii=False) + '\n')
@@ -165,8 +185,6 @@ Respond with ONLY the category name, nothing else."""
 
 
 def main():
-    import argparse
-
     parser = argparse.ArgumentParser(description='Fine-tuning 학습 데이터 준비')
     parser.add_argument('--ground-truth', type=str,
                         default='evaluation/evaluation_dataset.csv',
@@ -193,11 +211,11 @@ def main():
     print("   pip install --upgrade openai")
 
     print("\n2. Fine-tuning 시작:")
-    print(f"   openai api fine_tuning.jobs.create \\")
+    print("   openai api fine_tunes.create \\")
     print(f"     -t {train_file} \\")
     print(f"     -v {val_file} \\")
-    print(f"     -m gpt-4o-mini-2024-07-18 \\")
-    print(f"     --suffix \"review-classifier\"")
+    print("     -m gpt-4.1 \\")
+    print("     --suffix \"review-classifier\"")
 
     print("\n3. 진행 상황 확인:")
     print("   openai api fine_tuning.jobs.list")
