@@ -131,7 +131,12 @@ class ErrorAnalyzer:
     def _tokenize_reviews(self, reviews):
         tokens = []
         for review in reviews:
-            for tok in review.lower().split():
+            if review is None or not isinstance(review, str):
+                continue
+            review_stripped = review.strip()
+            if not review_stripped:
+                continue
+            for tok in review_stripped.lower().split():
                 clean_tok = ''.join(c for c in tok if c.isalpha())
                 if len(clean_tok) >= 2 and clean_tok not in STOPWORDS:
                     tokens.append(clean_tok)

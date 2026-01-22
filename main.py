@@ -6,7 +6,11 @@ E-commerce Review Analysis PoC
 3. 개선 액션 제안 생성
 """
 
+import logging
 import sys
+import traceback
+
+import pandas as pd
 
 from analyzer import ReviewAnalyzer
 from data_loader import DataLoader
@@ -23,15 +27,34 @@ from utils.cli_helpers import (
     require_openai_key,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def load_reviews(loader):
     """Load reviews from Kaggle dataset."""
     print_section("Step 1: Loading Data")
     try:
         df = loader.load_reviews()
-    except Exception as e:  # pylint: disable=broad-except
+    except FileNotFoundError as e:
+        logger.exception("File not found during data loading")
+        print(f"\n[Error] File not found: {e}")
+        print("\nTip: Make sure the dataset files exist and paths are correct.")
+        sys.exit(1)
+    except pd.errors.ParserError as e:
+        logger.exception("CSV parsing error during data loading")
+        print(f"\n[Error] Failed to parse CSV: {e}")
+        print("\nTip: Check if the CSV files are corrupted or have invalid format.")
+        sys.exit(1)
+    except ValueError as e:
+        logger.exception("Value error during data loading")
+        print(f"\n[Error] Data validation error: {e}")
+        print("\nTip: Check if the data format matches expected schema.")
+        sys.exit(1)
+    except (OSError, IOError) as e:
+        logger.exception("IO error during data loading")
         print(f"\n[Error] Error loading data: {e}")
         print("\nTip: Make sure you have Kaggle API configured properly.")
+        print(f"\nStack trace:\n{traceback.format_exc()}")
         sys.exit(1)
     return df
 

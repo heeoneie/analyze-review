@@ -88,7 +88,7 @@ class FinetunedEvaluator:
     def _run_predictions(self, df):
         predictions = []
         failures = []
-        failure_reviews = []
+        failure_previews = []
 
         for i, (_, row) in enumerate(df.iterrows(), start=1):
             print(f"   [{i}/{len(df)}] 예측 중...", end='\r')
@@ -97,12 +97,15 @@ class FinetunedEvaluator:
                 predictions.append(pred)
             except Exception as e:  # pylint: disable=broad-except
                 # Keep evaluation running even if a single review fails.
+                # Store only preview to avoid PII exposure
+                text = row['review_text']
+                preview = text[:30] + "..." if len(text) > 30 else text
                 print(f"\n   ⚠️  에러 (Review {i}): {e}")
                 failures.append(i)
-                failure_reviews.append(row['review_text'])
+                failure_previews.append(preview)
                 predictions.append(None)
 
-        return predictions, failures, failure_reviews
+        return predictions, failures, failure_previews
 
     def _collect_successes(self, df, predictions):
         successes = []
@@ -116,6 +119,8 @@ class FinetunedEvaluator:
         return successes, y_true, y_pred
 
     def _compute_metrics(self, y_true, y_pred):
+        if not y_true or len(y_true) == 0:
+            return 0.0, 0.0, 0.0, 0.0
         accuracy = accuracy_score(y_true, y_pred)
         precision, recall, f1, _ = precision_recall_fscore_support(
             y_true, y_pred, average='weighted', zero_division=0
@@ -126,8 +131,10 @@ class FinetunedEvaluator:
         errors = []
         for _, (true, pred, review_text) in enumerate(successes):
             if true != pred:
+                # Store only preview to avoid PII exposure
+                preview = review_text[:50] + "..." if len(review_text) > 50 else review_text
                 errors.append({
-                    'review': review_text,
+                    'review_preview': preview,
                     'true': true,
                     'predicted': pred
                 })
@@ -155,7 +162,7 @@ class FinetunedEvaluator:
             print(f"❌ 에러 케이스: {len(errors)}개\n")
             print("   예시 (처음 3개):")
             for i, error in enumerate(errors[:3], 1):
-                print(f"\n   {i}. {error['review'][:100]}...")
+                print(f"\n   {i}. {error['review_preview']}")
                 print(f"      True: {error['true']} → Predicted: {error['predicted']}")
 
     def evaluate(self, ground_truth_file):  # pylint: disable=too-many-locals
@@ -167,12 +174,18 @@ class FinetunedEvaluator:
         # Ground Truth 로드
         print("📂 Ground Truth 로딩...")
         df = pd.read_csv(ground_truth_file)
-        df = df[df['manual_label'].notna()]
+
+        # Normalize labels: strip whitespace, lowercase, drop empty/invalid
+        df['manual_label'] = df['manual_label'].astype(str).str.strip().str.lower()
+        valid_mask = df['manual_label'].ne('') & df['manual_label'].ne('nan')
+        df = df[valid_mask & df['manual_label'].notna()]
+        df = df[df['manual_label'].isin(ALLOWED_CATEGORIES)]
+
         print(f"   ✓ {len(df)}개 리뷰 로드\n")
 
         # 예측 실행
         print("🤖 Fine-tuned 모델로 예측 중...")
-        predictions, failures, failure_reviews = self._run_predictions(df)
+        predictions, failures, failure_previews = self._run_predictions(df)
         print("\n   ✓ 완료!\n")
 
         # 평가
@@ -192,7 +205,7 @@ class FinetunedEvaluator:
             'errors': len(errors),
             'failure_count': len(failures),
             'failures': failures,
-            'failure_reviews': failure_reviews
+            'failure_previews': failure_previews
         }
 
         output_file = 'results/finetuned_evaluation.json'
