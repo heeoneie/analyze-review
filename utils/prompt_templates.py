@@ -1,5 +1,15 @@
 """Prompt template helpers."""
 
+# JSON output format for single review categorization
+SINGLE_REVIEW_JSON_FORMAT = (
+    "Output JSON:\n"
+    "{\n"
+    '  "category": "category_name",\n'
+    '  "confidence": 0.9,\n'
+    '  "reasoning": "brief explanation"\n'
+    "}\n"
+)
+
 
 def format_reviews(sampled_reviews):
     return "\n---\n".join(

@@ -22,6 +22,7 @@ except ImportError as exc:
 
 import config
 from utils.json_utils import extract_json_from_text
+from utils.prompt_templates import SINGLE_REVIEW_JSON_FORMAT
 from utils.review_categories import CATEGORIES_BULLETS
 
 
@@ -140,12 +141,7 @@ class RAGReviewAnalyzer:
             "Categories:\n"
             f"{CATEGORIES_BULLETS}\n\n"
             "Based on the similar examples above, select the most appropriate category.\n\n"
-            "Output JSON:\n"
-            "{\n"
-            '  "category": "category_name",\n'
-            '  "confidence": 0.9,\n'
-            '  "reasoning": "brief explanation"\n'
-            "}\n"
+            f"{SINGLE_REVIEW_JSON_FORMAT}"
         )
 
         response = self.client.chat.completions.create(
