@@ -7,18 +7,42 @@ from datetime import datetime
 import json
 import os
 
-from openai import OpenAI, OpenAIError
+from openai import OpenAIError
 
-import config
 from evaluation.evaluate import Evaluator
 from utils.json_utils import extract_json_from_text
+from utils.openai_client import call_openai_json, get_client
 from utils.prompt_templates import build_zero_shot_prompt, format_reviews
+
+SYSTEM_PROMPT_ANALYST = (
+    "You are an expert at analyzing e-commerce customer "
+    "feedback and identifying patterns."
+)
+
+SYSTEM_PROMPT_COT = (
+    "You are an expert at analyzing e-commerce customer "
+    "feedback. Think step by step."
+)
+
 
 class PromptExperiments:
     def __init__(self):
-        self.client = OpenAI(api_key=config.OPENAI_API_KEY)
-        self.model = config.LLM_MODEL
+        self.client = get_client()
         self.evaluator = Evaluator()
+
+    def _safe_call(self, prompt, system_prompt, temperature=0.3):
+        """안전하게 OpenAI API 호출"""
+        try:
+            content = call_openai_json(
+                self.client,
+                prompt,
+                system_prompt=system_prompt,
+                temperature=temperature,
+            )
+            return extract_json_from_text(content)
+        except (OpenAIError, json.JSONDecodeError) as e:
+            print(f"API call failed: {e}")
+            return {"categories": []}
 
     def categorize_zero_shot(self, reviews_text_list, temperature=0.3):
         """실험 1: Zero-shot (현재 방식)"""
@@ -28,27 +52,7 @@ class PromptExperiments:
         reviews_text = format_reviews(sampled_reviews)
         prompt = build_zero_shot_prompt(reviews_text, len(sampled_reviews))
 
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an expert at analyzing e-commerce customer "
-                            "feedback and identifying patterns."
-                        ),
-                    },
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=temperature,
-                response_format={"type": "json_object"}
-            )
-            result = extract_json_from_text(response.choices[0].message.content)
-            return result
-        except (OpenAIError, json.JSONDecodeError) as e:
-            print(f"API call failed: {e}")
-            return {"categories": []}
+        return self._safe_call(prompt, SYSTEM_PROMPT_ANALYST, temperature)
 
     def categorize_few_shot(self, reviews_text_list, num_examples=3, temperature=0.3):
         """실험 2: Few-shot Learning"""
@@ -100,24 +104,7 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
 missing_parts, not_as_described, customer_service, price_issue, other
 """
 
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert at analyzing e-commerce customer feedback.",
-                    },
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=temperature,
-                response_format={"type": "json_object"}
-            )
-            result = extract_json_from_text(response.choices[0].message.content)
-            return result
-        except (OpenAIError, json.JSONDecodeError) as e:
-            print(f"API call failed: {e}")
-            return {"categories": []}
+        return self._safe_call(prompt, SYSTEM_PROMPT_ANALYST, temperature)
 
     def categorize_cot(self, reviews_text_list, temperature=0.3):
         """실험 3: Chain-of-Thought"""
@@ -161,27 +148,7 @@ Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_is
 missing_parts, not_as_described, customer_service, price_issue, other
 """
 
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an expert at analyzing e-commerce customer "
-                            "feedback. Think step by step."
-                        ),
-                    },
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=temperature,
-                response_format={"type": "json_object"}
-            )
-            result = extract_json_from_text(response.choices[0].message.content)
-            return result
-        except (OpenAIError, json.JSONDecodeError) as e:
-            print(f"API call failed: {e}")
-            return {"categories": []}
+        return self._safe_call(prompt, SYSTEM_PROMPT_COT, temperature)
 
     def extract_predictions(self, categorization_result, num_reviews):
         """카테고리화 결과에서 예측 리스트 추출"""

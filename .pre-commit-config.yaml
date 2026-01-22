@@ -7,5 +7,5 @@ repos:
         language: system
         types: [python]
         args:
-          - --disable=C0114,C0115,C0116,R0801
+          - --disable=C0114,C0115,C0116
           - --max-line-length=100

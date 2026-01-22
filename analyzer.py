@@ -1,16 +1,23 @@
 from collections import Counter
 
-from openai import OpenAI
-
-import config
 from utils.json_utils import extract_json_from_text
+from utils.openai_client import call_openai_json, get_client
 from utils.prompt_templates import build_zero_shot_prompt, format_reviews
+
+SYSTEM_PROMPT_ANALYST = (
+    "You are an expert at analyzing e-commerce customer "
+    "feedback and identifying patterns."
+)
+
+SYSTEM_PROMPT_CONSULTANT = (
+    "You are an expert business consultant specializing in "
+    "e-commerce operations."
+)
+
 
 class ReviewAnalyzer:
     def __init__(self):
-        self.client = OpenAI(api_key=config.OPENAI_API_KEY)
-        self.model = config.LLM_MODEL
-        self.temperature = config.LLM_TEMPERATURE
+        self.client = get_client()
 
     def categorize_issues(self, reviews_text_list, sample_size=200):
         """Categorize issues from reviews using LLM"""
@@ -24,24 +31,12 @@ class ReviewAnalyzer:
         reviews_text = format_reviews(sampled_reviews)
         prompt = build_zero_shot_prompt(reviews_text, len(sampled_reviews))
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an expert at analyzing e-commerce customer "
-                        "feedback and identifying patterns."
-                    ),
-                },
-                {"role": "user", "content": prompt}
-            ],
-            temperature=self.temperature,
-            response_format={"type": "json_object"}
+        content = call_openai_json(
+            self.client,
+            prompt,
+            system_prompt=SYSTEM_PROMPT_ANALYST,
         )
-
-        result = extract_json_from_text(response.choices[0].message.content)
-        return result
+        return extract_json_from_text(content)
 
     def get_top_issues(self, categorization_result, top_n=3):
         """Extract top N issues from categorization result"""
@@ -152,21 +147,10 @@ Output format (JSON):
 }}
 """
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an expert business consultant specializing in "
-                        "e-commerce operations."
-                    ),
-                },
-                {"role": "user", "content": prompt}
-            ],
-            temperature=self.temperature,
-            response_format={"type": "json_object"}
+        content = call_openai_json(
+            self.client,
+            prompt,
+            system_prompt=SYSTEM_PROMPT_CONSULTANT,
         )
-
-        result = extract_json_from_text(response.choices[0].message.content)
+        result = extract_json_from_text(content)
         return result.get('recommendations', [])
