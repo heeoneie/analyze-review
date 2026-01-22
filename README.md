@@ -256,18 +256,16 @@ python3 fine_tuning/evaluate_finetuned.py \
 
 ## 📊 실험 결과 시각화
 
-### 정확도 개선 추이
-![Accuracy Improvement](results/figures/accuracy_improvement.png)
-
-### 방법론 비교
-![Method Comparison](results/figures/method_comparison.png)
-
-### 비용-정확도 트레이드오프
-![Cost-Accuracy Tradeoff](results/figures/cost_accuracy_tradeoff.png)
+아래 스크립트를 실행하면 `results/figures/` 디렉토리에 차트가 생성됩니다:
 
 ```bash
-python3 visualization/create_charts.py
+python visualization/create_charts.py
 ```
+
+생성되는 차트:
+- `accuracy_improvement.png` - 정확도 개선 추이
+- `method_comparison.png` - 방법론 비교
+- `cost_accuracy_tradeoff.png` - 비용-정확도 트레이드오프
 
 ---
 
@@ -293,7 +291,7 @@ python3 visualization/create_charts.py
 
 ### 1. 설치
 ```bash
-git clone https://github.com/your-username/analyze-review.git
+git clone https://github.com/heeoneie/analyze-review.git
 cd analyze-review
 
 # 가상환경 (권장)
@@ -469,11 +467,7 @@ MIT License
 
 ## 👨‍💻 개발자
 
-**이름**: [Your Name]
-
-**연락처**: [Your Email]
-
-**포트폴리오**: [Your Portfolio URL]
+**GitHub**: [@heeoneie](https://github.com/heeoneie)
 
 ---
 
@@ -494,8 +488,6 @@ MIT License
 - 정량적 평가의 중요성
 - 체계적인 실험의 힘
 - 기술적 의사결정 과정의 가치
-
-**이직을 준비하는 모든 개발자들에게 도움이 되기를 바랍니다.** 🚀
 
 ---
 
