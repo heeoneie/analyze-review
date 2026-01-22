@@ -150,7 +150,7 @@ python3 experiments/error_analysis.py
 **문제**: 단일 에이전트의 한계를 어떻게 극복하는가?
 
 **아키텍처**:
-```
+```text
 ┌─────────────────────────────────────┐
 │       Coordinator Agent             │
 │    (최종 결정 & 합의 조율)             │
@@ -193,7 +193,7 @@ python3 advanced/multi_agent_analyzer.py --demo
 3. 검색된 예시를 Few-shot으로 활용
 
 **플로우**:
-```
+```text
 새 리뷰: "배송이 3주 걸렸어요"
     ↓
 Vector DB 검색 (Cosine Similarity)
@@ -342,7 +342,7 @@ python3 visualization/create_charts.py
 
 ## 📁 프로젝트 구조
 
-```
+```text
 analyze-review/
 ├── main.py                      # 기본 실행 스크립트
 ├── analyzer.py                  # LLM 기반 분석기
@@ -480,9 +480,6 @@ MIT License
 
 ---
 
-## 🙏 감사의 말
-
-이 프로젝트는 1주일간의 집중 개발을 통해 **PoC에서 포트폴리오급 프로젝트로** 성장했습니다.
 
 **배운 점**:
 - 정량적 평가의 중요성
