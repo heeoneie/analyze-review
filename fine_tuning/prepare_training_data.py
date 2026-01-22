@@ -211,10 +211,10 @@ def main():
     print("   pip install --upgrade openai")
 
     print("\n2. Fine-tuning 시작:")
-    print("   openai api fine_tuning.jobs.create \\")
+    print("   openai api fine_tunes.create \\")
     print(f"     -t {train_file} \\")
     print(f"     -v {val_file} \\")
-    print("     -m gpt-4o-mini-2024-07-18 \\")
+    print("     -m gpt-4.1 \\")
     print("     --suffix \"review-classifier\"")
 
     print("\n3. 진행 상황 확인:")
