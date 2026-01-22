@@ -36,7 +36,10 @@ class ReviewAnalyzer:
             prompt,
             system_prompt=SYSTEM_PROMPT_ANALYST,
         )
-        return extract_json_from_text(content)
+        result = extract_json_from_text(content)
+        if result is None:
+            raise ValueError("Failed to parse categorization JSON response.")
+        return result
 
     def get_top_issues(self, categorization_result, top_n=3):
         """Extract top N issues from categorization result"""
@@ -153,4 +156,6 @@ Output format (JSON):
             system_prompt=SYSTEM_PROMPT_CONSULTANT,
         )
         result = extract_json_from_text(content)
+        if result is None:
+            raise ValueError("Failed to parse recommendations JSON response.")
         return result.get('recommendations', [])

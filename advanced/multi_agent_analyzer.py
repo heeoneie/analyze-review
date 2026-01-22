@@ -67,10 +67,11 @@ class ClassificationAgent:
             temperature=0.3,
             response_format={"type": "json_object"}
         )
-        try:
-            result = extract_json_from_text(response.choices[0].message.content)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON response from API: {e}") from e
+        result = extract_json_from_text(response.choices[0].message.content)
+        if result is None:
+            raise ValueError("Failed to parse JSON response from API.")
+        if not isinstance(result, dict) or "category" not in result:
+            raise ValueError("JSON response missing required key: category.")
         result['agent_id'] = self.agent_id
 
         return result
@@ -174,6 +175,10 @@ class CoordinatorAgent:
         )
 
         result = extract_json_from_text(response.choices[0].message.content)
+        if result is None:
+            raise ValueError("Failed to parse consensus JSON response.")
+        if not isinstance(result, dict) or "final_category" not in result:
+            raise ValueError("JSON response missing required key: final_category.")
         return result
 
 

@@ -23,11 +23,14 @@ def extract_json_from_text(text):
     try:
         return json.loads(candidate)
     except json.JSONDecodeError as exc:
-        logger.warning("Initial JSON parse failed: %s; raw response: %s", exc, text)
+        snippet = text.replace("\n", " ")
+        if len(snippet) > 200:
+            snippet = f"{snippet[:200]}..."
+        logger.warning("Initial JSON parse failed: %s; snippet: %s", exc, snippet)
         repaired = candidate.replace("{{", "{").replace("}}", "}")
         repaired = re.sub(r",\s*([}\]])", r"\1", repaired)
         try:
             return json.loads(repaired)
         except json.JSONDecodeError:
-            logger.error("Repaired JSON still invalid. Returning empty object.")
-            return {}
+            logger.error("Repaired JSON still invalid.")
+            return None

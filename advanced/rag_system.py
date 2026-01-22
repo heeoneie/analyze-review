@@ -161,6 +161,8 @@ class RAGReviewAnalyzer:
         )
 
         result = extract_json_from_text(response.choices[0].message.content)
+        if result is None:
+            raise ValueError("Failed to parse RAG categorization JSON response.")
         result['retrieved_examples'] = similar_examples
         return result
 

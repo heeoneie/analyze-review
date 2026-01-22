@@ -31,7 +31,7 @@ class PromptExperiments:
         self.evaluator = Evaluator()
 
     def _safe_call(self, prompt, system_prompt, temperature=0.3):
-        """안전하게 OpenAI API 호출"""
+        """?????? OpenAI API ???"""
         try:
             content = call_openai_json(
                 self.client,
@@ -39,10 +39,12 @@ class PromptExperiments:
                 system_prompt=system_prompt,
                 temperature=temperature,
             )
-            return extract_json_from_text(content)
-        except (OpenAIError, json.JSONDecodeError) as e:
-            print(f"API call failed: {e}")
-            return {"categories": []}
+            result = extract_json_from_text(content)
+            if result is None:
+                raise ValueError("Failed to parse JSON response.")
+            return result
+        except (OpenAIError, json.JSONDecodeError, ValueError) as e:
+            raise RuntimeError(f"API call failed: {e}") from e
 
     def categorize_zero_shot(self, reviews_text_list, temperature=0.3):
         """실험 1: Zero-shot (현재 방식)"""

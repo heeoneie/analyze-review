@@ -318,12 +318,18 @@ class ResultsVisualizer:
                 acc = data['accuracy']
                 improvement = (acc - baseline_acc) * 100 if baseline_acc else 0
                 method_name = method.replace('_', ' ').title()
-                report_lines.append(f"| {method_name} | {acc*100:.2f}% | +{improvement:.1f}% |\n")
+                sign = "+" if improvement > 0 else ""
+                report_lines.append(
+                    f"| {method_name} | {acc*100:.2f}% | {sign}{improvement:.1f}% |\n"
+                )
 
         if 'final' in results:
             final_acc = results['final']['accuracy']
             improvement = (final_acc - baseline_acc) * 100 if baseline_acc else 0
-            report_lines.append(f"| Final | {final_acc*100:.2f}% | +{improvement:.1f}% |\n")
+            sign = "+" if improvement > 0 else ""
+            report_lines.append(
+                f"| Final | {final_acc*100:.2f}% | {sign}{improvement:.1f}% |\n"
+            )
 
         report_lines.append("\n## 생성된 차트\n\n")
         report_lines.append("- accuracy_improvement.png: 정확도 개선 추이\n")

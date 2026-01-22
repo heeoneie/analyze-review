@@ -30,15 +30,43 @@ class TrainingDataPreparator:
         self.validation_data = []
 
     def load_ground_truth(self):
-        """Ground Truth 데이터 로드"""
-        print(f"📂 Ground Truth 로딩: {self.ground_truth_file}")
+        """Ground Truth ?????????????"""
+        print(f"??? Ground Truth ??????: {self.ground_truth_file}")
 
         df = pd.read_csv(self.ground_truth_file)
 
-        # manual_label이 있는 것만 필터
-        df = df[df['manual_label'].notna()]
+        required_columns = {"manual_label", "review_text"}
+        missing_columns = required_columns - set(df.columns)
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {sorted(missing_columns)}")
 
-        print(f"   ✓ {len(df)}개 라벨링된 리뷰 로드")
+        initial_count = len(df)
+        allowed_categories = set(CATEGORIES_DESCRIPTION.keys())
+
+        df = df[df["manual_label"].notna()].copy()
+        df["manual_label"] = df["manual_label"].astype(str).str.strip().str.lower()
+        df = df[df["manual_label"] != ""]
+        df = df[df["manual_label"].isin(allowed_categories)]
+
+        df = df[df["review_text"].notna()].copy()
+        df["review_text"] = df["review_text"].astype(str).str.strip()
+        df = df[df["review_text"] != ""]
+
+        if "category" in df.columns:
+            df = df[df["category"].notna()].copy()
+            df["category"] = df["category"].astype(str).str.strip().str.lower()
+            df = df[df["category"] != ""]
+            df = df[df["category"].isin(allowed_categories)]
+
+        before_dedup = len(df)
+        df = df.drop_duplicates(subset=["review_text"])
+        deduped_count = before_dedup - len(df)
+        removed_total = initial_count - len(df)
+
+        print(
+            f"   ??{len(df)}?????????????? ?????? ?????? "
+            f"(?????? {removed_total}??? / ?????? {deduped_count}???)"
+        )
 
         return df
 
