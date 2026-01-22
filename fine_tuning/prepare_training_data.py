@@ -30,8 +30,8 @@ class TrainingDataPreparator:
         self.validation_data = []
 
     def load_ground_truth(self):
-        """Ground Truth ?????????????"""
-        print(f"??? Ground Truth ??????: {self.ground_truth_file}")
+        """Ground Truth 데이터 로드"""
+        print(f"📂 Ground Truth 로딩: {self.ground_truth_file}")
 
         df = pd.read_csv(self.ground_truth_file)
 
@@ -64,8 +64,8 @@ class TrainingDataPreparator:
         removed_total = initial_count - len(df)
 
         print(
-            f"   ??{len(df)}?????????????? ?????? ?????? "
-            f"(?????? {removed_total}??? / ?????? {deduped_count}???)"
+            f"   ✓ {len(df)}개 라벨링된 리뷰 로드 "
+            f"(필터링 {removed_total}건 / 중복제거 {deduped_count}건)"
         )
 
         return df
