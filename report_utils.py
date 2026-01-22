@@ -13,7 +13,13 @@ def print_top_issues(top_issues, header, count_format, examples_label):
         print()
 
 
-def print_emerging_issues(emerging_issues, header, empty_message, increase_format, comparison_format):
+def print_emerging_issues(
+    emerging_issues,
+    header,
+    empty_message,
+    increase_format,
+    comparison_format,
+):
     """Print emerging issue summary, or a fallback message if none exist."""
     if emerging_issues:
         print(f"\n{header}\n")

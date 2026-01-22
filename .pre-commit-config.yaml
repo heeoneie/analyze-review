@@ -3,9 +3,9 @@ repos:
     hooks:
       - id: pylint
         name: pylint
-        entry: pylint
+        entry: python -m pylint
         language: system
         types: [python]
         args:
-          - --disable=C0114,C0115,C0116  # docstring 경고 비활성화
+          - --disable=C0114,C0115,C0116,R0801
           - --max-line-length=100

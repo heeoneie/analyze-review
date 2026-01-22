@@ -3,16 +3,18 @@ Level 4-1: 멀티 에이전트 시스템
 Self-Consistency를 통한 정확도 향상
 """
 
-import sys
+import json
 import os
+import sys
+from collections import Counter
+
+from openai import OpenAI, OpenAIError
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import json
-from openai import OpenAI
-import config
-from utils.json_utils import extract_json_from_text
-from collections import Counter
-from openai import OpenAIError
+import config  # pylint: disable=wrong-import-position
+from utils.json_utils import extract_json_from_text  # pylint: disable=wrong-import-position
+from utils.review_categories import CATEGORIES_BULLETS  # pylint: disable=wrong-import-position
 
 class ClassificationAgent:
     """리뷰 분류 전문 에이전트"""
@@ -26,42 +28,39 @@ class ClassificationAgent:
     def categorize(self, review_text):
         """리뷰 분류"""
         if self.perspective == "general":
-            system_prompt = "You are a general e-commerce review analyst. Focus on the overall customer experience."
+            system_prompt = (
+                "You are a general e-commerce review analyst. "
+                "Focus on the overall customer experience."
+            )
         elif self.perspective == "operational":
-            system_prompt = "You are an operations specialist. Focus on delivery, packaging, and fulfillment issues."
+            system_prompt = (
+                "You are an operations specialist. "
+                "Focus on delivery, packaging, and fulfillment issues."
+            )
         elif self.perspective == "product":
-            system_prompt = "You are a product quality specialist. Focus on product quality, description accuracy, and functionality."
+            system_prompt = (
+                "You are a product quality specialist. "
+                "Focus on product quality, description accuracy, and functionality."
+            )
         else:
             system_prompt = "You are an e-commerce review analyst."
 
-        prompt = f"""Analyze this customer review and categorize the PRIMARY issue.
-
-Review: "{review_text}"
-
-Categories:
-- delivery_delay: Shipping/delivery took too long
-- wrong_item: Received incorrect product
-- poor_quality: Product quality is bad
-- damaged_packaging: Package or product was damaged
-- size_issue: Size doesn't fit
-- missing_parts: Parts are missing
-- not_as_described: Product doesn't match description
-- customer_service: Customer service issues
-- price_issue: Price-related complaints
-- other: Cannot be categorized
-
-Think step by step:
-1. What is mentioned in the review?
-2. What is the PRIMARY complaint?
-3. Which category best fits?
-
-Output JSON:
-{{
-  "category": "category_name",
-  "confidence": 0.9,
-  "reasoning": "brief explanation"
-}}
-"""
+        prompt = (
+            "Analyze this customer review and categorize the PRIMARY issue.\n\n"
+            f'Review: "{review_text}"\n\n'
+            "Categories:\n"
+            f"{CATEGORIES_BULLETS}\n"
+            "Think step by step:\n"
+            "1. What is mentioned in the review?\n"
+            "2. What is the PRIMARY complaint?\n"
+            "3. Which category best fits?\n\n"
+            "Output JSON:\n"
+            "{\n"
+            '  "category": "category_name",\n'
+            '  "confidence": 0.9,\n'
+            '  "reasoning": "brief explanation"\n'
+            "}\n"
+        )
 
         response = self.client.chat.completions.create(
             model=self.model,
@@ -77,7 +76,7 @@ Output JSON:
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON response from API: {e}") from e
         result['agent_id'] = self.agent_id
-        
+
         return result
 
 
@@ -91,7 +90,7 @@ class CoordinatorAgent:
     def aggregate_votes(self, predictions):
         """다수결 투표"""
         if not predictions:
-            return {                
+            return {
                 'final_category': 'other',
                 'vote_count': 0,
                 'total_votes': 0,
@@ -137,35 +136,41 @@ class CoordinatorAgent:
 
     def llm_consensus(self, review_text, predictions):
         """LLM을 사용한 최종 판단"""
-        predictions_text = "\n".join([
-            f"Agent {p['agent_id']}: {p['category']} (confidence: {p.get('confidence', 'N/A')}, reasoning: {p.get('reasoning', 'N/A')})"
-            for p in predictions
-        ])
+        predictions_text = "\n".join(
+            [
+                (
+                    f"Agent {p['agent_id']}: {p['category']} "
+                    f"(confidence: {p.get('confidence', 'N/A')}, "
+                    f"reasoning: {p.get('reasoning', 'N/A')})"
+                )
+                for p in predictions
+            ]
+        )
 
-        prompt = f"""You are a senior analyst reviewing classifications from multiple junior analysts.
-
-Review: "{review_text}"
-
-Analyst predictions:
-{predictions_text}
-
-Your task:
-1. Consider all analyst opinions
-2. Determine the MOST ACCURATE category
-3. Provide your final decision
-
-Output JSON:
-{{
-  "final_category": "category_name",
-  "reasoning": "why this is the best choice",
-  "confidence": 0.95
-}}
-"""
+        prompt = (
+            "You are a senior analyst reviewing classifications from multiple junior analysts.\n\n"
+            f'Review: "{review_text}"\n\n'
+            "Analyst predictions:\n"
+            f"{predictions_text}\n\n"
+            "Your task:\n"
+            "1. Consider all analyst opinions\n"
+            "2. Determine the MOST ACCURATE category\n"
+            "3. Provide your final decision\n\n"
+            "Output JSON:\n"
+            "{\n"
+            '  "final_category": "category_name",\n'
+            '  "reasoning": "why this is the best choice",\n'
+            '  "confidence": 0.95\n'
+            "}\n"
+        )
 
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are a senior e-commerce analyst making final decisions."},
+                {
+                    "role": "system",
+                    "content": "You are a senior e-commerce analyst making final decisions.",
+                },
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2,
@@ -204,7 +209,10 @@ class MultiAgentAnalyzer:
             try:
                 pred = agent.categorize(review_text)
                 predictions.append(pred)
-                print(f"  Agent {pred['agent_id']}: {pred['category']} (confidence: {pred.get('confidence', 'N/A')})")
+                print(
+                    f"  Agent {pred['agent_id']}: {pred['category']} "
+                    f"(confidence: {pred.get('confidence', 'N/A')})"
+                )
             except (OpenAIError, json.JSONDecodeError, ValueError) as e:
                 print(f"  Agent {agent.agent_id} 에러: {e}")
 

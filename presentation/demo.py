@@ -3,13 +3,11 @@ Day 6: 데모 스크립트
 회의 발표용 실시간 데모
 """
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import argparse
+import time
+from collections.abc import Iterable
 
 from analyzer import ReviewAnalyzer
-from collections.abc import Iterable
-import time
 
 def print_header(title):
     """헤더 출력"""
@@ -210,7 +208,7 @@ def demo_live_input():
         if not isinstance(item, dict):
             continue
         num = item.get('review_number')
-        if not isinstance(num, int) or not (1 <= num <= len(reviews)):
+        if not isinstance(num, int) or not 1 <= num <= len(reviews):
             print("⚠️  잘못된 review_number로 항목을 건너뜁니다.")
             continue
         category = item.get('category') or "unknown"
@@ -221,8 +219,6 @@ def demo_live_input():
 
 
 def main():
-    import argparse
-
     parser = argparse.ArgumentParser(description='AI 리뷰 분석 시스템 데모')
     parser.add_argument('--mode', type=str, default='basic',
                         choices=['basic', 'improvement', 'business', 'live'],

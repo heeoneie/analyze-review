@@ -3,18 +3,17 @@ Level 1: 정량적 평가 시스템
 AI 예측 결과와 Ground Truth를 비교하여 정확도 측정
 """
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import pandas as pd
+import argparse
 import json
-from analyzer import ReviewAnalyzer
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix
-import seaborn as sns
-import matplotlib.pyplot as plt
-import numpy as np
+import os
 from datetime import datetime
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
+
+from analyzer import ReviewAnalyzer
 
 class Evaluator:
     def __init__(self, ground_truth_file='evaluation/evaluation_dataset.csv'):
@@ -56,13 +55,19 @@ class Evaluator:
         accuracy = accuracy_score(y_true, y_pred)
 
         # Per-class metrics
-        precision, recall, f1, support = precision_recall_fscore_support(
+        precision, recall, f1, _ = precision_recall_fscore_support(
             y_true, y_pred, average='weighted', zero_division=0
         )
 
         # Per-class detailed metrics
-        precision_per_class, recall_per_class, f1_per_class, support_per_class = precision_recall_fscore_support(
-            y_true, y_pred, average=None, zero_division=0, labels=sorted(set(y_true))
+        precision_per_class, recall_per_class, f1_per_class, support_per_class = (
+            precision_recall_fscore_support(
+                y_true,
+                y_pred,
+                average=None,
+                zero_division=0,
+                labels=sorted(set(y_true)),
+            )
         )
 
         metrics = {
@@ -180,7 +185,7 @@ class Evaluator:
         print("\n1. Ground Truth 로딩 중...")
         df = self.load_ground_truth()
         if df is None:
-            return
+            return None, None
 
         print(f"   ✓ {len(df)}개 리뷰 로드 완료")
 
@@ -219,8 +224,6 @@ class Evaluator:
 
 
 def main():
-    import argparse
-
     parser = argparse.ArgumentParser(description='리뷰 분석 시스템 평가')
     parser.add_argument('--mode', type=str, default='baseline',
                         help='평가 모드 (baseline, improved, final)')
@@ -231,15 +234,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # sklearn, matplotlib, seaborn 패키지 확인
-    try:
-        import sklearn
-        import matplotlib
-        import seaborn
-    except ImportError as e:
-        print(f"❌ 필요한 패키지가 설치되지 않았습니다: {e}")
-        print("\n다음 명령어로 설치하세요:")
-        print("pip install scikit-learn matplotlib seaborn")
-        sys.exit(1)
-
     main()

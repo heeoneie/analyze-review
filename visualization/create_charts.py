@@ -3,18 +3,13 @@ Day 6: 실험 결과 시각화
 정확도 개선, Confusion Matrix, 비용 분석 등 차트 생성
 """
 
-# pylint: disable=duplicate-code
-
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import json
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-import numpy as np
 from glob import glob
+import json
+import os
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 # 한글 폰트 설정 (Mac)
 plt.rcParams['font.family'] = 'AppleGothic'
@@ -95,8 +90,16 @@ class ResultsVisualizer:
         plt.plot(stages, accuracies, marker='o', linewidth=2, markersize=10)
 
         # 각 포인트에 수치 표시
-        for i, (stage, acc) in enumerate(zip(stages, accuracies)):
-            plt.text(i, acc + 1, f'{acc:.1f}%', ha='center', va='bottom', fontsize=12, fontweight='bold')
+        for i, acc in enumerate(accuracies):
+            plt.text(
+                i,
+                acc + 1,
+                f'{acc:.1f}%',
+                ha='center',
+                va='bottom',
+                fontsize=12,
+                fontweight='bold',
+            )
 
         plt.title('정확도 개선 추이', fontsize=16, fontweight='bold', pad=20)
         plt.xlabel('Stage', fontsize=12)
@@ -152,9 +155,15 @@ class ResultsVisualizer:
         bars = plt.barh(methods, accuracies, color=colors, alpha=0.7)
 
         # 수치 표시
-        for bar, acc in zip(bars, accuracies):
-            plt.text(acc + 0.5, bar.get_y() + bar.get_height()/2,
-                     f'{acc:.1f}%', va='center', fontsize=11, fontweight='bold')
+        for bar_item, acc in zip(bars, accuracies):
+            plt.text(
+                acc + 0.5,
+                bar_item.get_y() + bar_item.get_height() / 2,
+                f'{acc:.1f}%',
+                va='center',
+                fontsize=11,
+                fontweight='bold',
+            )
 
         plt.title('프롬프트 엔지니어링 방법론 비교', fontsize=16, fontweight='bold', pad=20)
         plt.xlabel('Accuracy (%)', fontsize=12)
@@ -262,10 +271,11 @@ class ResultsVisualizer:
 
         # 플롯 생성
         plt.figure(figsize=(10, 6))
-        plt.scatter(costs, accuracies, s=200, alpha=0.6, c=range(len(stages)), cmap='viridis')
+        plt.scatter(costs, accuracies, s=200, alpha=0.6,
+                    c=range(len(stages)), cmap='viridis')
 
         # 라벨 표시
-        for i, (cost, acc, stage) in enumerate(zip(costs, accuracies, stages)):
+        for cost, acc, stage in zip(costs, accuracies, stages):
             plt.annotate(stage, (cost, acc), xytext=(10, -5),
                         textcoords='offset points', fontsize=11, fontweight='bold')
 

@@ -3,15 +3,16 @@ Day 7: Fine-tuned 모델 평가
 Fine-tuning한 모델의 성능 측정
 """
 
-import sys
+import argparse
+import json
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
-import json
 from openai import OpenAI
-import config
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+
+import config
+from utils.review_categories import CATEGORIES_BULLETS_FINETUNE
 
 ALLOWED_CATEGORIES = {
     "delivery_delay",
@@ -37,28 +38,29 @@ class FinetunedEvaluator:
 
     def categorize_single(self, review_text):
         """단일 리뷰 분류"""
-        system_prompt = """You are an e-commerce feedback analyst expert at analyzing customer reviews and categorizing their primary complaints.
-
-Categories:
-- delivery_delay: Shipping or delivery issues
-- wrong_item: Received incorrect product
-- poor_quality: Product quality problems
-- damaged_packaging: Damaged package or product
-- size_issue: Size-related issues
-- missing_parts: Missing parts or accessories
-- not_as_described: Product doesn't match description
-- customer_service: Customer service issues
-- price_issue: Price-related complaints
-- other: Cannot be categorized
-
-Return a JSON object only with this schema:
-{"category": "<one of the categories above>"}"""
+        system_prompt = (
+            "You are an e-commerce feedback analyst expert at analyzing customer "
+            "reviews and categorizing their primary complaints.\n\n"
+            "Categories:\n"
+            f"{CATEGORIES_BULLETS_FINETUNE}\n"
+            "Return a JSON object only with this schema:\n"
+            "{\"category\": \"<one of the categories above>\"}"
+        )
 
         response = self.client.chat.completions.create(
             model=self.model_name,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Categorize this review. Reply with JSON only, exactly {{\"category\": \"...\"}}.\nExample: \"Package arrived late\" -> {{\"category\": \"delivery_delay\"}}\nReview: {review_text}"}
+                {
+                    "role": "user",
+                    "content": (
+                        "Categorize this review. Reply with JSON only, exactly "
+                        "{\"category\": \"...\"}.\n"
+                        "Example: \"Package arrived late\" -> "
+                        "{\"category\": \"delivery_delay\"}\n"
+                        f"Review: {review_text}"
+                    ),
+                }
             ],
             temperature=0.0,  # Deterministic
             response_format={"type": "json_object"},
@@ -83,28 +85,13 @@ Return a JSON object only with this schema:
 
         return category_norm
 
-    def evaluate(self, ground_truth_file):
-        """전체 평가 실행"""
-        print("="*80)
-        print(f"  Fine-tuned 모델 평가: {self.model_name}")
-        print("="*80 + "\n")
-
-        # Ground Truth 로드
-        print("📂 Ground Truth 로딩...")
-        df = pd.read_csv(ground_truth_file)
-        df = df[df['manual_label'].notna()]
-
-        print(f"   ✓ {len(df)}개 리뷰 로드\n")
-
-        # 예측 실행
-        print("🤖 Fine-tuned 모델로 예측 중...")
+    def _run_predictions(self, df):
         predictions = []
         failures = []
         failure_reviews = []
 
         for i, (_, row) in enumerate(df.iterrows(), start=1):
             print(f"   [{i}/{len(df)}] 예측 중...", end='\r')
-
             try:
                 pred = self.categorize_single(row['review_text'])
                 predictions.append(pred)
@@ -115,9 +102,9 @@ Return a JSON object only with this schema:
                 failure_reviews.append(row['review_text'])
                 predictions.append(None)
 
-        print("\n   ✓ 완료!\n")
+        return predictions, failures, failure_reviews
 
-        # 평가
+    def _collect_successes(self, df, predictions):
         successes = []
         for pred, (_, row) in zip(predictions, df.iterrows()):
             if pred is None:
@@ -126,34 +113,44 @@ Return a JSON object only with this schema:
 
         y_true = [true for true, _, _ in successes]
         y_pred = [pred for _, pred, _ in successes]
+        return successes, y_true, y_pred
 
-        # 메트릭스 계산
+    def _compute_metrics(self, y_true, y_pred):
         accuracy = accuracy_score(y_true, y_pred)
         precision, recall, f1, _ = precision_recall_fscore_support(
             y_true, y_pred, average='weighted', zero_division=0
         )
+        return accuracy, precision, recall, f1
 
-        # 결과 출력
-        print("="*80)
-        print("  평가 결과")
-        print("="*80 + "\n")
-
-        print("📊 Overall Metrics:")
-        print(f"   Accuracy:  {accuracy*100:.2f}%")
-        print(f"   Precision: {precision*100:.2f}%")
-        print(f"   Recall:    {recall*100:.2f}%")
-        print(f"   F1 Score:  {f1*100:.2f}%\n")
-
-        # 에러 분석
+    def _collect_errors(self, successes):
         errors = []
-        for i, (true, pred, review_text) in enumerate(successes):
+        for _, (true, pred, review_text) in enumerate(successes):
             if true != pred:
                 errors.append({
                     'review': review_text,
                     'true': true,
                     'predicted': pred
                 })
+        return errors
 
+    def _save_results(self, results, output_file):
+        os.makedirs('results', exist_ok=True)
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(results, f, indent=2, ensure_ascii=False)
+
+    def _print_metrics(self, metrics):
+        """메트릭 출력"""
+        print("="*80)
+        print("  평가 결과")
+        print("="*80 + "\n")
+        print("📊 Overall Metrics:")
+        print(f"   Accuracy:  {metrics['accuracy']*100:.2f}%")
+        print(f"   Precision: {metrics['precision']*100:.2f}%")
+        print(f"   Recall:    {metrics['recall']*100:.2f}%")
+        print(f"   F1 Score:  {metrics['f1']*100:.2f}%\n")
+
+    def _print_errors(self, errors):
+        """에러 출력"""
         if errors:
             print(f"❌ 에러 케이스: {len(errors)}개\n")
             print("   예시 (처음 3개):")
@@ -161,13 +158,36 @@ Return a JSON object only with this schema:
                 print(f"\n   {i}. {error['review'][:100]}...")
                 print(f"      True: {error['true']} → Predicted: {error['predicted']}")
 
+    def evaluate(self, ground_truth_file):  # pylint: disable=too-many-locals
+        """전체 평가 실행"""
+        print("="*80)
+        print(f"  Fine-tuned 모델 평가: {self.model_name}")
+        print("="*80 + "\n")
+
+        # Ground Truth 로드
+        print("📂 Ground Truth 로딩...")
+        df = pd.read_csv(ground_truth_file)
+        df = df[df['manual_label'].notna()]
+        print(f"   ✓ {len(df)}개 리뷰 로드\n")
+
+        # 예측 실행
+        print("🤖 Fine-tuned 모델로 예측 중...")
+        predictions, failures, failure_reviews = self._run_predictions(df)
+        print("\n   ✓ 완료!\n")
+
+        # 평가
+        successes, y_true, y_pred = self._collect_successes(df, predictions)
+        accuracy, precision, recall, f1 = self._compute_metrics(y_true, y_pred)
+        errors = self._collect_errors(successes)
+
+        metrics = {'accuracy': accuracy, 'precision': precision, 'recall': recall, 'f1': f1}
+        self._print_metrics(metrics)
+        self._print_errors(errors)
+
         # 결과 저장
         results = {
             'model': self.model_name,
-            'accuracy': accuracy,
-            'precision': precision,
-            'recall': recall,
-            'f1': f1,
+            **metrics,
             'total_samples': len(df),
             'errors': len(errors),
             'failure_count': len(failures),
@@ -175,12 +195,8 @@ Return a JSON object only with this schema:
             'failure_reviews': failure_reviews
         }
 
-        os.makedirs('results', exist_ok=True)
         output_file = 'results/finetuned_evaluation.json'
-
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(results, f, indent=2, ensure_ascii=False)
-
+        self._save_results(results, output_file)
         print(f"\n💾 결과 저장: {output_file}")
 
         return results
@@ -192,10 +208,10 @@ def compare_models(base_results_file, finetuned_results_file):
     print("  모델 비교")
     print("="*80 + "\n")
 
-    with open(base_results_file, 'r') as f:
+    with open(base_results_file, 'r', encoding='utf-8') as f:
         base_results = json.load(f)
 
-    with open(finetuned_results_file, 'r') as f:
+    with open(finetuned_results_file, 'r', encoding='utf-8') as f:
         ft_results = json.load(f)
 
     print(f"{'Metric':<15} {'Base Model':<15} {'Fine-tuned':<15} {'Improvement':<15}")
@@ -221,8 +237,6 @@ def compare_models(base_results_file, finetuned_results_file):
 
 
 def main():
-    import argparse
-
     parser = argparse.ArgumentParser(description='Fine-tuned 모델 평가')
     parser.add_argument('--model', type=str, required=True,
                         help='Fine-tuned 모델 이름 (예: ft:gpt-4o-mini:custom:review-classifier:xxx)')
@@ -235,7 +249,7 @@ def main():
 
     # 평가 실행
     evaluator = FinetunedEvaluator(args.model)
-    results = evaluator.evaluate(args.ground_truth)
+    evaluator.evaluate(args.ground_truth)
 
     # 비교 (선택사항)
     if args.compare:

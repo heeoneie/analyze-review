@@ -1,7 +1,10 @@
-from openai import OpenAI
-import config
 from collections import Counter
+
+from openai import OpenAI
+
+import config
 from utils.json_utils import extract_json_from_text
+from utils.prompt_templates import build_zero_shot_prompt, format_reviews
 
 class ReviewAnalyzer:
     def __init__(self):
@@ -12,42 +15,25 @@ class ReviewAnalyzer:
     def categorize_issues(self, reviews_text_list, sample_size=200):
         """Categorize issues from reviews using LLM"""
         # Sample reviews to avoid token limits
-        sampled_reviews = reviews_text_list[:sample_size] if len(reviews_text_list) > sample_size else reviews_text_list
+        sampled_reviews = (
+            reviews_text_list[:sample_size]
+            if len(reviews_text_list) > sample_size
+            else reviews_text_list
+        )
 
-        reviews_text = "\n---\n".join([f"{i+1}. {text[:500]}" for i, text in enumerate(sampled_reviews)])
-
-        prompt = f"""You are analyzing customer reviews for an e-commerce platform.
-
-Below are {len(sampled_reviews)} negative customer reviews (rating ≤ 3/5).
-
-Your task:
-1. Read all reviews carefully
-2. Identify the main problem categories (e.g., delivery, product quality, wrong item, packaging, customer service, etc.)
-3. For each review, assign ONE primary problem category
-
-Reviews:
-{reviews_text}
-
-Output format (JSON):
-{{
-  "categories": [
-    {{
-      "review_number": 1,
-      "category": "delivery_delay",
-      "brief_issue": "Package arrived 2 weeks late"
-    }},
-    ...
-  ]
-}}
-
-Use concise category names in English (lowercase with underscores).
-Common categories might include: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue, missing_parts, customer_service, etc.
-"""
+        reviews_text = format_reviews(sampled_reviews)
+        prompt = build_zero_shot_prompt(reviews_text, len(sampled_reviews))
 
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback and identifying patterns."},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert at analyzing e-commerce customer "
+                        "feedback and identifying patterns."
+                    ),
+                },
                 {"role": "user", "content": prompt}
             ],
             temperature=self.temperature,
@@ -86,8 +72,13 @@ Common categories might include: delivery_delay, wrong_item, poor_quality, damag
 
     def detect_emerging_issues(self, recent_categorization, comparison_categorization):
         """Detect issues that are increasing in the recent period"""
-        recent_categories = [item['category'] for item in recent_categorization.get('categories', [])]
-        comparison_categories = [item['category'] for item in comparison_categorization.get('categories', [])]
+        recent_categories = [
+            item['category'] for item in recent_categorization.get('categories', [])
+        ]
+        comparison_categories = [
+            item['category']
+            for item in comparison_categorization.get('categories', [])
+        ]
 
         recent_counts = Counter(recent_categories)
         comparison_counts = Counter(comparison_categories)
@@ -142,7 +133,8 @@ TOP 3 ISSUES (by frequency):
 EMERGING ISSUES (increasing trend):
 {emerging_text}
 
-Based on this analysis, provide exactly 3 actionable recommendations that the business should implement immediately.
+Based on this analysis, provide exactly 3 actionable recommendations that the business
+should implement immediately.
 
 Requirements:
 - Each recommendation should be ONE clear, specific action
@@ -163,7 +155,13 @@ Output format (JSON):
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are an expert business consultant specializing in e-commerce operations."},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert business consultant specializing in "
+                        "e-commerce operations."
+                    ),
+                },
                 {"role": "user", "content": prompt}
             ],
             temperature=self.temperature,

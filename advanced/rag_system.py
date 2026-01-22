@@ -3,12 +3,11 @@ Level 4-2: RAG (Retrieval-Augmented Generation) System
 Vector DB를 사용한 동적 Few-shot Learning
 """
 
-import sys
+import argparse
 from uuid import uuid4
 
 import pandas as pd
 from openai import OpenAI
-from utils.json_utils import extract_json_from_text
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -22,6 +21,8 @@ except ImportError as exc:
     _IMPORT_ERROR = exc
 
 import config
+from utils.json_utils import extract_json_from_text
+from utils.review_categories import CATEGORIES_BULLETS
 
 
 class RAGReviewAnalyzer:
@@ -132,38 +133,31 @@ class RAGReviewAnalyzer:
                 examples_text += f"{i}. Review: \"{example['text'][:150]}...\"\n"
                 examples_text += f"   Category: {example['category']}\n\n"
 
-        prompt = f"""{examples_text}
-
-Now, categorize this new review:
-
-Review: "{review_text}"
-
-Categories:
-- delivery_delay: Shipping/delivery took too long
-- wrong_item: Received incorrect product
-- poor_quality: Product quality is bad
-- damaged_packaging: Package or product was damaged
-- size_issue: Size doesn't fit
-- missing_parts: Parts are missing
-- not_as_described: Product doesn't match description
-- customer_service: Customer service issues
-- price_issue: Price-related complaints
-- other: Cannot be categorized
-
-Based on the similar examples above, select the most appropriate category.
-
-Output JSON:
-{{
-  "category": "category_name",
-  "confidence": 0.9,
-  "reasoning": "brief explanation"
-}}
-"""
+        prompt = (
+            f"{examples_text}\n\n"
+            "Now, categorize this new review:\n\n"
+            f"Review: \"{review_text}\"\n\n"
+            "Categories:\n"
+            f"{CATEGORIES_BULLETS}\n\n"
+            "Based on the similar examples above, select the most appropriate category.\n\n"
+            "Output JSON:\n"
+            "{\n"
+            '  "category": "category_name",\n'
+            '  "confidence": 0.9,\n'
+            '  "reasoning": "brief explanation"\n'
+            "}\n"
+        )
 
         response = self.client.chat.completions.create(
             model=self.llm_model,
             messages=[
-                {"role": "system", "content": "You are an expert at analyzing e-commerce customer feedback with retrieval-augmented generation."},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert at analyzing e-commerce customer "
+                        "feedback with retrieval-augmented generation."
+                    ),
+                },
                 {"role": "user", "content": prompt}
             ],
             temperature=self.temperature,
@@ -276,8 +270,6 @@ def demo():
 
 def main():
     """실제 Ground Truth로 RAG 시스템 구축"""
-    import argparse
-
     parser = argparse.ArgumentParser(description='RAG 기반 리뷰 분석')
     parser.add_argument('--demo', action='store_true',
                         help='데모 모드 실행')

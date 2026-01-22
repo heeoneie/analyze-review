@@ -7,9 +7,11 @@ E-commerce Review Analysis PoC
 """
 
 import sys
-from data_loader import DataLoader
+
+import config
 from analyzer import ReviewAnalyzer
-from report_utils import print_top_issues, print_emerging_issues
+from data_loader import DataLoader
+from report_utils import print_emerging_issues, print_top_issues
 
 
 def print_section(title):
@@ -19,44 +21,42 @@ def print_section(title):
     print("=" * 80)
 
 
-def main():
-    print_section("E-commerce Review Analysis PoC")
-
-    # Check if OpenAI API key is set
-    import config
+def require_openai_key():
+    """Exit if OPENAI_API_KEY is missing."""
     if not config.OPENAI_API_KEY:
-        print("\n❌ Error: OPENAI_API_KEY not found in .env file")
+        print("\n[Error] OPENAI_API_KEY not found in .env file")
         print("Please create a .env file with your OpenAI API key:")
         print("  OPENAI_API_KEY=your_api_key_here")
         sys.exit(1)
 
-    # Initialize components
-    loader = DataLoader()
-    analyzer = ReviewAnalyzer()
 
-    # Step 1: Load data
+def load_reviews(loader):
+    """Load reviews and filter negative ones."""
     print_section("Step 1: Loading Data")
     try:
         df = loader.load_reviews()
     except Exception as e:  # pylint: disable=broad-except
-        # Data loading can fail for multiple IO or parsing reasons.
-        print(f"\n❌ Error loading data: {e}")
+        print(f"\n[Error] Error loading data: {e}")
         print("\nTip: Make sure you have Kaggle API configured properly.")
         sys.exit(1)
 
-    # Step 2: Filter negative reviews
     print_section("Step 2: Filtering Negative Reviews")
     negative_df = loader.filter_negative_reviews(df)
-
     if len(negative_df) == 0:
-        print("\n❌ No negative reviews found. Cannot proceed with analysis.")
+        print("\n[Error] No negative reviews found. Cannot proceed with analysis.")
         sys.exit(1)
 
-    # Step 3: Split by time period
-    print_section("Step 3: Splitting Data by Time Period")
-    recent_df, comparison_df = loader.split_by_period(negative_df)
+    return df, negative_df
 
-    # Step 4: Analyze recent reviews
+
+def split_by_period(negative_df, loader):
+    """Split reviews into recent and comparison periods."""
+    print_section("Step 3: Splitting Data by Time Period")
+    return loader.split_by_period(negative_df)
+
+
+def analyze_periods(analyzer, recent_df, comparison_df):
+    """Analyze recent and comparison reviews."""
     print_section("Step 4: Analyzing Recent Reviews")
     print(f"Processing {len(recent_df)} recent negative reviews...")
     print("(This may take a few minutes...)")
@@ -64,60 +64,85 @@ def main():
     recent_reviews = recent_df['review_text'].dropna().tolist()
     recent_categorization = analyzer.categorize_issues(recent_reviews)
 
-    # Step 5: Analyze comparison period reviews
     print_section("Step 5: Analyzing Comparison Period Reviews")
     print(f"Processing {len(comparison_df)} comparison period negative reviews...")
 
     comparison_reviews = comparison_df['review_text'].dropna().tolist()
     comparison_categorization = analyzer.categorize_issues(comparison_reviews)
 
-    # Step 6: Extract top issues
+    return recent_categorization, comparison_categorization
+
+
+def summarize_results(analyzer, recent_categorization, comparison_categorization):
+    """Summarize top and emerging issues."""
     print_section("Step 6: Identifying Top 3 Issues")
     top_issues = analyzer.get_top_issues(recent_categorization, top_n=3)
 
     print_top_issues(
         top_issues,
-        header="📊 TOP 3 문제점 (부정 리뷰 기준):",
+        header="[TOP 3 문제점 (부정 리뷰 기준)]:",
         count_format="   빈도: {count}회 ({percentage}%)",
-        examples_label="   예시:"
+        examples_label="   예시:",
     )
 
-    # Step 7: Detect emerging issues
     print_section("Step 7: Detecting Emerging Issues")
     emerging_issues = analyzer.detect_emerging_issues(
         recent_categorization,
-        comparison_categorization
+        comparison_categorization,
     )
 
     print_emerging_issues(
         emerging_issues,
-        header="📈 최근 급증한 이슈:",
-        empty_message="✓ 최근 급증한 이슈 없음 (안정적 상태)",
+        header="[최근 급증한 이슈]:",
+        empty_message="[OK] 최근 급증한 이슈 없음 (안정적 상태)",
         increase_format="   증가율: +{increase_rate}%",
-        comparison_format="   이전: {comparison_count}회 → 최근: {recent_count}회"
+        comparison_format="   이전: {comparison_count}회 → 최근: {recent_count}회",
     )
 
-    # Step 8: Generate action plan
-    print_section("Step 8: Generating Action Plan")
-    print("AI가 개선 액션을 생성하는 중...")
+    return top_issues, emerging_issues
 
-    recommendations = analyzer.generate_action_plan(top_issues, emerging_issues)
 
-    print("\n💡 개선 액션 제안:\n")
-    for i, rec in enumerate(recommendations, 1):
-        print(f"{i}. {rec}")
-
-    # Summary
+def print_summary(df, negative_df):
+    """Print summary output."""
     print_section("Analysis Complete")
-    print(f"""
-✓ 분석 완료
+    print(
+        f"""
+[OK] 분석 완료
 
 총 리뷰 수: {len(df):,}
 부정 리뷰 수: {len(negative_df):,}
 분석 기간: {df['created_at'].min().date()} ~ {df['created_at'].max().date()}
 
 이 분석 결과를 바탕으로 즉시 개선 작업을 시작할 수 있습니다.
-    """)
+    """
+    )
+
+
+def main():
+    print_section("E-commerce Review Analysis PoC")
+    require_openai_key()
+
+    loader = DataLoader()
+    analyzer = ReviewAnalyzer()
+
+    df, negative_df = load_reviews(loader)
+    recent_df, comparison_df = split_by_period(negative_df, loader)
+    recent_categorization, comparison_categorization = analyze_periods(
+        analyzer, recent_df, comparison_df
+    )
+    top_issues, emerging_issues = summarize_results(
+        analyzer, recent_categorization, comparison_categorization
+    )
+
+    print_section("Step 8: Generating Action Plan")
+    print("AI가 개선 액션을 생성하는 중...")
+    recommendations = analyzer.generate_action_plan(top_issues, emerging_issues)
+
+    print("\n[개선 액션 제안]\n")
+    for i, rec in enumerate(recommendations, 1):
+        print(f"{i}. {rec}")
+
+    print_summary(df, negative_df)
 
 
 if __name__ == "__main__":

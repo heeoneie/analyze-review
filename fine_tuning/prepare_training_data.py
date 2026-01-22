@@ -3,12 +3,12 @@ Day 7: Fine-tuning 학습 데이터 준비
 OpenAI Fine-tuning API 형식으로 변환
 """
 
-import sys
+import argparse
+import json
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
-import json
+from utils.review_categories import CATEGORIES_BULLETS_FINETUNE
 
 CATEGORIES_DESCRIPTION = {
     'delivery_delay': 'Shipping or delivery took too long',
@@ -44,21 +44,13 @@ class TrainingDataPreparator:
 
     def create_training_example(self, review_text, category):
         """단일 학습 예시 생성 (OpenAI Format)"""
-        system_prompt = """You are an expert at analyzing e-commerce customer reviews and categorizing their primary complaints.
-
-Categories:
-- delivery_delay: Shipping or delivery issues
-- wrong_item: Received incorrect product
-- poor_quality: Product quality problems
-- damaged_packaging: Damaged package or product
-- size_issue: Size-related issues
-- missing_parts: Missing parts or accessories
-- not_as_described: Product doesn't match description
-- customer_service: Customer service issues
-- price_issue: Price-related complaints
-- other: Cannot be categorized
-
-Respond with ONLY the category name, nothing else."""
+        system_prompt = (
+            "You are an expert at analyzing e-commerce customer reviews and "
+            "categorizing their primary complaints.\n\n"
+            "Categories:\n"
+            f"{CATEGORIES_BULLETS_FINETUNE}\n"
+            "Respond with ONLY the category name, nothing else."
+        )
 
         example = {
             "messages": [
@@ -165,8 +157,6 @@ Respond with ONLY the category name, nothing else."""
 
 
 def main():
-    import argparse
-
     parser = argparse.ArgumentParser(description='Fine-tuning 학습 데이터 준비')
     parser.add_argument('--ground-truth', type=str,
                         default='evaluation/evaluation_dataset.csv',

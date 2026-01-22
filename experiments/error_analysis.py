@@ -3,16 +3,28 @@ Level 3: 에러 분석 & 개선
 틀린 케이스를 분석하여 패턴을 찾고 프롬프트 개선
 """
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import pandas as pd
+import argparse
 import json
+import os
 from collections import Counter, defaultdict
 from datetime import datetime
-import matplotlib.pyplot as plt
-import seaborn as sns
+
+
+STOPWORDS = {
+    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+    'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare',
+    'ought', 'used', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by',
+    'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above',
+    'below', 'between', 'under', 'again', 'further', 'then', 'once',
+    'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few',
+    'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only',
+    'own', 'same', 'so', 'than', 'too', 'very', 'just', 'and', 'but',
+    'if', 'or', 'because', 'until', 'while', 'this', 'that', 'these',
+    'those', 'am', 'it', 'its', 'i', 'me', 'my', 'myself', 'we', 'our',
+    'you', 'your', 'he', 'him', 'his', 'she', 'her', 'they', 'them',
+    'what', 'which', 'who', 'whom', 'also', 'get', 'got', 'like', 'even',
+}
 
 class ErrorAnalyzer:
     def __init__(self, evaluation_results_file):
@@ -57,7 +69,7 @@ class ErrorAnalyzer:
             confusion_pairs[pair] += 1
 
         print("\n가장 많이 혼동되는 카테고리 쌍 (Top 5):\n")
-        print("{:<25} {:<25} {:<10}".format("True Label", "Predicted Label", "Count"))
+        print(f"{'True Label':<25} {'Predicted Label':<25} {'Count':<10}")
         print("-" * 80)
 
         for (label_true, label_pred), count in confusion_pairs.most_common(5):
@@ -116,28 +128,20 @@ class ErrorAnalyzer:
 
         return patterns
 
+    def _tokenize_reviews(self, reviews):
+        tokens = []
+        for review in reviews:
+            for tok in review.lower().split():
+                clean_tok = ''.join(c for c in tok if c.isalpha())
+                if len(clean_tok) >= 2 and clean_tok not in STOPWORDS:
+                    tokens.append(clean_tok)
+        return tokens
+
     def identify_common_keywords(self):
         """에러 케이스의 공통 키워드 분석"""
         print("\n" + "="*80)
         print("  3. 에러 케이스 공통 키워드")
         print("="*80)
-
-        # Stopwords 정의
-        stopwords = {
-            'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-            'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-            'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare',
-            'ought', 'used', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by',
-            'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above',
-            'below', 'between', 'under', 'again', 'further', 'then', 'once',
-            'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few',
-            'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only',
-            'own', 'same', 'so', 'than', 'too', 'very', 'just', 'and', 'but',
-            'if', 'or', 'because', 'until', 'while', 'this', 'that', 'these',
-            'those', 'am', 'it', 'its', 'i', 'me', 'my', 'myself', 'we', 'our',
-            'you', 'your', 'he', 'him', 'his', 'she', 'her', 'they', 'them',
-            'what', 'which', 'who', 'whom', 'also', 'get', 'got', 'like', 'even'
-        }
 
         # 혼동 쌍별로 공통 키워드 찾기
         confusion_keywords = defaultdict(list)
@@ -159,18 +163,7 @@ class ErrorAnalyzer:
             reviews = confusion_keywords[confusion]
 
             # 토큰화 및 정규화
-            all_tokens = []
-            for review in reviews:
-                # 소문자로 변환, 알파벳만 추출
-                tokens = review.lower().split()
-                # 특수문자 제거 및 필터링
-                cleaned_tokens = []
-                for tok in tokens:
-                    clean_tok = ''.join(c for c in tok if c.isalpha())
-                    # 길이 2 이상, stopword 아닌 것만
-                    if len(clean_tok) >= 2 and clean_tok not in stopwords:
-                        cleaned_tokens.append(clean_tok)
-                all_tokens.extend(cleaned_tokens)
+            all_tokens = self._tokenize_reviews(reviews)
 
             # 상위 10개 키워드 추출
             top_keywords = [w for w, _ in Counter(all_tokens).most_common(10)]
@@ -241,7 +234,7 @@ class ErrorAnalyzer:
 
         if not self.errors:
             print("\n⚠️  에러 케이스가 없습니다. 평가를 먼저 실행하세요.")
-            return
+            return {}
 
         print("="*80)
         print(f"  에러 분석 리포트 (총 {len(self.errors)}건)")
@@ -284,8 +277,6 @@ class ErrorAnalyzer:
 
 
 def main():
-    import argparse
-
     parser = argparse.ArgumentParser(description='에러 케이스 분석')
     parser.add_argument('--results', type=str,
                         help='평가 결과 파일 경로 (예: results/baseline_metrics_xxx.json)')
