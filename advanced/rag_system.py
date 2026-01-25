@@ -56,14 +56,14 @@ class RAGReviewAnalyzer:
         # 컬렉션 생성 또는 가져오기
         self.collection_name = collection_name
         try:
-            self.collection = self.chroma_client.get_collection(collection_name)
-            print(f"✓ 기존 컬렉션 로드: {collection_name} ({self.collection.count()}개 문서)")
-        except ValueError:
-            self.collection = self.chroma_client.create_collection(
+            self.collection = self.chroma_client.get_or_create_collection(
                 name=collection_name,
                 metadata={"description": "Review categorization examples"}
             )
-            print(f"✓ 새 컬렉션 생성: {collection_name}")
+            print(f"✓ 컬렉션 준비 완료: {collection_name} ({self.collection.count()}개 문서)")
+        except Exception as e:
+            print(f"⚠️ 컬렉션 초기화 오류: {e}")
+            raise
 
     def add_examples(self, review_text, category, metadata=None):
         """Vector DB에 예시 추가"""

@@ -1,247 +1,240 @@
-# 커머스 리뷰 분석 PoC (E-commerce Review Analysis)
+# AI-Powered E-commerce Review Analysis
 
-## 프로젝트 목적
+> LLM과 고급 AI 기법을 활용한 이커머스 리뷰 자동 분석 시스템
 
-이 프로젝트는 **커머스 리뷰 텍스트를 AI로 분석**하여, 사람이 직접 읽지 않아도 다음을 자동으로 도출하는 PoC(Proof of Concept)입니다.
+## 🎯 프로젝트 개요
 
-- 지금 가장 큰 문제 (TOP 3)
-- 우선 개선해야 할 포인트 (최근 급증 이슈)
-- 즉시 실행 가능한 개선 액션 제안
+고객 리뷰를 AI로 분석하여 **핵심 문제점 자동 도출**, **급증 이슈 탐지**, **개선 액션 제안**을 자동화하는 시스템입니다.
 
-### 해결하려는 문제
+### 해결하는 문제
 
-현재 커머스 환경에서 리뷰는 많이 쌓이지만:
-- 어떤 문제가 가장 빈번한지
-- 최근 들어 급증한 이슈는 무엇인지
-- 지금 당장 고치면 효과가 큰 부분이 어디인지
-
-를 한눈에 파악하기 어렵습니다.
-
-이 PoC는 **리뷰 데이터를 매출·운영 의사결정에 활용**하는 가능성을 검증합니다.
+| Before | After |
+|--------|-------|
+| 수천 개 리뷰를 사람이 직접 읽어야 함 | AI가 자동 분류 및 패턴 분석 |
+| 어떤 문제가 급증하는지 파악 불가 | 시계열 비교로 급증 이슈 자동 탐지 |
+| 개선 우선순위 판단에 시간 소요 | 즉시 실행 가능한 액션 자동 제안 |
 
 ---
 
-## 핵심 기능
+## 📊 성과 지표
 
-### 1. 부정 리뷰 기준 TOP 3 문제점 도출
-평점 3점 이하 리뷰를 분석하여 가장 빈번한 문제점 3가지를 자동으로 추출합니다.
+| Metric | Value | Note |
+|--------|-------|------|
+| **Accuracy** | **85%** | 100개 Ground Truth 기준 |
+| **Precision** | 87.53% | Weighted Average |
+| **F1 Score** | 85.17% | Weighted Average |
+| **Processing Speed** | 100 reviews/min | GPT-4o-mini 기준 |
 
-**예시 출력:**
-```
-1. Delivery Delay
-   빈도: 145회 (32.1%)
-   예시:
-   - Package arrived 2 weeks late
-   - Delivery took too long
-   - Expected delivery in 5 days, took 15
+### 카테고리별 성능 (Top 5)
 
-2. Wrong Item
-   빈도: 89회 (19.7%)
-   ...
-```
-
-### 2. 최근 기간 급증 이슈 탐지
-이전 기간 대비 언급 빈도가 빠르게 증가한 문제를 식별합니다.
-
-**예시 출력:**
-```
-📈 최근 급증한 이슈:
-
-1. Packaging Damage
-   증가율: +156.3%
-   이전: 16회 → 최근: 41회
-```
-
-### 3. AI 기반 개선 액션 제안
-분석 결과를 바탕으로 즉시 실행 가능한 개선 방안을 제시합니다.
-
-**예시 출력:**
-```
-💡 개선 액션 제안:
-
-1. 배송 파트너사와 긴급 미팅을 통해 최근 지연 원인을 파악하고, 2주 내 배송 프로세스 개선 계획을 수립하세요
-2. 포장 품질 점검 프로세스를 강화하고, 파손 위험이 높은 상품군에 대해 이중 포장을 적용하세요
-3. 상품 상세 페이지에 사이즈 가이드와 실측 정보를 추가하여 오배송을 줄이세요
-```
+| Category | F1 Score | Support |
+|----------|----------|---------|
+| network_issue | 100% | 5 |
+| overheating | 100% | 3 |
+| sound_issue | 100% | 2 |
+| battery_issue | 94.4% | 37 |
+| positive_review | 88.9% | 15 |
 
 ---
 
-## 기술 스택
+## 🔬 기술적 접근
 
-- **Python 3.8+**
-- **Pandas**: 데이터 전처리
-- **OpenAI API (GPT-4o-mini)**: LLM 기반 리뷰 분석
-- **Kaggle Hub**: Olist Brazilian E-commerce 데이터셋 다운로드
+### Level 1: 정량적 평가 시스템
+- Ground Truth 100개 구축 (자동 라벨링 + 검수)
+- Accuracy, Precision, Recall, F1 Score 자동 측정
+- Confusion Matrix 시각화
+
+### Level 2: 프롬프트 엔지니어링
+4가지 전략 비교 실험:
+
+| Strategy | Accuracy | vs Baseline |
+|----------|----------|-------------|
+| Zero-shot | **84%** | Best |
+| Few-shot (3-shot) | 80% | -4% |
+| Chain-of-Thought | 82% | -2% |
+| Temperature 0.7 | 83% | -1% |
+
+### Level 3: 에러 분석 & 개선
+- 주요 혼동 패턴: `positive_review` ↔ `other`, `poor_quality` ↔ `customer_service`
+- 리뷰 길이별, 평점별 에러 분포 분석
+- 자동 개선안 제시 시스템
+
+### Level 4-1: 멀티 에이전트 시스템
+Self-Consistency 기반 다중 관점 분석:
+
+```
+┌─────────────────────────────────────┐
+│         Coordinator Agent           │
+│      (최종 결정 및 합의 도출)          │
+└──────────┬──────────────────────────┘
+           │
+    ┌──────┴──────┐
+    ▼             ▼
+┌─────────┐   ┌─────────┐   ┌─────────┐
+│Agent 1  │   │Agent 2  │   │Agent 3  │
+│ General │   │Operational│  │ Product │
+└─────────┘   └─────────┘   └─────────┘
+```
+
+- 3가지 합의 방법: 다수결 투표, 가중치 합의, LLM 중재
+
+### Level 4-2: RAG + Vector DB
+- ChromaDB + Sentence Transformers
+- 유사 리뷰 검색 기반 동적 Few-shot Learning
+
+### Level 4-3: Fine-tuning 준비
+- OpenAI Fine-tuning 형식 학습 데이터 생성
+- JSONL 형식 자동 변환
 
 ---
 
-## 데이터셋
+## 🛠️ 기술 스택
 
-**Olist Brazilian E-commerce Dataset** 사용
-- 출처: Kaggle
-- 포함 정보: 실제 커머스 리뷰 텍스트, 평점, 주문 시간 등
-- 사용 컬럼:
-  - `review_id`: 리뷰 고유 ID
-  - `review_text`: 리뷰 텍스트
-  - `rating`: 평점 (1-5)
-  - `created_at`: 리뷰 작성 시간
-
----
-
-## 설치 및 실행
-
-### 1. 저장소 클론
-```bash
-git clone <repository-url>
-cd analyze-review
-```
-
-### 2. 가상환경 생성 (권장)
-```bash
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-```
-
-### 3. 패키지 설치
-```bash
-pip install -r requirements.txt
-```
-
-### 4. 환경변수 설정
-`.env` 파일을 생성하고 OpenAI API 키를 추가합니다:
-
-```bash
-OPENAI_API_KEY=your_openai_api_key_here
-```
-
-### 5. 실행
-```bash
-python main.py
-```
-
-**첫 실행 시:**
-- Kaggle에서 자동으로 데이터셋을 다운로드합니다
-- Kaggle API 인증이 필요할 수 있습니다 ([설정 가이드](https://github.com/Kaggle/kaggle-api#api-credentials))
+| Category | Technology |
+|----------|------------|
+| **Language** | Python 3.11+ |
+| **LLM** | OpenAI GPT-4o-mini |
+| **Vector DB** | ChromaDB |
+| **Embedding** | Sentence Transformers |
+| **Evaluation** | scikit-learn |
+| **Visualization** | matplotlib, seaborn |
 
 ---
 
-## 프로젝트 구조
+## 📁 프로젝트 구조
 
 ```
 analyze-review/
-├── main.py              # 메인 실행 스크립트
-├── data_loader.py       # 데이터 다운로드 및 전처리
-├── analyzer.py          # LLM 기반 분석 로직
-├── config.py            # 설정 파일
-├── requirements.txt     # 패키지 의존성
-├── .env.example         # 환경변수 예시
-├── .gitignore
-└── README.md
+├── main.py                      # Kaggle 데이터셋 분석
+├── analyze_csv.py               # 커스텀 CSV 분석
+├── analyzer.py                  # 핵심 분석 로직
+├── data_loader.py               # 데이터 처리
+├── config.py                    # 설정
+│
+├── evaluation/                  # Level 1: 평가 시스템
+│   ├── evaluate.py              # 정확도 측정
+│   ├── auto_labeling.py         # 자동 라벨링
+│   └── evaluation_dataset.csv   # Ground Truth
+│
+├── experiments/                 # Level 2-3: 실험
+│   ├── prompt_engineering.py    # 프롬프트 실험
+│   └── error_analysis.py        # 에러 분석
+│
+├── advanced/                    # Level 4: 고급 기법
+│   ├── multi_agent_analyzer.py  # 멀티 에이전트
+│   └── rag_system.py            # RAG 시스템
+│
+├── visualization/               # 시각화
+│   └── create_charts.py
+│
+└── results/                     # 실험 결과
+    ├── baseline_confusion_matrix.png
+    ├── prompt_experiments_*.json
+    ├── error_analysis_*.json
+    └── figures/
+        ├── accuracy_improvement.png
+        ├── method_comparison.png
+        └── per_class_performance.png
 ```
 
 ---
 
-## 설정 커스터마이징
+## 🚀 빠른 시작
 
-[config.py](config.py)에서 분석 파라미터를 조정할 수 있습니다:
+### 1. 설치
 
-```python
-# 부정 리뷰 기준 (이 점수 이하를 부정 리뷰로 간주)
-NEGATIVE_RATING_THRESHOLD = 3
+```bash
+git clone https://github.com/heeoneie/analyze-review.git
+cd analyze-review
 
-# 최근 기간 (일)
-RECENT_PERIOD_DAYS = 30
+# uv 사용 (권장)
+uv venv && source .venv/bin/activate
+uv pip install -r requirements.txt
 
-# 비교 기간 (일)
-COMPARISON_PERIOD_DAYS = 60
+# 또는 pip 사용
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+```
 
-# LLM 모델
-LLM_MODEL = "gpt-4o-mini"
+### 2. 환경변수 설정
+
+```bash
+# .env 파일 생성
+OPENAI_API_KEY=your_api_key_here
+```
+
+### 3. 실행
+
+```bash
+# 기본 분석
+python main.py
+
+# 커스텀 CSV 분석
+python analyze_csv.py your_reviews.csv
+
+# 평가 시스템
+PYTHONPATH=. python evaluation/evaluate.py --mode baseline
+
+# 프롬프트 실험
+PYTHONPATH=. python experiments/prompt_engineering.py
+
+# 멀티 에이전트
+PYTHONPATH=. python advanced/multi_agent_analyzer.py
 ```
 
 ---
 
-## 예상 결과 예시
+## 📈 실험 결과 시각화
 
-```
-================================================================================
-  Step 6: Identifying Top 3 Issues
-================================================================================
+### Confusion Matrix
+![Confusion Matrix](results/baseline_confusion_matrix.png)
 
-📊 TOP 3 문제점 (부정 리뷰 기준):
-
-1. Delivery Delay
-   빈도: 145회 (32.1%)
-   예시:
-   - Package arrived 2 weeks late
-   - Delivery took too long
-   - Expected delivery in 5 days, took 15
-
-2. Wrong Item
-   빈도: 89회 (19.7%)
-   예시:
-   - Received different color than ordered
-   - Wrong size delivered
-   - Got a completely different product
-
-3. Poor Quality
-   빈도: 67회 (14.8%)
-   예시:
-   - Material feels cheap
-   - Broke after first use
-   - Not as described in photos
-
-================================================================================
-  Step 7: Detecting Emerging Issues
-================================================================================
-
-📈 최근 급증한 이슈:
-
-1. Packaging Damage
-   증가율: +156.3%
-   이전: 16회 → 최근: 41회
-
-================================================================================
-  Step 8: Generating Action Plan
-================================================================================
-
-💡 개선 액션 제안:
-
-1. 배송 파트너사와 긴급 미팅을 통해 최근 지연 원인을 파악하고, 배송 프로세스 개선 계획을 수립하세요
-2. 포장 품질 점검을 강화하고, 파손 위험 상품에 이중 포장을 적용하세요
-3. 상품 상세 페이지에 정확한 사이즈 가이드를 추가하여 오배송을 줄이세요
-```
+### 방법론 비교
+![Method Comparison](results/figures/method_comparison.png)
 
 ---
 
-## 제한사항 및 범위
+## 💡 주요 발견
 
-이 프로젝트는 **PoC(Proof of Concept)** 수준입니다:
+1. **Zero-shot이 Few-shot보다 성능이 좋음**
+   - iPhone 리뷰 특성에 맞춘 카테고리 정의가 이미 명확함
+   - 추가 예시가 오히려 혼란 유발
 
-- ✅ 가능성 검증용
-- ❌ 상용 서비스 아님
-- ❌ 결제/유저 관리 없음
-- ❌ 정확도 최적화 없음
-- ❌ 프로덕션 레벨 에러 핸들링 없음
+2. **배터리 이슈가 전체의 37% 차지**
+   - iPhone SE 리뷰 특성상 battery_issue가 dominant
 
-**목적:** "리뷰 데이터를 활용하면 의사결정에 어떤 도움이 되는가" 검증
+3. **positive_review 카테고리 필요**
+   - 낮은 평점에도 긍정적 내용의 리뷰 15% 존재
 
----
-
-## 비용 안내
-
-- OpenAI API 사용료가 발생합니다
-- 기본 설정(GPT-4o-mini, 샘플 200개)으로 실행 시 약 $0.10-0.30 정도 예상
-- 대량 데이터 분석 시 샘플 크기를 조정하여 비용을 조절할 수 있습니다
+4. **멀티 에이전트로 애매한 케이스 해결**
+   - 3개 관점에서 분류 후 합의
 
 ---
 
-## 라이선스
+## 🎓 배운 점
+
+- LLM 기반 분류에서 **프롬프트 설계**가 핵심
+- **정량적 평가 없이는 개선 방향 판단 불가**
+- **도메인 특화 카테고리**가 일반 카테고리보다 효과적
+- Self-Consistency로 **신뢰도 향상** 가능
+
+---
+
+## 📝 향후 개선
+
+- [ ] Fine-tuning으로 비용 절감 및 속도 향상
+- [ ] 실시간 리뷰 모니터링 대시보드
+- [ ] 다국어 지원 (한국어, 일본어)
+- [ ] A/B 테스트 결과와 연계
+
+---
+
+## 📄 License
 
 MIT License
 
 ---
 
-## 문의 및 기여
+## 🤝 Contact
 
-이슈나 개선 제안은 GitHub Issues를 통해 등록해주세요.
+질문이나 제안은 GitHub Issues로 등록해주세요.

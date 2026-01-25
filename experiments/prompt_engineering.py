@@ -60,14 +60,17 @@ class PromptExperiments:
         """실험 2: Few-shot Learning"""
         print(f"\n🔬 실험 2: Few-shot ({num_examples}-shot)")
 
-        # Few-shot 예시
+        # iPhone 리뷰용 Few-shot 예시
         examples = """
 Examples:
-1. "Package took 3 weeks to arrive" → delivery_delay
-2. "Received wrong color, ordered blue but got red" → wrong_item
-3. "Product broke after 2 days of use" → poor_quality
-4. "Box was damaged and item was scratched" → damaged_packaging
-5. "Too small, doesn't fit" → size_issue
+1. "Battery drains too fast, only lasts 2-3 hours" → battery_issue
+2. "WiFi keeps disconnecting, hotspot is weak" → network_issue
+3. "Phone gets very hot during use" → overheating
+4. "Screen size is too small" → size_issue
+5. "No charger in the box, had to buy separately" → missing_parts
+6. "Nice phone, works great" → positive_review
+7. "Flipkart refused to replace, bad service" → customer_service
+8. "Too expensive for what you get" → price_issue
 """
 
         sampled_reviews = reviews_text_list[:min(100, len(reviews_text_list))]
@@ -75,7 +78,7 @@ Examples:
             [f"{i+1}. {text[:500]}" for i, text in enumerate(sampled_reviews)]
         )
 
-        prompt = f"""You are analyzing customer reviews for an e-commerce platform.
+        prompt = f"""You are analyzing customer reviews for a smartphone (iPhone) e-commerce platform.
 
 {examples}
 
@@ -94,16 +97,22 @@ Output format (JSON):
   "categories": [
     {{
       "review_number": 1,
-      "category": "delivery_delay",
-      "brief_issue": "Package arrived 2 weeks late"
+      "category": "battery_issue",
+      "brief_issue": "Battery drains too fast"
     }},
     ...
   ]
 }}
 
-Use concise category names in English (lowercase with underscores).
-Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue,
-missing_parts, not_as_described, customer_service, price_issue, other
+Categories: battery_issue, network_issue, display_issue, software_issue, overheating,
+sound_issue, delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue,
+missing_parts, not_as_described, customer_service, price_issue, positive_review, other
+
+Rules:
+1. Use ONLY the category names listed above
+2. "Battery backup" = battery_issue
+3. "Phone heating/hot" = overheating
+4. If review is positive ("Nice phone", "Good"), use positive_review
 """
 
         return self._safe_call(prompt, SYSTEM_PROMPT_ANALYST, temperature)
@@ -117,7 +126,7 @@ missing_parts, not_as_described, customer_service, price_issue, other
             [f"{i+1}. {text[:500]}" for i, text in enumerate(sampled_reviews)]
         )
 
-        prompt = f"""You are analyzing customer reviews for an e-commerce platform.
+        prompt = f"""You are analyzing customer reviews for a smartphone (iPhone) e-commerce platform.
 
 Below are {len(sampled_reviews)} negative customer reviews (rating ≤ 3/5).
 
@@ -138,16 +147,23 @@ Output format (JSON):
   "categories": [
     {{
       "review_number": 1,
-      "category": "delivery_delay",
-      "brief_issue": "Package arrived 2 weeks late",
-      "reasoning": "Review mentions both delivery and quality, but focuses more on delivery time"
+      "category": "battery_issue",
+      "brief_issue": "Battery drains too fast",
+      "reasoning": "Review mentions both battery and size, but battery is the main complaint"
     }},
     ...
   ]
 }}
 
-Categories: delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue,
-missing_parts, not_as_described, customer_service, price_issue, other
+Categories: battery_issue, network_issue, display_issue, software_issue, overheating,
+sound_issue, delivery_delay, wrong_item, poor_quality, damaged_packaging, size_issue,
+missing_parts, not_as_described, customer_service, price_issue, positive_review, other
+
+Rules:
+1. Use ONLY the category names listed above
+2. "Battery backup/draining" = battery_issue
+3. "Phone heating/hot" = overheating
+4. If review is actually positive, use positive_review
 """
 
         return self._safe_call(prompt, SYSTEM_PROMPT_COT, temperature)

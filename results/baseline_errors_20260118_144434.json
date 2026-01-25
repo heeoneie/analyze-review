@@ -1,0 +1,107 @@
+[
+  {
+    "review_id": 5357,
+    "review_text": "Do not ever but costly phone this app . My phone get problem within week and I can't even replaced it fking sideREAD MORE",
+    "true_label": "poor_quality",
+    "predicted_label": "customer_service",
+    "rating": 1
+  },
+  {
+    "review_id": 8778,
+    "review_text": "Size compatible with user friendly..READ MORE",
+    "true_label": "positive_review",
+    "predicted_label": "size_issue",
+    "rating": 3
+  },
+  {
+    "review_id": 5383,
+    "review_text": "Got the set but adopter is not working .No satisfactory response from service centre at Kolkata.READ MORE",
+    "true_label": "customer_service",
+    "predicted_label": "missing_parts",
+    "rating": 1
+  },
+  {
+    "review_id": 6207,
+    "review_text": "Screen stuck on call screen. Flipkart denied for replacement and apple can't be able to fix this issue.READ MORE",
+    "true_label": "display_issue",
+    "predicted_label": "software_issue",
+    "rating": 1
+  },
+  {
+    "review_id": 3794,
+    "review_text": "Received an damaged mobile, when I connected with customer care after 15-20 calls they finally answered, But not helpful they keep me hold for more than 1 hour not received proper response from them. I request please replaceREAD MORE",
+    "true_label": "customer_service",
+    "predicted_label": "damaged_packaging",
+    "rating": 1
+  },
+  {
+    "review_id": 9280,
+    "review_text": "Good product but not great.READ MORE",
+    "true_label": "positive_review",
+    "predicted_label": "other",
+    "rating": 3
+  },
+  {
+    "review_id": 5555,
+    "review_text": "Device get issue on next dayREAD MORE",
+    "true_label": "poor_quality",
+    "predicted_label": "other",
+    "rating": 1
+  },
+  {
+    "review_id": 1342,
+    "review_text": "Camera is awsome.Disappointed with battery life,and i had found hanging issues after 1 month of usageREAD MORE",
+    "true_label": "battery_issue",
+    "predicted_label": "software_issue",
+    "rating": 3
+  },
+  {
+    "review_id": 821,
+    "review_text": "It has always been a good looking phone in hand, has been a part of one's personality, this phone has a good performance but when you talk about the features and customization it equals to a worthless metal piece.. It is good to be presented that's it.READ MORE",
+    "true_label": "not_as_described",
+    "predicted_label": "poor_quality",
+    "rating": 3
+  },
+  {
+    "review_id": 756,
+    "review_text": "Inside box you could not get charger and head phone,Battery is below average quality, Other wise this phone is ok condition and good built qualityREAD MORE",
+    "true_label": "missing_parts",
+    "predicted_label": "battery_issue",
+    "rating": 3
+  },
+  {
+    "review_id": 946,
+    "review_text": "Phone battry very bad only 2-3 hours screen and when charging phone is very hot and very small screen donot play games pubgREAD MORE",
+    "true_label": "battery_issue",
+    "predicted_label": "size_issue",
+    "rating": 1
+  },
+  {
+    "review_id": 899,
+    "review_text": "Its small in size have big bezels  still can compete with those having 8 gb ram and octa core processor with 720 gpu mobiles happy with its 12 megapixels back and 7 mega pixels camera wheras other phone gives 48 megapixes still cant beat an iphone se camera and processing powerThanks to apple team for their harwork and also flipkart for such a nice product home delivery in lockdown.READ MORE",
+    "true_label": "positive_review",
+    "predicted_label": "other",
+    "rating": 3
+  },
+  {
+    "review_id": 8484,
+    "review_text": "After one week ph has problems how to trust online productREAD MORE",
+    "true_label": "poor_quality",
+    "predicted_label": "other",
+    "rating": 1
+  },
+  {
+    "review_id": 423,
+    "review_text": "Buying a basic camera phone this price is not justified unless it is apple product. Camera quality is not good as expected from apple. Far better camera is available at half of price in other brandsREAD MORE",
+    "true_label": "price_issue",
+    "predicted_label": "camera_issue",
+    "rating": 3
+  },
+  {
+    "review_id": 8219,
+    "review_text": "ProsPerformance is goodTouchpad really good ConsBattery Not value for moneyREAD MORE",
+    "true_label": "battery_issue",
+    "predicted_label": "price_issue",
+    "rating": 2
+  }
+]
