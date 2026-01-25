@@ -1,0 +1,189 @@
+{
+  "total_errors": 15,
+  "confusion_pairs": [
+    {
+      "label_a": "positive_review",
+      "label_b": "other",
+      "count": 2
+    },
+    {
+      "label_a": "poor_quality",
+      "label_b": "other",
+      "count": 2
+    },
+    {
+      "label_a": "poor_quality",
+      "label_b": "customer_service",
+      "count": 1
+    },
+    {
+      "label_a": "positive_review",
+      "label_b": "size_issue",
+      "count": 1
+    },
+    {
+      "label_a": "customer_service",
+      "label_b": "missing_parts",
+      "count": 1
+    },
+    {
+      "label_a": "display_issue",
+      "label_b": "software_issue",
+      "count": 1
+    },
+    {
+      "label_a": "customer_service",
+      "label_b": "damaged_packaging",
+      "count": 1
+    },
+    {
+      "label_a": "battery_issue",
+      "label_b": "software_issue",
+      "count": 1
+    },
+    {
+      "label_a": "not_as_described",
+      "label_b": "poor_quality",
+      "count": 1
+    },
+    {
+      "label_a": "missing_parts",
+      "label_b": "battery_issue",
+      "count": 1
+    },
+    {
+      "label_a": "battery_issue",
+      "label_b": "size_issue",
+      "count": 1
+    },
+    {
+      "label_a": "price_issue",
+      "label_b": "camera_issue",
+      "count": 1
+    },
+    {
+      "label_a": "battery_issue",
+      "label_b": "price_issue",
+      "count": 1
+    }
+  ],
+  "keywords": {
+    "examples": {
+      "poor_quality → customer_service": [
+        "Do not ever but costly phone this app . My phone get problem within week and I can't even replaced it fking sideREAD MORE"
+      ],
+      "positive_review → size_issue": [
+        "Size compatible with user friendly..READ MORE"
+      ],
+      "customer_service → missing_parts": [
+        "Got the set but adopter is not working .No satisfactory response from service centre at Kolkata.READ MORE"
+      ],
+      "display_issue → software_issue": [
+        "Screen stuck on call screen. Flipkart denied for replacement and apple can't be able to fix this issue.READ MORE"
+      ],
+      "customer_service → damaged_packaging": [
+        "Received an damaged mobile, when I connected with customer care after 15-20 calls they finally answered, But not helpful they keep me hold for more than 1 hour not received proper response from them. I request please replaceREAD MORE"
+      ],
+      "positive_review → other": [
+        "Good product but not great.READ MORE",
+        "Its small in size have big bezels  still can compete with those having 8 gb ram and octa core processor with 720 gpu mobiles happy with its 12 megapixels back and 7 mega pixels camera wheras other phone gives 48 megapixes still cant beat an iphone se camera and processing powerThanks to apple team for their harwork and also flipkart for such a nice product home delivery in lockdown.READ MORE"
+      ],
+      "poor_quality → other": [
+        "Device get issue on next dayREAD MORE",
+        "After one week ph has problems how to trust online productREAD MORE"
+      ],
+      "battery_issue → software_issue": [
+        "Camera is awsome.Disappointed with battery life,and i had found hanging issues after 1 month of usageREAD MORE"
+      ],
+      "not_as_described → poor_quality": [
+        "It has always been a good looking phone in hand, has been a part of one's personality, this phone has a good performance but when you talk about the features and customization it equals to a worthless metal piece.. It is good to be presented that's it.READ MORE"
+      ],
+      "missing_parts → battery_issue": [
+        "Inside box you could not get charger and head phone,Battery is below average quality, Other wise this phone is ok condition and good built qualityREAD MORE"
+      ],
+      "battery_issue → size_issue": [
+        "Phone battry very bad only 2-3 hours screen and when charging phone is very hot and very small screen donot play games pubgREAD MORE"
+      ],
+      "price_issue → camera_issue": [
+        "Buying a basic camera phone this price is not justified unless it is apple product. Camera quality is not good as expected from apple. Far better camera is available at half of price in other brandsREAD MORE"
+      ],
+      "battery_issue → price_issue": [
+        "ProsPerformance is goodTouchpad really good ConsBattery Not value for moneyREAD MORE"
+      ]
+    },
+    "keywords": {
+      "positive_review → other": [
+        "product",
+        "still",
+        "camera",
+        "good",
+        "greatread",
+        "small",
+        "size",
+        "big",
+        "bezels",
+        "compete"
+      ],
+      "poor_quality → other": [
+        "device",
+        "issue",
+        "next",
+        "dayread",
+        "one",
+        "week",
+        "ph",
+        "problems",
+        "trust",
+        "online"
+      ],
+      "poor_quality → customer_service": [
+        "phone",
+        "ever",
+        "costly",
+        "app",
+        "problem",
+        "within",
+        "week",
+        "cant",
+        "replaced",
+        "fking"
+      ]
+    }
+  },
+  "patterns": {
+    "review_length": {
+      "short": 7,
+      "very_short": 3,
+      "medium": 4,
+      "long": 1
+    },
+    "rating": {
+      "1": 7,
+      "3": 7,
+      "2": 1
+    },
+    "categories": {
+      "poor_quality": 3,
+      "positive_review": 3,
+      "customer_service": 2,
+      "display_issue": 1,
+      "battery_issue": 3,
+      "not_as_described": 1,
+      "missing_parts": 1,
+      "price_issue": 1
+    }
+  },
+  "suggestions": [
+    {
+      "issue": "'positive_review' 와 'other' 혼동 (2건)",
+      "solution": "프롬프트에 두 카테고리의 명확한 차이점을 예시와 함께 추가",
+      "example": "- 'positive_review': [구체적 예시]\n- 'other': [구체적 예시]"
+    },
+    {
+      "issue": "'poor_quality' 카테고리에서 에러 많음 (3건)",
+      "solution": "'poor_quality' 정의를 명확히 하고 Few-shot 예시 추가",
+      "example": "해당 카테고리의 대표적인 3-5개 예시를 프롬프트에 포함"
+    }
+  ],
+  "timestamp": "20260125_140025"
+}
