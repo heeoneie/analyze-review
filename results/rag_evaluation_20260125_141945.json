@@ -1,0 +1,11 @@
+{
+  "method": "RAG (n_examples=3)",
+  "accuracy": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "total_samples": 100,
+  "errors": 0,
+  "error_details": [],
+  "timestamp": "20260125_141945"
+}
