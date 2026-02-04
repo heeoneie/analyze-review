@@ -1,9 +1,20 @@
 # Environment
 .env
 venv/
+.venv/
 env/
 *.pyc
 __pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+*.egg
+
+# Node
+node_modules/
+dist/
+.npm
 
 # Data
 data/
@@ -11,11 +22,19 @@ data/
 *.xlsx
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Temp
+*.tmp
+*.temp
+*.log
+
+# Frontend build
+frontend/dist/
