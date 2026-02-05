@@ -7,6 +7,7 @@ import {
   updateSettings,
 } from './api/client';
 import FileUpload from './components/FileUpload';
+import ReviewList from './components/ReviewList';
 import LoadingSpinner from './components/LoadingSpinner';
 import MetricsOverview from './components/MetricsOverview';
 import CategoryChart from './components/CategoryChart';
@@ -131,6 +132,9 @@ function App() {
               <EmergingIssues emergingIssues={analysisResult.emerging_issues} />
               <ActionPlan recommendations={analysisResult.recommendations} />
             </div>
+
+            {/* Review List */}
+            <ReviewList uploadInfo={uploadInfo} />
           </>
         )}
       </main>

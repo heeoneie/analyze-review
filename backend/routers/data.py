@@ -115,3 +115,27 @@ def update_settings(request: SettingsRequest):
 def get_settings():
     """현재 분석 설정 조회"""
     return analysis_settings
+
+
+@router.get("/reviews")
+def get_reviews(page: int = 1, page_size: int = 20):
+    """수집된 리뷰 목록 조회 (페이지네이션)"""
+    csv_path = uploaded_files.get("current")
+    if not csv_path or not os.path.exists(csv_path):
+        raise HTTPException(400, "먼저 CSV 파일을 업로드하거나 크롤링해주세요.")
+
+    df = pd.read_csv(csv_path).fillna("")
+    total = len(df)
+
+    # 페이지네이션
+    start = (page - 1) * page_size
+    end = start + page_size
+    reviews = df.iloc[start:end].to_dict(orient="records")
+
+    return {
+        "reviews": reviews,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }

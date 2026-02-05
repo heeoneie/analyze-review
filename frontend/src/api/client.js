@@ -23,3 +23,7 @@ export const crawlReviews = (url, maxPages = 50) =>
 export const getSettings = () => api.get('/data/settings');
 export const updateSettings = (ratingThreshold) =>
   api.post('/data/settings', { rating_threshold: ratingThreshold });
+
+// 리뷰 목록 API
+export const getReviews = (page = 1, pageSize = 20) =>
+  api.get('/data/reviews', { params: { page, page_size: pageSize } });
