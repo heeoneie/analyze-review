@@ -16,7 +16,7 @@ export const runAnalysis = () => api.post('/analysis/run');
 export const getExperimentResults = () => api.get('/analysis/experiment-results');
 
 // 크롤링 API
-export const crawlReviews = (url, maxPages = 5) =>
+export const crawlReviews = (url, maxPages = 50) =>
   api.post('/data/crawl', { url, max_pages: maxPages });
 
 // 설정 API

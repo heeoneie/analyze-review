@@ -1,133 +1,141 @@
+import json
+import os
 import re
 import tempfile
-import asyncio
+import time
 from urllib.parse import urlparse
 
 import pandas as pd
-from playwright.async_api import async_playwright
+from curl_cffi import requests as cffi_requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
+FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")
 
 
-async def crawl_coupang(url: str, max_pages: int = 5) -> list[dict]:
-    """쿠팡 상품 리뷰 크롤링"""
-    reviews = []
+def _extract_product_id(url: str) -> str | None:
+    """쿠팡 상품 URL에서 productId 추출"""
+    match = re.search(r'/products/(\d+)', url)
+    return match.group(1) if match else None
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
 
-        # 상품 페이지 접속
-        await page.goto(url, wait_until="networkidle", timeout=30000)
-        await page.wait_for_timeout(2000)
+def _crawl_coupang(product_id: str, max_pages: int) -> list[dict]:
+    """curl_cffi로 쿠팡 리뷰 API 직접 호출 (Chrome TLS 핑거프린트로 Akamai 우회)"""
+    session = cffi_requests.Session(impersonate="chrome")
 
-        # 리뷰 탭 클릭 (있으면)
+    # 상품 페이지 방문하여 Akamai 쿠키 획득
+    session.get(
+        f"https://www.coupang.com/vp/products/{product_id}",
+        headers={"Accept": "text/html", "Accept-Language": "ko-KR,ko;q=0.9"},
+    )
+
+    all_reviews = []
+    size = 20
+    consecutive_failures = 0
+
+    for page_num in range(1, max_pages + 1):
+        api_url = (
+            f"https://www.coupang.com/next-api/review"
+            f"?productId={product_id}&page={page_num}&size={size}"
+            f"&sortBy=DATE_DESC&ratingSummary=true"
+        )
+
         try:
-            review_tab = page.locator("a:has-text('상품평')")
-            if await review_tab.count() > 0:
-                await review_tab.first.click()
-                await page.wait_for_timeout(2000)
+            resp = session.get(
+                api_url,
+                headers={
+                    "Accept": "application/json, text/plain, */*",
+                    "Accept-Language": "ko-KR,ko;q=0.9",
+                    "Referer": f"https://www.coupang.com/vp/products/{product_id}",
+                },
+            )
+            resp.raise_for_status()
+            data = json.loads(resp.text)
         except Exception:
-            pass
-
-        for page_num in range(max_pages):
-            # 리뷰 요소 수집
-            review_items = page.locator("article.sdp-review__article__list")
-            count = await review_items.count()
-
-            for i in range(count):
-                try:
-                    item = review_items.nth(i)
-
-                    # 별점
-                    rating_el = item.locator("div.sdp-review__article__list__info__product-info__star-orange")
-                    rating_style = await rating_el.get_attribute("style") if await rating_el.count() > 0 else ""
-                    rating_match = re.search(r"width:\s*(\d+)%", rating_style or "")
-                    rating = int(int(rating_match.group(1)) / 20) if rating_match else 5
-
-                    # 리뷰 텍스트
-                    text_el = item.locator("div.sdp-review__article__list__review__content")
-                    review_text = await text_el.inner_text() if await text_el.count() > 0 else ""
-
-                    if review_text.strip():
-                        reviews.append({"Ratings": rating, "Reviews": review_text.strip()})
-
-                except Exception:
-                    continue
-
-            # 다음 페이지
-            try:
-                next_btn = page.locator("button.sdp-review__article__page__next")
-                if await next_btn.count() > 0 and await next_btn.is_enabled():
-                    await next_btn.click()
-                    await page.wait_for_timeout(2000)
-                else:
-                    break
-            except Exception:
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
                 break
+            time.sleep(0.5)
+            continue
 
-        await browser.close()
+        paging = data.get("rData", {}).get("paging", {})
+        contents = paging.get("contents", [])
+
+        if not contents:
+            break
+
+        for item in contents:
+            rating = item.get("rating", 5)
+            title = item.get("title", "")
+            content = item.get("content", "")
+            text = f"{title}\n{content}".strip() if title else content.strip()
+            all_reviews.append({"Ratings": rating, "Reviews": text})
+
+        consecutive_failures = 0
+
+        if not paging.get("isNext", False):
+            break
+
+        if page_num < max_pages:
+            time.sleep(0.2)
+
+    return all_reviews
+
+
+# ──────────────────────────────────────────────
+# 네이버용 Firecrawl 폴백
+# ──────────────────────────────────────────────
+
+def extract_reviews_from_markdown(markdown: str, platform: str) -> list[dict]:
+    """마크다운에서 리뷰 데이터 추출 (네이버용)"""
+    reviews = []
+    if platform == "naver":
+        lines = markdown.split('\n')
+        current_rating = 5
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            rating_match = re.search(r'별점\s*(\d)', line) or re.search(r'(\d)점', line)
+            if rating_match:
+                current_rating = int(rating_match.group(1))
+                continue
+
+            if len(line) >= 15 and re.search(r'[가-힣]', line):
+                if not any(skip in line for skip in ['작성', '구매', '옵션', '판매자', '신고']):
+                    reviews.append({
+                        "Ratings": current_rating,
+                        "Reviews": line
+                    })
 
     return reviews
 
 
-async def crawl_naver(url: str, max_pages: int = 5) -> list[dict]:
-    """네이버 스마트스토어 리뷰 크롤링"""
-    reviews = []
+async def crawl_with_firecrawl(url: str, max_pages: int = 5) -> tuple[str, list[dict]]:
+    """Firecrawl을 사용한 리뷰 크롤링 (네이버 등)"""
+    if not FIRECRAWL_API_KEY:
+        raise ValueError("FIRECRAWL_API_KEY가 설정되지 않았습니다. .env 파일을 확인해주세요.")
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+    from firecrawl import FirecrawlApp
 
-        await page.goto(url, wait_until="networkidle", timeout=30000)
-        await page.wait_for_timeout(2000)
+    platform = detect_platform(url)
+    app = FirecrawlApp(api_key=FIRECRAWL_API_KEY)
 
-        # 리뷰 탭 클릭
-        try:
-            review_tab = page.locator("a:has-text('리뷰')")
-            if await review_tab.count() > 0:
-                await review_tab.first.click()
-                await page.wait_for_timeout(2000)
-        except Exception:
-            pass
+    result = app.scrape(url, formats=['markdown'], wait_for=3000)
+    markdown = result.markdown or ''
+    if not markdown:
+        raise ValueError("페이지 내용을 가져올 수 없습니다.")
+    reviews = extract_reviews_from_markdown(markdown, platform)
 
-        for page_num in range(max_pages):
-            # 리뷰 요소 수집
-            review_items = page.locator("li.BnwL_cs1av")
-            count = await review_items.count()
+    return platform, reviews
 
-            for i in range(count):
-                try:
-                    item = review_items.nth(i)
 
-                    # 별점
-                    rating_el = item.locator("em.K23LVofo0z")
-                    rating_text = await rating_el.inner_text() if await rating_el.count() > 0 else "5"
-                    rating = int(rating_text) if rating_text.isdigit() else 5
-
-                    # 리뷰 텍스트
-                    text_el = item.locator("span._1LIgGDVTt_")
-                    review_text = await text_el.inner_text() if await text_el.count() > 0 else ""
-
-                    if review_text.strip():
-                        reviews.append({"Ratings": rating, "Reviews": review_text.strip()})
-
-                except Exception:
-                    continue
-
-            # 다음 페이지
-            try:
-                next_btn = page.locator("a.fAUKm1ewwo._2Ar8-aEUTq:has-text('다음')")
-                if await next_btn.count() > 0:
-                    await next_btn.click()
-                    await page.wait_for_timeout(2000)
-                else:
-                    break
-            except Exception:
-                break
-
-        await browser.close()
-
-    return reviews
-
+# ──────────────────────────────────────────────
+# 공통
+# ──────────────────────────────────────────────
 
 def detect_platform(url: str) -> str:
     """URL로 플랫폼 감지"""
@@ -142,16 +150,20 @@ def detect_platform(url: str) -> str:
         return "unknown"
 
 
-async def crawl_reviews(url: str, max_pages: int = 5) -> tuple[str, list[dict]]:
-    """URL에 맞는 크롤러 실행"""
+async def crawl_reviews(url: str, max_pages: int = 50) -> tuple[str, list[dict]]:
+    """리뷰 크롤링 (쿠팡: curl_cffi, 네이버: Firecrawl)"""
     platform = detect_platform(url)
 
-    if platform == "coupang":
-        reviews = await crawl_coupang(url, max_pages)
-    elif platform == "naver":
-        reviews = await crawl_naver(url, max_pages)
-    else:
+    if platform == "unknown":
         raise ValueError(f"지원하지 않는 플랫폼입니다: {url}")
+
+    if platform == "coupang":
+        product_id = _extract_product_id(url)
+        if not product_id:
+            raise ValueError("쿠팡 상품 URL에서 productId를 추출할 수 없습니다.")
+        reviews = _crawl_coupang(product_id, max_pages)
+    else:
+        _, reviews = await crawl_with_firecrawl(url, max_pages)
 
     return platform, reviews
 

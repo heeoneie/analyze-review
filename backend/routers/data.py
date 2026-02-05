@@ -17,7 +17,7 @@ AI_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.ab
 
 class CrawlRequest(BaseModel):
     url: str
-    max_pages: int = 5
+    max_pages: int = 50
 
 
 class SettingsRequest(BaseModel):
