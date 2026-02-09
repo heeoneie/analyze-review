@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -22,7 +23,9 @@ def _extract_product_id(url: str) -> str | None:
     return match.group(1) if match else None
 
 
-_IMPERSONATE_OPTIONS = ["safari", "safari15_5", "chrome120", "chrome"]
+_IMPERSONATE_OPTIONS = [
+    "safari", "safari15_5", "chrome120", "chrome",
+]
 
 _REVIEW_API = (
     "https://www.coupang.com/next-api/review"
@@ -34,29 +37,41 @@ _REVIEW_API = (
 def _init_coupang_session(product_id):
     """쿠팡 Akamai 쿠키 획득을 위한 세션 초기화"""
     for impersonate in _IMPERSONATE_OPTIONS:
-        session = cffi_requests.Session(impersonate=impersonate)
-        session.get(
-            f"https://www.coupang.com/vp/products/{product_id}",
-            headers={
-                "Accept": "text/html",
-                "Accept-Language": "ko-KR,ko;q=0.9",
-            },
-        )
-        test_url = _REVIEW_API.format(
-            pid=product_id, page=1, size=1
-        )
-        test_resp = session.get(
-            test_url,
-            headers={
-                "Accept": "application/json, text/plain, */*",
-                "Referer": (
-                    f"https://www.coupang.com/vp/products/"
-                    f"{product_id}"
-                ),
-            },
-        )
-        if test_resp.status_code == 200:
-            return session
+        try:
+            session = cffi_requests.Session(
+                impersonate=impersonate
+            )
+            session.get(
+                "https://www.coupang.com/vp/products/"
+                f"{product_id}",
+                headers={
+                    "Accept": "text/html",
+                    "Accept-Language": "ko-KR,ko;q=0.9",
+                },
+            )
+            test_url = _REVIEW_API.format(
+                pid=product_id, page=1, size=1
+            )
+            test_resp = session.get(
+                test_url,
+                headers={
+                    "Accept": (
+                        "application/json, text/plain, */*"
+                    ),
+                    "Referer": (
+                        "https://www.coupang.com/vp/products/"
+                        f"{product_id}"
+                    ),
+                },
+            )
+            if test_resp.status_code == 200:
+                return session
+        except (IOError, OSError) as exc:
+            logger.warning(
+                "Session init failed with %s: %s",
+                impersonate, exc,
+            )
+            continue
     return None
 
 
@@ -80,7 +95,9 @@ def _fetch_page(session, product_id, page_num, size):
     return json.loads(resp.text)
 
 
-def _crawl_coupang(product_id: str, max_pages: int) -> list[dict]:
+def _crawl_coupang(
+    product_id: str, max_pages: int
+) -> list[dict]:
     """curl_cffi로 쿠팡 리뷰 API 직접 호출"""
     session = _init_coupang_session(product_id)
     if session is None:
@@ -91,7 +108,9 @@ def _crawl_coupang(product_id: str, max_pages: int) -> list[dict]:
 
     for page_num in range(1, max_pages + 1):
         try:
-            data = _fetch_page(session, product_id, page_num, 20)
+            data = _fetch_page(
+                session, product_id, page_num, 20
+            )
         except (IOError, ValueError, KeyError):
             consecutive_failures += 1
             if consecutive_failures >= 3:
@@ -154,7 +173,9 @@ def extract_reviews_from_markdown(
                 or re.search(r'(\d)점', line)
             )
             if rating_match:
-                current_rating = int(rating_match.group(1))
+                current_rating = int(
+                    rating_match.group(1)
+                )
                 continue
 
             skip_words = [
@@ -190,13 +211,16 @@ async def crawl_with_firecrawl(
     platform = detect_platform(url)
     app = FirecrawlApp(api_key=FIRECRAWL_API_KEY)
 
-    result = app.scrape(
-        url, formats=['markdown'], wait_for=3000
+    result = await asyncio.to_thread(
+        app.scrape, url,
+        formats=['markdown'], wait_for=3000,
     )
     markdown = result.markdown or ''
     if not markdown:
         raise ValueError("페이지 내용을 가져올 수 없습니다.")
-    reviews = extract_reviews_from_markdown(markdown, platform)
+    reviews = extract_reviews_from_markdown(
+        markdown, platform
+    )
 
     return platform, reviews
 
@@ -224,15 +248,20 @@ async def crawl_reviews(
     platform = detect_platform(url)
 
     if platform == "unknown":
-        raise ValueError(f"지원하지 않는 플랫폼입니다: {url}")
+        raise ValueError(
+            f"지원하지 않는 플랫폼입니다: {url}"
+        )
 
     if platform == "coupang":
         product_id = _extract_product_id(url)
         if not product_id:
             raise ValueError(
-                "쿠팡 상품 URL에서 productId를 추출할 수 없습니다."
+                "쿠팡 상품 URL에서 productId를 "
+                "추출할 수 없습니다."
             )
-        reviews = _crawl_coupang(product_id, max_pages)
+        reviews = await asyncio.to_thread(
+            _crawl_coupang, product_id, max_pages
+        )
     else:
         _, reviews = await crawl_with_firecrawl(
             url, max_pages

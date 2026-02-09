@@ -1,7 +1,12 @@
+import logging
 from collections import Counter
 
 from analyzer import ReviewAnalyzer
 from data_loader import DataLoader
+
+logger = logging.getLogger(__name__)
+
+MAX_REVIEW_SAMPLE = 200
 
 
 def _compute_stats(df, negative_df, rating_threshold):
@@ -23,18 +28,35 @@ def _compute_stats(df, negative_df, rating_threshold):
 
 
 def _categorize_periods(loader, analyzer, negative_df):
-    """기간별 LLM 분류 수행"""
-    recent_df, comparison_df = loader.split_by_period(negative_df)
+    """기간별 LLM 분류 수행 (최대 200건 샘플링)"""
+    recent_df, comparison_df = loader.split_by_period(
+        negative_df
+    )
 
-    recent_reviews = recent_df["review_text"].dropna().tolist()
+    recent_reviews = (
+        recent_df["review_text"].dropna().tolist()
+    )
     if not recent_reviews:
-        recent_reviews = negative_df["review_text"].dropna().tolist()
+        logger.warning(
+            "최근 기간 리뷰가 없어 emerging issues 감지가 "
+            "제한됩니다."
+        )
 
-    recent_cat = analyzer.categorize_issues(recent_reviews)
+    recent_cat = (
+        analyzer.categorize_issues(
+            recent_reviews[:MAX_REVIEW_SAMPLE]
+        )
+        if recent_reviews
+        else {"categories": []}
+    )
 
-    comparison_reviews = comparison_df["review_text"].dropna().tolist()
+    comparison_reviews = (
+        comparison_df["review_text"].dropna().tolist()
+    )
     comparison_cat = (
-        analyzer.categorize_issues(comparison_reviews)
+        analyzer.categorize_issues(
+            comparison_reviews[:MAX_REVIEW_SAMPLE]
+        )
         if comparison_reviews
         else {"categories": []}
     )
@@ -42,7 +64,9 @@ def _categorize_periods(loader, analyzer, negative_df):
     return recent_cat, comparison_cat
 
 
-def run_full_analysis(csv_path: str, rating_threshold: int = 3) -> dict:
+def run_full_analysis(
+    csv_path: str, rating_threshold: int = 3
+) -> dict:
     loader = DataLoader()
     analyzer = ReviewAnalyzer()
 
@@ -65,7 +89,9 @@ def run_full_analysis(csv_path: str, rating_threshold: int = 3) -> dict:
         loader, analyzer, negative_df
     )
 
-    top_issues = analyzer.get_top_issues(recent_cat, top_n=3)
+    top_issues = analyzer.get_top_issues(
+        recent_cat, top_n=3
+    )
     all_cats = [
         item["category"]
         for item in recent_cat.get("categories", [])
