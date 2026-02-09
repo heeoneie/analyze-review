@@ -4,6 +4,8 @@ Vector DB를 사용한 동적 Few-shot Learning
 """
 
 import argparse
+import os
+import sys
 from uuid import uuid4
 
 import pandas as pd
@@ -20,8 +22,6 @@ except ImportError as exc:
     Settings = None
     _IMPORT_ERROR = exc
 
-import sys
-import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from core import config  # pylint: disable=wrong-import-position
