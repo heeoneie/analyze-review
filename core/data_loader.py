@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import kagglehub
 import pandas as pd
 
-import config
+from core import config
 
 class DataLoader:
     def __init__(self):

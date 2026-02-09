@@ -10,12 +10,12 @@ from collections import Counter
 
 from openai import OpenAI, OpenAIError
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-import config  # pylint: disable=wrong-import-position
-from utils.json_utils import extract_json_from_text  # pylint: disable=wrong-import-position
-from utils.prompt_templates import SINGLE_REVIEW_JSON_FORMAT  # pylint: disable=wrong-import-position
-from utils.review_categories import CATEGORIES_BULLETS  # pylint: disable=wrong-import-position
+from core import config  # pylint: disable=wrong-import-position
+from core.utils.json_utils import extract_json_from_text  # pylint: disable=wrong-import-position
+from core.utils.prompt_templates import SINGLE_REVIEW_JSON_FORMAT  # pylint: disable=wrong-import-position
+from core.utils.review_categories import CATEGORIES_BULLETS  # pylint: disable=wrong-import-position
 
 class ClassificationAgent:
     """리뷰 분류 전문 에이전트"""

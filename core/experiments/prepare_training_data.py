@@ -8,7 +8,10 @@ import json
 import os
 
 import pandas as pd
-from utils.review_categories import CATEGORIES_BULLETS_FINETUNE
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from core.utils.review_categories import CATEGORIES_BULLETS_FINETUNE  # pylint: disable=wrong-import-position
 
 CATEGORIES_DESCRIPTION = {
     'delivery_delay': 'Shipping or delivery took too long',

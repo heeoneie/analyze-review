@@ -1,8 +1,8 @@
 import logging
 from collections import Counter
 
-from analyzer import ReviewAnalyzer
-from data_loader import DataLoader
+from core.analyzer import ReviewAnalyzer
+from core.data_loader import DataLoader
 
 logger = logging.getLogger(__name__)
 

@@ -11,8 +11,11 @@ import pandas as pd
 from openai import OpenAI
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
-import config
-from utils.review_categories import CATEGORIES_BULLETS_FINETUNE
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from core import config  # pylint: disable=wrong-import-position
+from core.utils.review_categories import CATEGORIES_BULLETS_FINETUNE  # pylint: disable=wrong-import-position
 
 ALLOWED_CATEGORIES = {
     "delivery_delay",

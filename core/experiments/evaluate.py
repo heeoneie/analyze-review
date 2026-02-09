@@ -13,7 +13,11 @@ import pandas as pd
 import seaborn as sns
 from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
 
-from analyzer import ReviewAnalyzer
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from core.analyzer import ReviewAnalyzer  # pylint: disable=wrong-import-position
 
 class Evaluator:
     def __init__(self, ground_truth_file='evaluation/evaluation_dataset.csv'):

@@ -20,7 +20,7 @@ router = APIRouter()
 uploaded_files = {}
 analysis_settings = {"rating_threshold": 3}
 
-AI_DIR = str(Path(__file__).resolve().parents[2] / "ai")
+PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
 
 
 class CrawlRequest(BaseModel):
@@ -90,7 +90,7 @@ async def upload_csv(file: UploadFile = File(...)):
 @router.get("/sample")
 def use_sample_data():
     sample_path = os.path.join(
-        AI_DIR, "evaluation", "evaluation_dataset.csv"
+        PROJECT_ROOT, "core", "experiments", "evaluation_dataset.csv"
     )
 
     if not os.path.exists(sample_path):

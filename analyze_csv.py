@@ -9,15 +9,15 @@ E-commerce Review Analysis PoC - Custom CSV Version
 import os
 import sys
 
-from analyzer import ReviewAnalyzer
-from data_loader import DataLoader
-from utils.analysis_workflow import (
+from core.analyzer import ReviewAnalyzer
+from core.data_loader import DataLoader
+from core.utils.analysis_workflow import (
     analyze_periods,
     generate_and_print_action_plan,
     split_by_period,
     summarize_results,
 )
-from utils.cli_helpers import (
+from core.utils.cli_helpers import (
     filter_and_check_negative,
     print_analysis_complete,
     print_section,

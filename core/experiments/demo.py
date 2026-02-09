@@ -7,7 +7,11 @@ import argparse
 import time
 from collections.abc import Iterable
 
-from analyzer import ReviewAnalyzer
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from core.analyzer import ReviewAnalyzer  # pylint: disable=wrong-import-position
 
 def print_header(title):
     """헤더 출력"""

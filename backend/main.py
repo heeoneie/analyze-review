@@ -4,9 +4,10 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# ai/ 디렉토리를 path에 추가하여 기존 모듈 import 가능하게
-AI_DIR = str(Path(__file__).resolve().parents[1] / "ai")
-sys.path.insert(0, AI_DIR)
+# 프로젝트 루트를 path에 추가하여 core 패키지 import 가능하게
+PROJECT_ROOT = str(Path(__file__).resolve().parents[1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from backend.routers import analysis, data  # pylint: disable=wrong-import-position
 

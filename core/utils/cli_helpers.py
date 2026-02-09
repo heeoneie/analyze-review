@@ -5,7 +5,7 @@ main.py, analyze_csv.py 등에서 사용하는 공통 함수
 
 import sys
 
-import config
+from core import config
 
 
 def print_section(title):

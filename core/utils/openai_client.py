@@ -5,7 +5,7 @@ OpenAI API 호출을 위한 공통 유틸리티
 
 from openai import OpenAI
 
-import config
+from core import config
 
 
 def get_client():

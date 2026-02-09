@@ -12,7 +12,7 @@ from backend.services.analysis_service import run_full_analysis
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-AI_DIR = str(Path(__file__).resolve().parents[2] / "ai")
+PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
 
 
 @router.post("/run")
@@ -33,7 +33,7 @@ async def run_analysis():
 
 @router.get("/experiment-results")
 def get_experiment_results():
-    results_dir = str(Path(AI_DIR) / "results")
+    results_dir = str(Path(PROJECT_ROOT) / "results")
     data = {}
 
     for key, pattern in [

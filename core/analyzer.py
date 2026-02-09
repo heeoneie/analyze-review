@@ -1,8 +1,8 @@
 from collections import Counter
 
-from utils.json_utils import extract_json_from_text
-from utils.openai_client import call_openai_json, get_client
-from utils.prompt_templates import build_zero_shot_prompt, format_reviews
+from core.utils.json_utils import extract_json_from_text
+from core.utils.openai_client import call_openai_json, get_client
+from core.utils.prompt_templates import build_zero_shot_prompt, format_reviews
 
 SYSTEM_PROMPT_ANALYST = (
     "You are an expert at analyzing e-commerce customer "

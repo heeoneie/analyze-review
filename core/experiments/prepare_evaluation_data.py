@@ -8,7 +8,10 @@ import os
 import random
 import pandas as pd
 
-from data_loader import DataLoader
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from core.data_loader import DataLoader  # pylint: disable=wrong-import-position
 
 
 def main():

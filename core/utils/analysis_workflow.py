@@ -3,8 +3,8 @@
 main.py, analyze_csv.py에서 사용하는 분석 파이프라인 공통 로직
 """
 
-from report_utils import print_emerging_issues, print_top_issues
-from utils.cli_helpers import print_section
+from core.report_utils import print_emerging_issues, print_top_issues
+from core.utils.cli_helpers import print_section
 
 
 def split_by_period(negative_df, loader):

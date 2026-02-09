@@ -20,10 +20,14 @@ except ImportError as exc:
     Settings = None
     _IMPORT_ERROR = exc
 
-import config
-from utils.json_utils import extract_json_from_text
-from utils.prompt_templates import SINGLE_REVIEW_JSON_FORMAT
-from utils.review_categories import CATEGORIES_BULLETS
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from core import config  # pylint: disable=wrong-import-position
+from core.utils.json_utils import extract_json_from_text  # pylint: disable=wrong-import-position
+from core.utils.prompt_templates import SINGLE_REVIEW_JSON_FORMAT  # pylint: disable=wrong-import-position
+from core.utils.review_categories import CATEGORIES_BULLETS  # pylint: disable=wrong-import-position
 
 
 class RAGReviewAnalyzer:

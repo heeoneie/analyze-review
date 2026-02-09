@@ -9,10 +9,14 @@ import os
 
 from openai import OpenAIError
 
-from evaluation.evaluate import Evaluator
-from utils.json_utils import extract_json_from_text
-from utils.openai_client import call_openai_json, get_client
-from utils.prompt_templates import build_zero_shot_prompt, format_reviews
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from core.experiments.evaluate import Evaluator  # pylint: disable=wrong-import-position
+from core.utils.json_utils import extract_json_from_text  # pylint: disable=wrong-import-position
+from core.utils.openai_client import call_openai_json, get_client  # pylint: disable=wrong-import-position
+from core.utils.prompt_templates import build_zero_shot_prompt, format_reviews  # pylint: disable=wrong-import-position
 
 SYSTEM_PROMPT_ANALYST = (
     "You are an expert at analyzing e-commerce customer "
