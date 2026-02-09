@@ -20,15 +20,29 @@ def _extract_product_id(url: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _crawl_coupang(product_id: str, max_pages: int) -> list[dict]:
-    """curl_cffi로 쿠팡 리뷰 API 직접 호출 (Chrome TLS 핑거프린트로 Akamai 우회)"""
-    session = cffi_requests.Session(impersonate="chrome")
+_IMPERSONATE_OPTIONS = ["safari", "safari15_5", "chrome120", "chrome"]
 
-    # 상품 페이지 방문하여 Akamai 쿠키 획득
-    session.get(
-        f"https://www.coupang.com/vp/products/{product_id}",
-        headers={"Accept": "text/html", "Accept-Language": "ko-KR,ko;q=0.9"},
-    )
+
+def _crawl_coupang(product_id: str, max_pages: int) -> list[dict]:
+    """curl_cffi로 쿠팡 리뷰 API 직접 호출 (브라우저 TLS 핑거프린트로 Akamai 우회)"""
+    # 여러 브라우저 핑거프린트를 순서대로 시도
+    for impersonate in _IMPERSONATE_OPTIONS:
+        session = cffi_requests.Session(impersonate=impersonate)
+        session.get(
+            f"https://www.coupang.com/vp/products/{product_id}",
+            headers={"Accept": "text/html", "Accept-Language": "ko-KR,ko;q=0.9"},
+        )
+        test_resp = session.get(
+            f"https://www.coupang.com/next-api/review?productId={product_id}&page=1&size=1&sortBy=DATE_DESC&ratingSummary=true",
+            headers={
+                "Accept": "application/json, text/plain, */*",
+                "Referer": f"https://www.coupang.com/vp/products/{product_id}",
+            },
+        )
+        if test_resp.status_code == 200:
+            break
+    else:
+        return []
 
     all_reviews = []
     size = 20
@@ -70,7 +84,8 @@ def _crawl_coupang(product_id: str, max_pages: int) -> list[dict]:
             title = item.get("title", "")
             content = item.get("content", "")
             text = f"{title}\n{content}".strip() if title else content.strip()
-            all_reviews.append({"Ratings": rating, "Reviews": text})
+            if text:
+                all_reviews.append({"Ratings": rating, "Reviews": text})
 
         consecutive_failures = 0
 
