@@ -6,3 +6,7 @@ requires-python = ">=3.10"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.isort]
+profile = "black"
+known_first_party = ["core", "backend"]
