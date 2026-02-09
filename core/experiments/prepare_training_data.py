@@ -6,9 +6,10 @@ OpenAI Fine-tuning API 형식으로 변환
 import argparse
 import json
 import os
+import sys
 
 import pandas as pd
-import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from core.utils.review_categories import CATEGORIES_BULLETS_FINETUNE  # pylint: disable=wrong-import-position

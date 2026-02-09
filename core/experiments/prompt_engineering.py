@@ -6,11 +6,10 @@ Zero-shot, Few-shot, CoT, Temperature 등 다양한 전략 비교
 from datetime import datetime
 import json
 import os
+import sys
 
 from openai import OpenAIError
 
-import sys
-import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from core.experiments.evaluate import Evaluator  # pylint: disable=wrong-import-position

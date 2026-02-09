@@ -6,12 +6,12 @@ Fine-tuning한 모델의 성능 측정
 import argparse
 import json
 import os
+import sys
 
 import pandas as pd
 from openai import OpenAI
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
-import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from core import config  # pylint: disable=wrong-import-position
