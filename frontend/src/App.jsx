@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   uploadCSV,
-  useSampleData,
+  fetchSampleData,
   runAnalysis,
   crawlReviews,
   updateSettings,
@@ -23,59 +23,42 @@ function App() {
   const [error, setError] = useState(null);
   const [ratingThreshold, setRatingThreshold] = useState(3);
 
+  const executeWithAnalysis = async (apiCall, errorMsg) => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      const { data } = await apiCall();
+      setUploadInfo(data);
+      const result = await runAnalysis();
+      setAnalysisResult(result.data);
+    } catch (err) {
+      setError(err.response?.data?.detail || errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleRatingThresholdChange = async (value) => {
     setRatingThreshold(value);
     try {
       await updateSettings(value);
+      const result = await runAnalysis();
+      setAnalysisResult(result.data);
     } catch (err) {
       console.error('설정 업데이트 실패:', err);
     }
   };
 
-  const handleUpload = async (file) => {
-    try {
-      setError(null);
-      setIsLoading(true);
-      const { data } = await uploadCSV(file);
-      setUploadInfo(data);
-      const result = await runAnalysis();
-      setAnalysisResult(result.data);
-    } catch (err) {
-      setError(err.response?.data?.detail || '분석 중 오류가 발생했습니다.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const handleUpload = (file) =>
+    executeWithAnalysis(() => uploadCSV(file), '분석 중 오류가 발생했습니다.');
 
-  const handleUseSample = async () => {
-    try {
-      setError(null);
-      setIsLoading(true);
-      const { data } = await useSampleData();
-      setUploadInfo(data);
-      const result = await runAnalysis();
-      setAnalysisResult(result.data);
-    } catch (err) {
-      setError(err.response?.data?.detail || '분석 중 오류가 발생했습니다.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const handleUseSample = () =>
+    executeWithAnalysis(() => fetchSampleData(), '분석 중 오류가 발생했습니다.');
 
-  const handleCrawl = async (url) => {
-    try {
-      setError(null);
-      setIsLoading(true);
-      const { data } = await crawlReviews(url);
-      setUploadInfo(data);
-      const result = await runAnalysis();
-      setAnalysisResult(result.data);
-    } catch (err) {
-      setError(err.response?.data?.detail || '크롤링 중 오류가 발생했습니다.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const handleCrawl = (url) =>
+    executeWithAnalysis(() => crawlReviews(url), '크롤링 중 오류가 발생했습니다.');
+
+  const categories = analysisResult?.all_categories ?? {};
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -118,12 +101,12 @@ function App() {
             {/* KPI Metrics */}
             <MetricsOverview
               stats={analysisResult.stats}
-              categoryCount={Object.keys(analysisResult.all_categories).length}
+              categoryCount={Object.keys(categories).length}
             />
 
             {/* Charts + Top Issues */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <CategoryChart allCategories={analysisResult.all_categories} />
+              <CategoryChart allCategories={categories} />
               <TopIssuesCard topIssues={analysisResult.top_issues} />
             </div>
 

@@ -1,5 +1,6 @@
 import os
 import tempfile
+from pathlib import Path
 
 import pandas as pd
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -12,7 +13,7 @@ router = APIRouter()
 uploaded_files = {}
 analysis_settings = {"rating_threshold": 3}
 
-AI_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "ai")
+AI_DIR = str(Path(__file__).resolve().parents[2] / "ai")
 
 
 class CrawlRequest(BaseModel):
@@ -30,9 +31,8 @@ async def upload_csv(file: UploadFile = File(...)):
         raise HTTPException(400, "CSV 파일만 업로드 가능합니다.")
 
     content = await file.read()
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
-    tmp.write(content)
-    tmp.close()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+        tmp.write(content)
 
     df = pd.read_csv(tmp.name)
 
@@ -51,7 +51,7 @@ async def upload_csv(file: UploadFile = File(...)):
 
     uploaded_files["current"] = tmp.name
 
-    preview = pd.read_csv(tmp.name).head(5).to_dict(orient="records")
+    preview = df.head(5).fillna("").to_dict(orient="records")
     return {"filename": file.filename, "total_rows": len(df), "preview": preview}
 
 
@@ -66,9 +66,8 @@ def use_sample_data():
     df = pd.read_csv(sample_path)
     df = df.rename(columns={"review_text": "Reviews", "rating": "Ratings"})
 
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
-    df[["Ratings", "Reviews"]].to_csv(tmp.name, index=False)
-    tmp.close()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+        df[["Ratings", "Reviews"]].to_csv(tmp.name, index=False)
 
     uploaded_files["current"] = tmp.name
 

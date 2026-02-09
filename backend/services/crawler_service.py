@@ -80,7 +80,9 @@ def _crawl_coupang(product_id: str, max_pages: int) -> list[dict]:
             break
 
         for item in contents:
-            rating = item.get("rating", 5)
+            rating = item.get("rating")
+            if rating is None:
+                continue
             title = item.get("title", "")
             content = item.get("content", "")
             text = f"{title}\n{content}".strip() if title else content.strip()
@@ -107,7 +109,7 @@ def extract_reviews_from_markdown(markdown: str, platform: str) -> list[dict]:
     reviews = []
     if platform == "naver":
         lines = markdown.split('\n')
-        current_rating = 5
+        current_rating = None
 
         for line in lines:
             line = line.strip()
@@ -119,7 +121,7 @@ def extract_reviews_from_markdown(markdown: str, platform: str) -> list[dict]:
                 current_rating = int(rating_match.group(1))
                 continue
 
-            if len(line) >= 15 and re.search(r'[가-힣]', line):
+            if current_rating is not None and len(line) >= 15 and re.search(r'[가-힣]', line):
                 if not any(skip in line for skip in ['작성', '구매', '옵션', '판매자', '신고']):
                     reviews.append({
                         "Ratings": current_rating,
@@ -186,7 +188,6 @@ async def crawl_reviews(url: str, max_pages: int = 50) -> tuple[str, list[dict]]
 def save_reviews_to_csv(reviews: list[dict]) -> str:
     """리뷰를 CSV 파일로 저장"""
     df = pd.DataFrame(reviews)
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
-    df.to_csv(tmp.name, index=False)
-    tmp.close()
-    return tmp.name
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+        df.to_csv(tmp.name, index=False)
+        return tmp.name

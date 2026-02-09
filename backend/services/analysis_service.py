@@ -13,7 +13,10 @@ def run_full_analysis(csv_path: str, rating_threshold: int = 3) -> dict:
 
     # 평점 분포
     rating_dist = df["rating"].value_counts().sort_index().to_dict()
-    rating_dist = {str(int(k)): int(v) for k, v in rating_dist.items()}
+    rating_dist = {
+        str(int(k)) if float(k) == int(k) else str(k): int(v)
+        for k, v in rating_dist.items()
+    }
 
     # Step 2: 부정 리뷰 필터링 (사용자 설정 기준)
     negative_df = loader.filter_negative_reviews(df, threshold=rating_threshold)

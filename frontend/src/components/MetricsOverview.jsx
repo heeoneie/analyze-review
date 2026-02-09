@@ -9,10 +9,10 @@ const cards = [
 
 export default function MetricsOverview({ stats, categoryCount }) {
   const values = {
-    total: stats.total_reviews?.toLocaleString(),
-    negative: stats.negative_reviews?.toLocaleString(),
-    ratio: `${stats.negative_ratio}%`,
-    categories: categoryCount,
+    total: stats?.total_reviews?.toLocaleString() ?? 0,
+    negative: stats?.negative_reviews?.toLocaleString() ?? 0,
+    ratio: `${stats?.negative_ratio ?? 0}%`,
+    categories: categoryCount ?? 0,
   };
 
   return (

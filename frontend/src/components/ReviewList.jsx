@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MessageSquare, Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getReviews } from '../api/client';
 
@@ -9,7 +9,7 @@ export default function ReviewList({ uploadInfo }) {
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchReviews = async (p) => {
+  const fetchReviews = useCallback(async (p) => {
     setIsLoading(true);
     try {
       const { data } = await getReviews(p, 10);
@@ -22,13 +22,13 @@ export default function ReviewList({ uploadInfo }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (uploadInfo) {
       fetchReviews(1);
     }
-  }, [uploadInfo]);
+  }, [uploadInfo, fetchReviews]);
 
   const renderStars = (rating) => {
     return (
