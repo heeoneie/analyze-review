@@ -24,7 +24,7 @@ export default function TopIssuesCard({ topIssues }) {
       </div>
 
       <div className="space-y-3">
-        {topIssues.map((issue, idx) => (
+        {topIssues.slice(0, 3).map((issue, idx) => (
           <div
             key={issue.category}
             className={`border-l-4 rounded-xl p-4 ${RANK_COLORS[idx] || 'border-gray-300 bg-gray-50'}`}

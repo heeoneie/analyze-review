@@ -31,8 +31,14 @@ export default function FileUpload({
   });
 
   const handleCrawl = () => {
-    if (crawlUrl.trim()) {
-      onCrawl(crawlUrl.trim());
+    const trimmed = crawlUrl.trim();
+    if (trimmed) {
+      try {
+        new URL(trimmed);
+        onCrawl(trimmed);
+      } catch {
+        alert('올바른 URL을 입력해주세요.');
+      }
     }
   };
 

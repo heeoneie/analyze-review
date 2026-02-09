@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.services.crawler_service import (
     crawl_reviews,
@@ -15,6 +15,8 @@ from backend.services.crawler_service import (
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# NOTE: 모듈 레벨 상태는 단일 워커에서만 공유됩니다.
+# 다중 워커 배포 시 Redis 등 외부 저장소로 교체 필요.
 uploaded_files = {}
 analysis_settings = {"rating_threshold": 3}
 
@@ -27,12 +29,12 @@ class CrawlRequest(BaseModel):
 
 
 class SettingsRequest(BaseModel):
-    rating_threshold: int = 3
+    rating_threshold: int = Field(3, ge=1, le=5)
 
 
 @router.post("/upload")
 async def upload_csv(file: UploadFile = File(...)):
-    if not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(
             400, "CSV 파일만 업로드 가능합니다."
         )
@@ -95,17 +97,26 @@ def use_sample_data():
         raise HTTPException(404, "샘플 데이터를 찾을 수 없습니다.")
 
     # 컬럼명 변환하여 임시 파일로 저장
-    df = pd.read_csv(sample_path)
+    try:
+        df = pd.read_csv(sample_path)
+    except Exception as exc:
+        logger.exception("샘플 데이터 파싱 실패")
+        raise HTTPException(
+            500, "샘플 데이터를 파싱할 수 없습니다."
+        ) from exc
+
     df = df.rename(
         columns={"review_text": "Reviews", "rating": "Ratings"}
     )
 
     with tempfile.NamedTemporaryFile(
-        delete=False, suffix=".csv"
+        delete=False, suffix=".csv", mode="w"
     ) as tmp:
-        df[["Ratings", "Reviews"]].to_csv(tmp.name, index=False)
+        tmp_path = tmp.name
 
-    uploaded_files["current"] = tmp.name
+    df[["Ratings", "Reviews"]].to_csv(tmp_path, index=False)
+
+    uploaded_files["current"] = tmp_path
 
     return {
         "filename": "evaluation_dataset.csv (sample)",

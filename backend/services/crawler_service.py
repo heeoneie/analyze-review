@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 import tempfile
 import time
@@ -14,7 +15,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-FIRECRAWL_API_KEY = __import__("os").getenv("FIRECRAWL_API_KEY")
+FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")
 
 
 def _extract_product_id(url: str) -> str | None:
@@ -198,7 +199,11 @@ def extract_reviews_from_markdown(
 async def crawl_with_firecrawl(
     url: str, _max_pages: int = 5
 ) -> tuple[str, list[dict]]:
-    """Firecrawl을 사용한 리뷰 크롤링 (네이버 등)"""
+    """Firecrawl을 사용한 리뷰 크롤링 (네이버 등)
+
+    Note: _max_pages는 현재 미사용. Firecrawl은 단일 페이지
+    스크래핑만 지원하여 페이지네이션이 불가합니다.
+    """
     if not FIRECRAWL_API_KEY:
         raise ValueError(
             "FIRECRAWL_API_KEY가 설정되지 않았습니다. "
@@ -215,7 +220,7 @@ async def crawl_with_firecrawl(
         app.scrape, url,
         formats=['markdown'], wait_for=3000,
     )
-    markdown = result.markdown or ''
+    markdown = getattr(result, 'markdown', None) or ''
     if not markdown:
         raise ValueError("페이지 내용을 가져올 수 없습니다.")
     reviews = extract_reviews_from_markdown(
@@ -276,5 +281,7 @@ def save_reviews_to_csv(reviews: list[dict]) -> str:
     with tempfile.NamedTemporaryFile(
         delete=False, suffix=".csv"
     ) as tmp:
-        df.to_csv(tmp.name, index=False)
-        return tmp.name
+        tmp_path = tmp.name
+
+    df.to_csv(tmp_path, index=False)
+    return tmp_path

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 AI_DIR = str(Path(__file__).resolve().parents[1] / "ai")
 sys.path.insert(0, AI_DIR)
 
-from backend.routers import analysis, data  # noqa: E402 pylint: disable=wrong-import-position
+from backend.routers import analysis, data  # pylint: disable=wrong-import-position
 
 app = FastAPI(title="Review Analysis Dashboard API", version="1.0.0")
 
