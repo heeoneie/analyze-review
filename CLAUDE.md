@@ -69,7 +69,40 @@ python analyze_csv.py <path_to_csv_file>    # Custom CSV
 ```
 
 ### Testing
-No test suite currently implemented (this is a PoC).
+```bash
+# Python tests (pytest)
+pytest -v
+
+# Frontend tests (vitest)
+cd frontend && npm test
+```
+
+## Git Branch & Commit Convention
+
+### Branch Naming
+항상 `main`에서 새 브랜치를 만들어 작업하고, main에 직접 커밋하지 않는다.
+
+| Prefix | 용도 | 예시 |
+|--------|------|------|
+| `feat/` | 새 기능 추가 | `feat/add-crawling` |
+| `fix/` | 버그 수정 | `fix/nan-serialization` |
+| `refactor/` | 리팩터링 (동작 변경 없음) | `refactor/folder-structure` |
+| `test/` | 테스트 추가/수정만 | `test/add-unit-tests` |
+| `docs/` | 문서만 변경 | `docs/update-readme` |
+| `chore/` | 빌드/설정/의존성 | `chore/upgrade-deps` |
+
+### Commit Message
+Conventional Commits 형식을 따른다:
+```
+<type>: <한국어 또는 영어 요약>
+```
+- type: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+- 한 줄 요약, 필요시 본문에 상세 설명
+
+### Workflow
+1. `main`에서 브랜치 생성: `git checkout -b <prefix>/<설명>`
+2. 작업 후 커밋 & 푸시
+3. GitHub PR 생성 → main으로 머지
 
 ## Architecture
 
