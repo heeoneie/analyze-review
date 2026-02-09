@@ -6,6 +6,7 @@ AI 예측 결과와 Ground Truth를 비교하여 정확도 측정
 import argparse
 import json
 import os
+import sys
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -13,8 +14,6 @@ import pandas as pd
 import seaborn as sns
 from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
 
-import sys
-import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from core.analyzer import ReviewAnalyzer  # pylint: disable=wrong-import-position

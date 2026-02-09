@@ -6,9 +6,10 @@ Creates a CSV for manual labeling by sampling negative reviews.
 import argparse
 import os
 import random
+import sys
+
 import pandas as pd
 
-import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from core.data_loader import DataLoader  # pylint: disable=wrong-import-position

@@ -20,7 +20,6 @@ const mockApi = axios.create();
 describe('API Client', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // 모듈 캐시 리셋 후 재임포트
   });
 
   it('uploadCSV sends FormData via POST', async () => {

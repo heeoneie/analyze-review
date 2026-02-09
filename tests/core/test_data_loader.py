@@ -75,15 +75,17 @@ class TestSplitByPeriod:
         assert len(recent) == 3
         assert len(comparison) == 0
 
-    def test_empty_dataframe(self):
+    def test_empty_dataframe(self, data_loader):
         df = pd.DataFrame(
             columns=["review_id", "rating", "review_text",
                       "created_at"]
         )
         df["created_at"] = pd.to_datetime(df["created_at"])
-        # max()가 NaT를 반환하므로 빈 DataFrame에서는 에러 가능
-        if len(df) == 0:
-            pytest.skip("Empty DataFrame has NaT max")
+        # 빈 DataFrame에서 NaT로 인한 에러 발생을 검증
+        with pytest.raises((TypeError, ValueError)):
+            data_loader.split_by_period(
+                df, recent_days=30, comparison_days=60
+            )
 
 
 # ── load_custom_csv ──
