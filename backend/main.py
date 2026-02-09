@@ -1,13 +1,14 @@
 import sys
-import os
-
-# ai/ 디렉토리를 path에 추가하여 기존 모듈 import 가능하게
-AI_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ai")
-sys.path.insert(0, AI_DIR)
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.routers import analysis, data
+
+# ai/ 디렉토리를 path에 추가하여 기존 모듈 import 가능하게
+AI_DIR = str(Path(__file__).resolve().parents[1] / "ai")
+sys.path.insert(0, AI_DIR)
+
+from backend.routers import analysis, data  # noqa: E402 pylint: disable=wrong-import-position
 
 app = FastAPI(title="Review Analysis Dashboard API", version="1.0.0")
 
