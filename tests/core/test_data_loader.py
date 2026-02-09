@@ -1,4 +1,3 @@
-import os
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -76,13 +75,15 @@ class TestSplitByPeriod:
         assert len(recent) == 3
         assert len(comparison) == 0
 
-    def test_empty_dataframe(self, data_loader):
-        df = pd.DataFrame(columns=["review_id", "rating", "review_text", "created_at"])
+    def test_empty_dataframe(self):
+        df = pd.DataFrame(
+            columns=["review_id", "rating", "review_text",
+                      "created_at"]
+        )
         df["created_at"] = pd.to_datetime(df["created_at"])
         # max()가 NaT를 반환하므로 빈 DataFrame에서는 에러 가능
-        # 이 동작을 기록하기 위한 테스트
         if len(df) == 0:
-            pytest.skip("Empty DataFrame has NaT max, skip split test")
+            pytest.skip("Empty DataFrame has NaT max")
 
 
 # ── load_custom_csv ──

@@ -54,7 +54,13 @@ class TestExtractJsonFromText:
         assert result == {"outer": {"inner": "value"}}
 
     def test_complex_categories_response(self):
-        text = '```json\n{"categories": [{"review_number": 1, "category": "poor_quality", "brief_issue": "Broke fast"}, {"review_number": 2, "category": "delivery_delay", "brief_issue": "Late"}]}\n```'
+        text = (
+            '```json\n{"categories": ['
+            '{"review_number": 1, "category": "poor_quality",'
+            ' "brief_issue": "Broke fast"}, '
+            '{"review_number": 2, "category": "delivery_delay",'
+            ' "brief_issue": "Late"}]}\n```'
+        )
         result = extract_json_from_text(text)
         assert len(result["categories"]) == 2
 

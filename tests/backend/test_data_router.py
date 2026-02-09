@@ -1,6 +1,5 @@
 import io
 import os
-import tempfile
 
 import pytest
 from starlette.testclient import TestClient

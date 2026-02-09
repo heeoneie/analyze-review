@@ -143,25 +143,36 @@ class TestDetectEmergingIssues:
 
 class TestCategorizeIssues:
     def test_calls_openai_and_parses_response(self, analyzer):
-        mock_response = json.dumps({"categories": [{"review_number": 1, "category": "poor_quality", "brief_issue": "Bad"}]})
-        with patch("core.analyzer.call_openai_json", return_value=mock_response):
+        cat = {"categories": [
+            {"review_number": 1, "category": "poor_quality",
+             "brief_issue": "Bad"}
+        ]}
+        mock_resp = json.dumps(cat)
+        with patch("core.analyzer.call_openai_json",
+                    return_value=mock_resp):
             result = analyzer.categorize_issues(["Bad product"])
         assert "categories" in result
 
     def test_samples_at_200(self, analyzer):
         reviews = [f"Review {i}" for i in range(300)]
-        with patch("core.analyzer.call_openai_json", return_value='{"categories": []}') as mock_call:
-            with patch("core.analyzer.format_reviews") as mock_format:
-                mock_format.return_value = "formatted"
+        ret = '{"categories": []}'
+        with patch("core.analyzer.call_openai_json",
+                    return_value=ret):
+            with patch("core.analyzer.format_reviews") as mf:
+                mf.return_value = "formatted"
                 analyzer.categorize_issues(reviews)
-                # format_reviews는 200개로 잘린 리스트로 호출돼야 함
-                called_reviews = mock_format.call_args[0][0]
-                assert len(called_reviews) == 200
+                called = mf.call_args[0][0]
+                assert len(called) == 200
 
     def test_raises_on_parse_failure(self, analyzer):
-        with patch("core.analyzer.call_openai_json", return_value="not json at all"):
-            with patch("core.analyzer.extract_json_from_text", return_value=None):
-                with pytest.raises(ValueError, match="Failed to parse categorization"):
+        with patch("core.analyzer.call_openai_json",
+                    return_value="not json"):
+            with patch("core.analyzer.extract_json_from_text",
+                        return_value=None):
+                with pytest.raises(
+                    ValueError,
+                    match="Failed to parse categorization",
+                ):
                     analyzer.categorize_issues(["Review"])
 
 
@@ -169,21 +180,41 @@ class TestCategorizeIssues:
 
 
 class TestGenerateActionPlan:
-    def test_returns_recommendations_list(self, analyzer, sample_top_issues, sample_emerging_issues):
-        mock_response = json.dumps({"recommendations": ["액션 1", "액션 2", "액션 3"]})
-        with patch("core.analyzer.call_openai_json", return_value=mock_response):
-            result = analyzer.generate_action_plan(sample_top_issues, sample_emerging_issues)
+    def test_returns_recommendations_list(
+        self, analyzer, sample_top_issues, sample_emerging_issues,
+    ):
+        recs = {"recommendations": ["액션 1", "액션 2", "액션 3"]}
+        mock_resp = json.dumps(recs)
+        with patch("core.analyzer.call_openai_json",
+                    return_value=mock_resp):
+            result = analyzer.generate_action_plan(
+                sample_top_issues, sample_emerging_issues,
+            )
         assert len(result) == 3
 
-    def test_raises_on_parse_failure(self, analyzer, sample_top_issues, sample_emerging_issues):
-        with patch("core.analyzer.call_openai_json", return_value="bad"):
-            with patch("core.analyzer.extract_json_from_text", return_value=None):
-                with pytest.raises(ValueError, match="Failed to parse recommendations"):
-                    analyzer.generate_action_plan(sample_top_issues, sample_emerging_issues)
+    def test_raises_on_parse_failure(
+        self, analyzer, sample_top_issues, sample_emerging_issues,
+    ):
+        with patch("core.analyzer.call_openai_json",
+                    return_value="bad"):
+            with patch("core.analyzer.extract_json_from_text",
+                        return_value=None):
+                with pytest.raises(
+                    ValueError,
+                    match="Failed to parse recommendations",
+                ):
+                    analyzer.generate_action_plan(
+                        sample_top_issues,
+                        sample_emerging_issues,
+                    )
 
-    def test_handles_empty_emerging_issues(self, analyzer, sample_top_issues):
-        mock_response = json.dumps({"recommendations": ["액션 1"]})
-        with patch("core.analyzer.call_openai_json", return_value=mock_response) as mock_call:
+    def test_handles_empty_emerging_issues(
+        self, analyzer, sample_top_issues,
+    ):
+        recs = {"recommendations": ["액션 1"]}
+        mock_resp = json.dumps(recs)
+        with patch("core.analyzer.call_openai_json",
+                    return_value=mock_resp) as mock_call:
             analyzer.generate_action_plan(sample_top_issues, [])
             prompt_arg = mock_call.call_args[0][1]
-            assert "No significant emerging issues detected." in prompt_arg
+            assert "No significant emerging issues" in prompt_arg

@@ -56,13 +56,13 @@ class TestExtractReviewsFromMarkdown:
     def test_non_naver_platform_returns_empty(self):
         md = "별점 5\n이 제품은 정말 좋습니다. 배송도 빠르고 품질도 훌륭해요."
         result = extract_reviews_from_markdown(md, "coupang")
-        assert result == []
+        assert not result
 
     def test_empty_markdown(self):
         result = extract_reviews_from_markdown("", "naver")
-        assert result == []
+        assert not result
 
-    def test_naver_점_rating_format(self):
+    def test_naver_score_rating_format(self):
         md = "4점\n이 제품은 전체적으로 괜찮았습니다. 가성비가 좋다고 생각해요."
         result = extract_reviews_from_markdown(md, "naver")
         assert len(result) == 1
