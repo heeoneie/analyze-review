@@ -128,31 +128,34 @@ def use_sample_data():
 async def crawl_product_reviews(request: CrawlRequest):
     """상품 URL에서 리뷰 크롤링"""
     try:
-        platform, reviews = await crawl_reviews(
+        platform, result = await crawl_reviews(
             request.url, request.max_pages
         )
 
-        if not reviews:
+        reviews = result["reviews"]
+        total_count = result["total_count"]
+
+        if total_count == 0:
             raise HTTPException(
                 400,
                 "리뷰를 찾을 수 없습니다. URL을 확인해주세요.",
             )
 
-        # CSV로 저장
-        csv_path = save_reviews_to_csv(reviews)
-        uploaded_files["current"] = csv_path
-
-        # 별점 분포 계산
-        df = pd.DataFrame(reviews)
-        rating_dist = (
-            df["Ratings"].value_counts().sort_index().to_dict()
-        )
+        # 텍스트 리뷰를 CSV로 저장 (분석용)
+        if reviews:
+            csv_path = save_reviews_to_csv(reviews)
+            uploaded_files["current"] = csv_path
 
         return {
             "platform": platform,
-            "total_reviews": len(reviews),
+            "total_reviews": total_count,
+            "text_reviews": len(reviews),
+            "rating_average": result["rating_average"],
             "rating_distribution": {
-                str(k): v for k, v in rating_dist.items()
+                str(k): v
+                for k, v in result[
+                    "rating_distribution"
+                ].items()
             },
             "preview": reviews[:5],
         }
