@@ -96,16 +96,66 @@ def _fetch_page(session, product_id, page_num, size):
     return json.loads(resp.text)
 
 
+_EMPTY_RESULT = {
+    "reviews": [],
+    "total_count": 0,
+    "rating_average": 0.0,
+    "rating_distribution": {},
+}
+
+
+def _parse_review_item(item):
+    """리뷰 아이템에서 rating과 텍스트 추출"""
+    rating = item.get("rating")
+    if rating is None:
+        return None, None
+    title = item.get("title", "") or ""
+    content = item.get("content", "") or ""
+    text = (
+        f"{title}\n{content}".strip()
+        if title else content.strip()
+    )
+    return rating, text or None
+
+
+def _build_result(all_ratings, text_reviews, summary):
+    """수집 결과를 응답 딕셔너리로 변환"""
+    avg = (
+        round(sum(all_ratings) / len(all_ratings), 2)
+        if all_ratings else 0.0
+    )
+    distribution = {
+        s["rating"]: s["count"]
+        for s in summary.get("ratingSummaries", [])
+    }
+    return {
+        "reviews": text_reviews,
+        "total_count": len(all_ratings),
+        "rating_average": avg,
+        "rating_distribution": distribution,
+    }
+
+
 def _crawl_coupang(
     product_id: str, max_pages: int
-) -> list[dict]:
-    """curl_cffi로 쿠팡 리뷰 API 직접 호출"""
+) -> dict:
+    """curl_cffi로 쿠팡 리뷰 API 직접 호출
+
+    Returns:
+        dict with keys:
+          - reviews: 텍스트가 있는 리뷰 목록
+          - total_count: 전체 리뷰 수 (API 기준)
+          - rating_average: 전체 평균 별점
+          - rating_distribution: 별점별 개수
+    """
     session = _init_coupang_session(product_id)
     if session is None:
-        return []
+        return dict(_EMPTY_RESULT)
 
-    all_reviews = []
+    text_reviews = []
+    all_ratings = []
     consecutive_failures = 0
+    rating_summary = {}
 
     for page_num in range(1, max_pages + 1):
         try:
@@ -122,33 +172,40 @@ def _crawl_coupang(
         paging = data.get("rData", {}).get("paging", {})
         contents = paging.get("contents", [])
 
+        if not rating_summary:
+            rating_summary = data.get("rData", {}).get(
+                "ratingSummaryTotal", {}
+            )
+
         if not contents:
             break
 
         for item in contents:
-            rating = item.get("rating")
+            rating, text = _parse_review_item(item)
             if rating is None:
                 continue
-            title = item.get("title", "")
-            content = item.get("content", "")
-            text = (
-                f"{title}\n{content}".strip()
-                if title else content.strip()
-            )
+            all_ratings.append(rating)
             if text:
-                all_reviews.append(
+                text_reviews.append(
                     {"Ratings": rating, "Reviews": text}
                 )
 
         consecutive_failures = 0
 
-        if not paging.get("isNext", False):
+        # isNext가 부정확할 수 있으므로,
+        # 총 수집 수가 ratingCount 이상이면 종료
+        total_expected = rating_summary.get(
+            "ratingCount", float("inf")
+        )
+        if len(all_ratings) >= total_expected:
             break
 
         if page_num < max_pages:
             time.sleep(0.2)
 
-    return all_reviews
+    return _build_result(
+        all_ratings, text_reviews, rating_summary
+    )
 
 
 # ──────────────────────────────────────────────
@@ -248,8 +305,16 @@ def detect_platform(url: str) -> str:
 
 async def crawl_reviews(
     url: str, max_pages: int = 50
-) -> tuple[str, list[dict]]:
-    """리뷰 크롤링 (쿠팡: curl_cffi, 네이버: Firecrawl)"""
+) -> tuple[str, dict]:
+    """리뷰 크롤링 (쿠팡: curl_cffi, 네이버: Firecrawl)
+
+    Returns:
+        (platform, result_dict) where result_dict has:
+          - reviews: 텍스트 리뷰 목록
+          - total_count: 전체 리뷰 수
+          - rating_average: 평균 별점
+          - rating_distribution: 별점 분포
+    """
     platform = detect_platform(url)
 
     if platform == "unknown":
@@ -264,15 +329,26 @@ async def crawl_reviews(
                 "쿠팡 상품 URL에서 productId를 "
                 "추출할 수 없습니다."
             )
-        reviews = await asyncio.to_thread(
+        result = await asyncio.to_thread(
             _crawl_coupang, product_id, max_pages
         )
     else:
         _, reviews = await crawl_with_firecrawl(
             url, max_pages
         )
+        result = {
+            "reviews": reviews,
+            "total_count": len(reviews),
+            "rating_average": (
+                round(
+                    sum(r["Ratings"] for r in reviews)
+                    / len(reviews), 2
+                ) if reviews else 0.0
+            ),
+            "rating_distribution": {},
+        }
 
-    return platform, reviews
+    return platform, result
 
 
 def save_reviews_to_csv(reviews: list[dict]) -> str:
