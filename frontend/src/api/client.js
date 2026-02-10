@@ -33,3 +33,10 @@ export const getPrioritizedReviews = (page = 1, pageSize = 20, level = null) =>
   api.get('/data/reviews/prioritized', {
     params: { page, page_size: pageSize, ...(level && { level }) },
   });
+
+// 답변 생성 API
+export const generateReply = (reviewText, rating, category = null) =>
+  api.post('/reply/generate', { review_text: reviewText, rating, category });
+
+export const generateBatchReplies = (reviews) =>
+  api.post('/reply/generate-batch', { reviews });
