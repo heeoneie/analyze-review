@@ -110,42 +110,71 @@ class ReviewAnalyzer:
 
         return emerging[:3]  # Return top 3 emerging issues
 
-    def generate_action_plan(self, top_issues, emerging_issues):
+    def generate_action_plan(  # pylint: disable=too-many-locals
+        self, top_issues, emerging_issues, categorization_result=None
+    ):
         """Generate actionable recommendations based on analysis"""
-        top_issues_text = "\n".join([
-            f"- {issue['category']}: {issue['count']} mentions ({issue['percentage']}%)"
-            for issue in top_issues
-        ])
+        top_issues_text = ""
+        for issue in top_issues:
+            examples_text = "\n".join(
+                f"    - \"{ex}\"" for ex in issue.get('examples', [])
+            )
+            top_issues_text += (
+                f"\n### {issue['category']} ({issue['count']}건, {issue['percentage']}%)\n"
+                f"  고객 원문 예시:\n{examples_text}\n"
+            )
+
+        # 카테고리별 실제 리뷰 원문 수집
+        review_context = ""
+        if categorization_result:
+            categories = categorization_result.get('categories', [])
+            top_category_names = [issue['category'] for issue in top_issues]
+            for cat_name in top_category_names:
+                cat_reviews = [
+                    item['brief_issue']
+                    for item in categories
+                    if item['category'] == cat_name
+                ][:5]
+                if cat_reviews:
+                    review_context += f"\n[{cat_name}] 고객 불만 상세:\n"
+                    review_context += "\n".join(f"  - {r}" for r in cat_reviews)
+                    review_context += "\n"
 
         emerging_text = "\n".join([
-            f"- {issue['category']}: increased by {issue['increase_rate']}% "
-            f"({issue['comparison_count']} → {issue['recent_count']})"
+            f"- {issue['category']}: {issue['increase_rate']}% 증가 "
+            f"({issue['comparison_count']}건 → {issue['recent_count']}건)"
             for issue in emerging_issues
-        ]) if emerging_issues else "No significant emerging issues detected."
+        ]) if emerging_issues else "급증하는 이슈 없음"
 
-        prompt = f"""You are a business consultant analyzing e-commerce customer feedback.
+        prompt = f"""아래는 이커머스 상품의 부정 리뷰 분석 결과입니다.
+고객이 실제로 남긴 불만 내용을 바탕으로 구체적인 개선안을 제시해주세요.
 
-TOP 3 ISSUES (by frequency):
+## 상위 문제 카테고리
 {top_issues_text}
 
-EMERGING ISSUES (increasing trend):
+## 고객 불만 상세 원문
+{review_context}
+
+## 최근 급증 이슈
 {emerging_text}
 
-Based on this analysis, provide exactly 3 actionable recommendations that the business
-should implement immediately.
+위 고객 불만을 분석하여 정확히 3개의 개선안을 JSON으로 작성하세요.
 
-Requirements:
-- Each recommendation should be ONE clear, specific action
-- Focus on what will have the biggest impact on customer satisfaction
-- Be practical and implementable
-- Write in Korean (한국어)
+요구사항:
+- 각 개선안은 고객이 실제로 언급한 문제에 직접 대응해야 합니다
+- "배송 개선", "품질 강화"처럼 추상적 표현 금지
+- 구체적 수치, 방법, 담당 부서까지 포함
+- 한국어로 작성
 
-Output format (JSON):
+출력 형식:
 {{
   "recommendations": [
-    "첫 번째 구체적인 개선 액션",
-    "두 번째 구체적인 개선 액션",
-    "세 번째 구체적인 개선 액션"
+    {{
+      "title": "개선안 제목 (한 줄)",
+      "problem": "어떤 고객 불만에 대한 대응인지 (실제 리뷰 근거 포함)",
+      "action": "구체적 실행 방법 (누가, 무엇을, 어떻게)",
+      "expected_impact": "기대 효과"
+    }}
   ]
 }}
 """

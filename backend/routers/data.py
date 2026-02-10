@@ -7,10 +7,12 @@ import pandas as pd
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
+from backend.services import progress
 from backend.services.crawler_service import (
     crawl_reviews,
     save_reviews_to_csv,
 )
+from backend.services.priority_service import score_and_sort
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -127,6 +129,7 @@ def use_sample_data():
 @router.post("/crawl")
 async def crawl_product_reviews(request: CrawlRequest):
     """상품 URL에서 리뷰 크롤링"""
+    progress.reset()
     try:
         platform, result = await crawl_reviews(
             request.url, request.max_pages
@@ -212,6 +215,53 @@ def get_reviews(
 
     return {
         "reviews": reviews,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }
+
+
+@router.get("/reviews/prioritized")
+def get_prioritized_reviews(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    level: str = Query(None, description="critical/high/medium/low"),
+):
+    """우선순위 정렬된 부정 리뷰 목록"""
+    csv_path = uploaded_files.get("current")
+    if not csv_path or not os.path.exists(csv_path):
+        raise HTTPException(
+            400,
+            "먼저 CSV 파일을 업로드하거나 크롤링해주세요.",
+        )
+
+    df = pd.read_csv(csv_path).fillna("")
+    threshold = analysis_settings["rating_threshold"]
+
+    # 부정 리뷰만 필터링
+    negative_df = df[
+        df["Ratings"].apply(
+            lambda x: int(float(x)) <= threshold
+            if str(x).strip()
+            else False
+        )
+    ]
+    reviews = negative_df.to_dict(orient="records")
+
+    # 우선순위 스코어링 및 정렬
+    scored = score_and_sort(reviews)
+
+    # 레벨 필터링
+    if level:
+        scored = [r for r in scored if r["priority"]["level"] == level]
+
+    total = len(scored)
+    start = (page - 1) * page_size
+    end = start + page_size
+
+    return {
+        "reviews": scored[start:end],
         "total": total,
         "page": page,
         "page_size": page_size,
