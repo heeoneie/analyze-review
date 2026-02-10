@@ -40,3 +40,9 @@ export const generateReply = (reviewText, rating, category = null) =>
 
 export const generateBatchReplies = (reviews) =>
   api.post('/reply/generate-batch', { reviews });
+
+// 답변 가이드 API
+export const getReplyGuide = (category) =>
+  api.post('/reply/guide', { category });
+
+export const getAllGuides = () => api.get('/reply/guides');
