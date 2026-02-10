@@ -10,6 +10,7 @@ import {
   Search,
 } from 'lucide-react';
 import { getPrioritizedReviews } from '../api/client';
+import ReplyPanel from './ReplyPanel';
 
 const PAGE_SIZE = 10;
 
@@ -67,6 +68,7 @@ export default function PriorityReviewList({ uploadInfo }) {
   const [error, setError] = useState(null);
   const [filterLevel, setFilterLevel] = useState(null);
   const [expandedIdx, setExpandedIdx] = useState(null);
+  const [replyIdx, setReplyIdx] = useState(null);
 
   const fetchReviews = useCallback(async (p, level) => {
     setIsLoading(true);
@@ -176,6 +178,19 @@ export default function PriorityReviewList({ uploadInfo }) {
                   </p>
                   {isExpanded && priority.factors && (
                     <ScoreBreakdown factors={priority.factors} />
+                  )}
+                  {isExpanded && replyIdx !== idx && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setReplyIdx(idx); }}
+                      className="mt-3 text-sm text-blue-500 hover:text-blue-700 font-medium transition-colors"
+                    >
+                      답변 작성하기 →
+                    </button>
+                  )}
+                  {replyIdx === idx && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <ReplyPanel review={review} onClose={() => setReplyIdx(null)} />
+                    </div>
                   )}
                 </div>
               );
