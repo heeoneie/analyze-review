@@ -6,7 +6,11 @@
       "Bash(pip install:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(pre-commit install:*)"
+      "Bash(pre-commit install:*)",
+      "Bash(git push origin main --force)",
+      "Bash(git cherry-pick 11eaa4a --no-commit)",
+      "Bash(git cherry-pick 11eaa4a)",
+      "Bash(git cherry-pick --continue --no-edit)"
     ]
   }
 }
