@@ -15,6 +15,7 @@ import TopIssuesCard from './components/TopIssuesCard';
 import EmergingIssues from './components/EmergingIssues';
 import ActionPlan from './components/ActionPlan';
 import PriorityReviewList from './components/PriorityReviewList';
+import ReplyGuide from './components/ReplyGuide';
 import './index.css';
 
 const TABS = [
@@ -152,7 +153,16 @@ function App() {
             )}
 
             {activeTab === 'reply' && (
-              <PriorityReviewList uploadInfo={uploadInfo} />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  <PriorityReviewList uploadInfo={uploadInfo} />
+                </div>
+                <div className="lg:col-span-1">
+                  <div className="sticky top-24">
+                    <ReplyGuide />
+                  </div>
+                </div>
+              </div>
             )}
           </>
         )}

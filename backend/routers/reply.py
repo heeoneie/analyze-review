@@ -1,4 +1,4 @@
-"""리뷰 답변 생성 API"""
+"""리뷰 답변 생성 및 가이드 API"""
 
 import asyncio
 import logging
@@ -7,9 +7,14 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from core.reply_generator import ReplyGenerator
+from core.reply_guide import get_guide, list_guides
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class GuideRequest(BaseModel):
+    category: str
 
 
 class SingleReplyRequest(BaseModel):
@@ -61,3 +66,20 @@ async def generate_batch_replies(request: BatchReplyRequest):
     except Exception:
         logger.exception("일괄 답변 생성 실패")
         raise HTTPException(500, "일괄 답변 생성 중 오류가 발생했습니다.") from None
+
+
+@router.post("/guide")
+async def get_reply_guide(request: GuideRequest):
+    """카테고리별 답변 품질 가이드 조회"""
+    try:
+        guide = await asyncio.to_thread(get_guide, request.category)
+        return guide
+    except Exception:
+        logger.exception("가이드 조회 실패: %s", request.category)
+        raise HTTPException(500, "가이드 조회 중 오류가 발생했습니다.") from None
+
+
+@router.get("/guides")
+async def get_all_guides():
+    """등록된 전체 가이드 목록"""
+    return {"guides": list_guides()}
