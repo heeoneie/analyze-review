@@ -160,9 +160,22 @@ export default function FileUpload({
 
           {/* 업로드 정보 */}
           {uploadInfo && (
-            <span className="text-sm text-green-600 font-medium">
-              {uploadInfo.filename || uploadInfo.platform} ({uploadInfo.total_rows}개 리뷰)
-            </span>
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-green-600 font-medium">
+                {uploadInfo.filename || uploadInfo.platform} ({uploadInfo.total_rows ?? uploadInfo.total_reviews}개 리뷰)
+              </span>
+              {uploadInfo.rating_average > 0 && (
+                <span className="flex items-center gap-1 text-yellow-600 font-medium">
+                  <Star size={14} className="fill-yellow-400 text-yellow-400" />
+                  {uploadInfo.rating_average}
+                </span>
+              )}
+              {uploadInfo.text_reviews != null && (
+                <span className="text-gray-500">
+                  텍스트 리뷰 {uploadInfo.text_reviews}개
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>
