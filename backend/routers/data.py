@@ -145,6 +145,8 @@ async def crawl_product_reviews(request: CrawlRequest):
         if reviews:
             csv_path = save_reviews_to_csv(reviews)
             uploaded_files["current"] = csv_path
+        else:
+            uploaded_files.pop("current", None)
 
         return {
             "platform": platform,

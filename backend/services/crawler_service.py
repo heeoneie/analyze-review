@@ -172,7 +172,7 @@ def _crawl_coupang(
         paging = data.get("rData", {}).get("paging", {})
         contents = paging.get("contents", [])
 
-        if page_num == 1:
+        if not rating_summary:
             rating_summary = data.get("rData", {}).get(
                 "ratingSummaryTotal", {}
             )
