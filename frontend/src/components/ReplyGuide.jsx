@@ -111,7 +111,7 @@ export default function ReplyGuide({ activeCategory }) {
   useEffect(() => {
     getAllGuides()
       .then(({ data }) => setAllGuides(data.guides || []))
-      .catch(() => {});
+      .catch((err) => console.error('가이드 목록 로드 실패:', err));
   }, []);
 
   // activeCategory가 변경되면 자동으로 해당 가이드 로드

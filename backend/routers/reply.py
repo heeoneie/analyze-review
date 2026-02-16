@@ -73,10 +73,10 @@ async def get_reply_guide(request: GuideRequest):
     """카테고리별 답변 품질 가이드 조회"""
     try:
         guide = await asyncio.to_thread(get_guide, request.category)
-        return guide
     except Exception:
         logger.exception("가이드 조회 실패: %s", request.category)
         raise HTTPException(500, "가이드 조회 중 오류가 발생했습니다.") from None
+    return guide
 
 
 @router.get("/guides")
