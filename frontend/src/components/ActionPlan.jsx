@@ -16,7 +16,18 @@ export default function ActionPlan({ recommendations }) {
             <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
               {idx + 1}
             </div>
-            <p className="text-gray-800 leading-relaxed">{rec}</p>
+            {typeof rec === 'string' ? (
+              <p className="text-gray-800 leading-relaxed">{rec}</p>
+            ) : (
+              <div className="space-y-1">
+                <p className="font-semibold text-gray-900">{rec.title}</p>
+                <p className="text-sm text-gray-600">{rec.problem}</p>
+                <p className="text-sm text-gray-800">{rec.action}</p>
+                {rec.expected_impact && (
+                  <p className="text-xs text-blue-600">기대 효과: {rec.expected_impact}</p>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
