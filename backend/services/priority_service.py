@@ -4,7 +4,7 @@ LLM 호출 없이 로컬에서 별점/키워드/길이/최신성 기준으로
 부정 리뷰의 대응 우선순위를 점수화한다.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # 심각 키워드 (환불/결함/파손 등)
 _KEYWORDS_HIGH = [
@@ -54,7 +54,9 @@ def _recency_score(created_at: str | None) -> int:
 
     try:
         dt = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
-        now = datetime.now(dt.tzinfo) if dt.tzinfo else datetime.now()
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
     except (ValueError, TypeError):
         return 8
 

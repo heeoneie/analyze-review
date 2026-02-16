@@ -79,10 +79,12 @@ function App() {
 
           {/* 탭 네비게이션 */}
           {analysisResult && !isLoading && (
-            <nav className="flex gap-1 mt-3 -mb-4">
+            <nav className="flex gap-1 mt-3 -mb-4" role="tablist">
               {TABS.map(({ id, label }) => (
                 <button
                   key={id}
+                  role="tab"
+                  aria-selected={activeTab === id}
                   onClick={() => setActiveTab(id)}
                   className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
                     activeTab === id

@@ -5,7 +5,7 @@ _state = {"step": "idle", "percent": 0}
 
 def update(step: str, percent: int):
     _state["step"] = step
-    _state["percent"] = min(percent, 100)
+    _state["percent"] = max(0, min(percent, 100))
 
 
 def get():

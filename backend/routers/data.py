@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+from enum import Enum
 from pathlib import Path
 
 import pandas as pd
@@ -222,11 +223,18 @@ def get_reviews(
     }
 
 
+class PriorityLevel(str, Enum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
 @router.get("/reviews/prioritized")
 def get_prioritized_reviews(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    level: str = Query(None, description="critical/high/medium/low"),
+    level: PriorityLevel = Query(None, description="critical/high/medium/low"),
 ):
     """우선순위 정렬된 부정 리뷰 목록"""
     csv_path = uploaded_files.get("current")

@@ -92,6 +92,7 @@ def run_full_analysis(
             "all_categories": {},
             "emerging_issues": [],
             "recommendations": ["부정 리뷰가 없습니다."],
+            "priority_reviews": [],
         }
 
     recent_cat, comparison_cat = _categorize_periods(

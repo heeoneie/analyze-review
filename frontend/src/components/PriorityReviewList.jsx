@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { getPrioritizedReviews } from '../api/client';
 
+const PAGE_SIZE = 10;
+
 const LEVEL_CONFIG = {
   critical: { label: '긴급', color: 'bg-red-100 text-red-700 border-red-200', dot: 'bg-red-500' },
   high: { label: '높음', color: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
@@ -62,19 +64,22 @@ export default function PriorityReviewList({ uploadInfo }) {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [filterLevel, setFilterLevel] = useState(null);
   const [expandedIdx, setExpandedIdx] = useState(null);
 
   const fetchReviews = useCallback(async (p, level) => {
     setIsLoading(true);
+    setError(null);
     try {
-      const { data } = await getPrioritizedReviews(p, 10, level);
+      const { data } = await getPrioritizedReviews(p, PAGE_SIZE, level);
       setReviews(data.reviews);
       setTotalPages(data.total_pages);
       setTotal(data.total);
       setPage(p);
     } catch (err) {
       console.error('우선순위 리뷰 로딩 실패:', err);
+      setError('리뷰를 불러오는 데 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
@@ -132,6 +137,12 @@ export default function PriorityReviewList({ uploadInfo }) {
         ))}
       </div>
 
+      {error && (
+        <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-4">
+          {error}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="text-center py-8 text-gray-500">로딩 중...</div>
       ) : reviews.length === 0 ? (
@@ -144,7 +155,7 @@ export default function PriorityReviewList({ uploadInfo }) {
               const isExpanded = expandedIdx === idx;
               return (
                 <div
-                  key={idx}
+                  key={`${page}-${idx}`}
                   className="border border-gray-100 rounded-xl p-4 hover:bg-gray-50 transition-colors cursor-pointer"
                   onClick={() => setExpandedIdx(isExpanded ? null : idx)}
                 >
@@ -157,7 +168,7 @@ export default function PriorityReviewList({ uploadInfo }) {
                       </span>
                     </div>
                     <span className="text-xs text-gray-400">
-                      #{(page - 1) * 10 + idx + 1}
+                      #{(page - 1) * PAGE_SIZE + idx + 1}
                     </span>
                   </div>
                   <p className={`text-sm text-gray-700 leading-relaxed ${isExpanded ? '' : 'line-clamp-3'}`}>
