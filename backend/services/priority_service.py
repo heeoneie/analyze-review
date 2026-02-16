@@ -94,7 +94,10 @@ def compute_priority(review: dict) -> dict:
                                "keyword": int, "recency": int}}
     """
     text = str(review.get("Reviews", ""))
-    rating = int(review.get("Ratings", 3))
+    try:
+        rating = int(float(review.get("Ratings", 3)))
+    except (ValueError, TypeError):
+        rating = 3
     created_at = review.get("created_at")
 
     factors = {

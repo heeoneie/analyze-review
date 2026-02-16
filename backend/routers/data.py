@@ -248,13 +248,13 @@ def get_prioritized_reviews(
     threshold = analysis_settings["rating_threshold"]
 
     # 부정 리뷰만 필터링
-    negative_df = df[
-        df["Ratings"].apply(
-            lambda x: int(float(x)) <= threshold
-            if str(x).strip()
-            else False
-        )
-    ]
+    def _is_negative(x):
+        try:
+            return int(float(x)) <= threshold
+        except (ValueError, TypeError):
+            return False
+
+    negative_df = df[df["Ratings"].apply(_is_negative)]
     reviews = negative_df.to_dict(orient="records")
 
     # 우선순위 스코어링 및 정렬
