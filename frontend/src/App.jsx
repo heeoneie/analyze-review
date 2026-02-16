@@ -14,7 +14,13 @@ import CategoryChart from './components/CategoryChart';
 import TopIssuesCard from './components/TopIssuesCard';
 import EmergingIssues from './components/EmergingIssues';
 import ActionPlan from './components/ActionPlan';
+import PriorityReviewList from './components/PriorityReviewList';
 import './index.css';
+
+const TABS = [
+  { id: 'analysis', label: '분석 대시보드' },
+  { id: 'reply', label: '리뷰 답변' },
+];
 
 function App() {
   const [uploadInfo, setUploadInfo] = useState(null);
@@ -22,6 +28,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [ratingThreshold, setRatingThreshold] = useState(3);
+  const [activeTab, setActiveTab] = useState('analysis');
 
   const executeWithAnalysis = async (apiCall, errorMsg) => {
     try {
@@ -69,6 +76,27 @@ function App() {
             E-commerce Review Analysis Dashboard
           </h1>
           <p className="text-sm text-gray-500">LLM 기반 리뷰 자동 분류 및 컨설팅 시스템</p>
+
+          {/* 탭 네비게이션 */}
+          {analysisResult && !isLoading && (
+            <nav className="flex gap-1 mt-3 -mb-4" role="tablist">
+              {TABS.map(({ id, label }) => (
+                <button
+                  key={id}
+                  role="tab"
+                  aria-selected={activeTab === id}
+                  onClick={() => setActiveTab(id)}
+                  className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                    activeTab === id
+                      ? 'bg-gray-50 text-gray-900 border border-gray-200 border-b-gray-50'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+          )}
         </div>
       </header>
 
@@ -98,26 +126,34 @@ function App() {
         {/* Results */}
         {analysisResult && !isLoading && (
           <>
-            {/* KPI Metrics */}
-            <MetricsOverview
-              stats={analysisResult.stats}
-              categoryCount={Object.keys(categories).length}
-            />
+            {activeTab === 'analysis' && (
+              <>
+                {/* KPI Metrics */}
+                <MetricsOverview
+                  stats={analysisResult.stats}
+                  categoryCount={Object.keys(categories).length}
+                />
 
-            {/* Charts + Top Issues */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <CategoryChart allCategories={categories} />
-              <TopIssuesCard topIssues={analysisResult.top_issues} />
-            </div>
+                {/* Charts + Top Issues */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <CategoryChart allCategories={categories} />
+                  <TopIssuesCard topIssues={analysisResult.top_issues} />
+                </div>
 
-            {/* Emerging Issues + Action Plan */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <EmergingIssues emergingIssues={analysisResult.emerging_issues} />
-              <ActionPlan recommendations={analysisResult.recommendations} />
-            </div>
+                {/* Emerging Issues + Action Plan */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <EmergingIssues emergingIssues={analysisResult.emerging_issues} />
+                  <ActionPlan recommendations={analysisResult.recommendations} />
+                </div>
 
-            {/* Review List */}
-            <ReviewList uploadInfo={uploadInfo} />
+                {/* Review List */}
+                <ReviewList uploadInfo={uploadInfo} />
+              </>
+            )}
+
+            {activeTab === 'reply' && (
+              <PriorityReviewList uploadInfo={uploadInfo} />
+            )}
           </>
         )}
       </main>

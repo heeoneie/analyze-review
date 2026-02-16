@@ -27,3 +27,9 @@ export const updateSettings = (ratingThreshold) =>
 // 리뷰 목록 API
 export const getReviews = (page = 1, pageSize = 20) =>
   api.get('/data/reviews', { params: { page, page_size: pageSize } });
+
+// 우선순위 리뷰 API
+export const getPrioritizedReviews = (page = 1, pageSize = 20, level = null) =>
+  api.get('/data/reviews/prioritized', {
+    params: { page, page_size: pageSize, ...(level && { level }) },
+  });
