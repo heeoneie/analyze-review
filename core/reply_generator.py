@@ -114,9 +114,12 @@ class ReplyGenerator:
 
             parsed = extract_json_from_text(raw)
             if parsed and "replies" in parsed:
+                normalized = []
                 for reply_data in parsed["replies"]:
                     reply_data["review_index"] = start + reply_data.get("review_index", 1)
-                all_replies.extend(parsed["replies"])
+                    normalized.append(reply_data)
+                normalized.sort(key=lambda r: r["review_index"])
+                all_replies.extend(normalized)
             else:
                 logger.warning("일괄 답변 생성 파싱 실패, chunk %d~%d", start, start + len(chunk))
 
