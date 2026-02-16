@@ -14,8 +14,6 @@ import ReplyPanel from './ReplyPanel';
 
 const PAGE_SIZE = 10;
 
-const PAGE_SIZE = 10;
-
 const LEVEL_CONFIG = {
   critical: { label: '긴급', color: 'bg-red-100 text-red-700 border-red-200', dot: 'bg-red-500' },
   high: { label: '높음', color: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
