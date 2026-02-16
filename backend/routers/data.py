@@ -262,7 +262,7 @@ def get_prioritized_reviews(
 
     # 레벨 필터링
     if level:
-        scored = [r for r in scored if r["priority"]["level"] == level]
+        scored = [r for r in scored if r["priority"]["level"] == level.value]
 
     total = len(scored)
     start = (page - 1) * page_size
