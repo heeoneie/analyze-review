@@ -96,8 +96,8 @@ Repo -> Settings -> Secrets and variables -> Actions
 ## 6) 인프라 구성 요약
 
 1. GitHub Actions가 `main`에 push 시 배포를 트리거
-2. 프론트엔드는 `frontend/dist`를 tar로 묶어 SFTP 전송 후 `/var/www/analyze-review`에 풀림
-3. 백엔드는 소스 전체를 tar로 묶어 SFTP 전송 후 `/opt/analyze-review/current`에 풀림, systemd 서비스로 실행
+2. 프론트엔드는 `frontend/dist`를 tar로 묶어 SFTP로 `/tmp/analyze-review`에 전송 후 `/var/www/analyze-review`에 풀림
+3. 백엔드는 소스 전체를 tar로 묶어 SFTP로 `/tmp/analyze-review`에 전송 후 `/opt/analyze-review/current`에 풀림, systemd 서비스로 실행
 4. Nginx가 정적 파일을 서빙하고 `/api/`는 FastAPI로 프록시
 5. HTTPS는 Let's Encrypt + Certbot으로 종료
 6. Nginx 로그는 별도 파일로 분리되고 logrotate로 관리
@@ -111,7 +111,7 @@ Repo -> Settings -> Secrets and variables -> Actions
 ```mermaid
 flowchart TB
   subgraph DNS[DNS]
-    gabia["Gabia DNS\nA record: togethering.site → 3.37.154.130"]
+    gabia["Gabia DNS\nA record: togethering.site → <EC2_PUBLIC_IP>"]
   end
 
   subgraph Client[Client]
@@ -126,6 +126,7 @@ flowchart TB
     frontend["Vite build\n/var/www/analyze-review"]
     envfile["/etc/analyze-review/backend.env\n(Secrets)"]
     logs["Nginx logs\nlogrotate"]
+    tmpdir["/tmp/analyze-review\n(Upload staging)"]
   end
 
   subgraph CI[CI/CD]
@@ -143,8 +144,8 @@ flowchart TB
   envfile --> backend
   logs --> nginx
   certbot --> nginx
-  github -->|sftp backend| ec2
-  github -->|sftp frontend| ec2
+  github -->|"sftp backend (/tmp)"| tmpdir
+  github -->|"sftp frontend (/tmp)"| tmpdir
   github -->|write backend.env| ec2
   ec2 --> nginx
   ec2 --> backend

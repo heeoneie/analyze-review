@@ -61,36 +61,36 @@ jobs:
         run: |
           SSH_PORT=${{ secrets.EC2_SSH_PORT }}
           if [ -z "$SSH_PORT" ]; then SSH_PORT=22; fi
+          ssh -p "$SSH_PORT" "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" 'mkdir -p /tmp/analyze-review /opt/analyze-review/current'
           tar --exclude=".git" --exclude="frontend" --exclude="tests" -czf /tmp/backend.tgz .
           cat << 'SFTP_EOF' > /tmp/sftp-backend.txt
-          mkdir -p ${{ env.DEPLOY_PATH }}
-          put /tmp/backend.tgz ${{ env.DEPLOY_PATH }}/backend.tgz
+          put /tmp/backend.tgz /tmp/analyze-review/backend.tgz
           SFTP_EOF
           sftp -P "$SSH_PORT" -b /tmp/sftp-backend.txt "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
           ssh -p "$SSH_PORT" "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'SSH_EOF'
             set -euo pipefail
             mkdir -p /opt/analyze-review/current
             rm -rf /opt/analyze-review/current/*
-            tar -xzf /opt/analyze-review/current/backend.tgz -C /opt/analyze-review/current
-            rm -f /opt/analyze-review/current/backend.tgz
+            tar -xzf /tmp/analyze-review/backend.tgz -C /opt/analyze-review/current
+            rm -f /tmp/analyze-review/backend.tgz
           SSH_EOF
 
       - name: Upload frontend build (SFTP)
         run: |
           SSH_PORT=${{ secrets.EC2_SSH_PORT }}
           if [ -z "$SSH_PORT" ]; then SSH_PORT=22; fi
+          ssh -p "$SSH_PORT" "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" 'mkdir -p /tmp/analyze-review /var/www/analyze-review'
           tar -czf /tmp/frontend.tgz -C frontend/dist .
           cat << 'SFTP_EOF' > /tmp/sftp-frontend.txt
-          mkdir -p ${{ env.FRONTEND_PATH }}
-          put /tmp/frontend.tgz ${{ env.FRONTEND_PATH }}/frontend.tgz
+          put /tmp/frontend.tgz /tmp/analyze-review/frontend.tgz
           SFTP_EOF
           sftp -P "$SSH_PORT" -b /tmp/sftp-frontend.txt "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
           ssh -p "$SSH_PORT" "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'SSH_EOF'
             set -euo pipefail
             mkdir -p /var/www/analyze-review
             rm -rf /var/www/analyze-review/*
-            tar -xzf /var/www/analyze-review/frontend.tgz -C /var/www/analyze-review
-            rm -f /var/www/analyze-review/frontend.tgz
+            tar -xzf /tmp/analyze-review/frontend.tgz -C /var/www/analyze-review
+            rm -f /tmp/analyze-review/frontend.tgz
           SSH_EOF
 
       - name: Write backend env from secrets
