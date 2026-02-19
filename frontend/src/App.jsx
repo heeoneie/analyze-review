@@ -16,11 +16,13 @@ import EmergingIssues from './components/EmergingIssues';
 import ActionPlan from './components/ActionPlan';
 import PriorityReviewList from './components/PriorityReviewList';
 import ReplyGuide from './components/ReplyGuide';
+import RiskIntelligence from './components/RiskIntelligence';
 import './index.css';
 
 const TABS = [
   { id: 'analysis', label: '분석 대시보드' },
   { id: 'reply', label: '리뷰 답변' },
+  { id: 'risk', label: '리스크 인텔리전스' },
 ];
 
 function App() {
@@ -163,6 +165,10 @@ function App() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {activeTab === 'risk' && (
+              <RiskIntelligence analysisResult={analysisResult} />
             )}
           </>
         )}
