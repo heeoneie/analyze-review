@@ -72,6 +72,27 @@ export default function ComplianceReport({ data, loading, error, onGenerate }) {
             </p>
           )}
 
+          {/* Monitored Channels */}
+          {data.monitored_channels?.length > 0 && (
+            <div className="space-y-1.5">
+              <h4 className="text-xs font-semibold text-gray-600">채널별 모니터링 현황</h4>
+              {data.monitored_channels.map((ch, idx) => (
+                <div key={idx} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${ch.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <span className="text-xs text-gray-700">{ch.channel}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-gray-400">{ch.feed_count?.toLocaleString()}건</span>
+                    {ch.risk_count > 0 && (
+                      <span className="text-red-500 font-medium">리스크 {ch.risk_count}건</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Risk Assessment Grid */}
           {data.risk_assessment && Object.keys(data.risk_assessment).length > 0 && (
             <div className="grid grid-cols-2 gap-2">
@@ -105,6 +126,9 @@ export default function ComplianceReport({ data, loading, error, onGenerate }) {
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-semibold text-gray-800">{event.category}</span>
+                    {event.channel && (
+                      <span className="text-xs text-blue-400">[{event.channel}]</span>
+                    )}
                     {event.affected_count && (
                       <span className="text-xs text-gray-400">영향 {event.affected_count}건</span>
                     )}

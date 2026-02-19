@@ -7,6 +7,7 @@ const NODE_COLORS = {
   root_cause: '#F97316',
   department: '#3B82F6',
   risk_type: '#8B5CF6',
+  channel: '#10B981',
 };
 
 const NODE_LABELS = {
@@ -14,6 +15,7 @@ const NODE_LABELS = {
   root_cause: '근본 원인',
   department: '담당 부서',
   risk_type: '리스크 유형',
+  channel: '감지 채널',
 };
 
 export default function OntologyGraph({ data, loading, error, onGenerate }) {

@@ -22,6 +22,7 @@ class RiskAnalysisRequest(BaseModel):
     recommendations: list = []
     all_categories: dict = {}
     stats: dict = {}
+    industry: str = "ecommerce"
 
 
 @router.post("/ontology")

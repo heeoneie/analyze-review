@@ -76,9 +76,9 @@ function App() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <h1 className="text-xl font-bold text-gray-900">
-            E-commerce Review Analysis Dashboard
+            RepShield — AI Reputation Insurance
           </h1>
-          <p className="text-sm text-gray-500">LLM 기반 리뷰 자동 분류 및 컨설팅 시스템</p>
+          <p className="text-sm text-gray-500">멀티채널 리스크 모니터링 · 온톨로지 분석 · 컴플라이언스 자동화</p>
 
           {/* 탭 네비게이션 */}
           {analysisResult && !isLoading && (
