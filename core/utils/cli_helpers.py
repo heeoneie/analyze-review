@@ -16,11 +16,11 @@ def print_section(title):
 
 
 def require_openai_key():
-    """Exit if GOOGLE_API_KEY is missing."""
-    if not config.GOOGLE_API_KEY:
-        print("\n[Error] GOOGLE_API_KEY not found in .env file")
-        print("Please create a .env file with your Google API key:")
-        print("  GOOGLE_API_KEY=your_api_key_here")
+    """Exit if OPENAI_API_KEY is missing."""
+    if not config.OPENAI_API_KEY:
+        print("\n[Error] OPENAI_API_KEY not found in .env file")
+        print("Please create a .env file with your OpenAI API key:")
+        print("  OPENAI_API_KEY=your_api_key_here")
         sys.exit(1)
 
 
