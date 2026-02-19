@@ -1,0 +1,17 @@
+[Unit]
+Description=Analyze Review Backend (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/opt/analyze-review/current
+EnvironmentFile=/etc/analyze-review/backend.env
+Environment=PYTHONPATH=/opt/analyze-review/current
+ExecStart=/opt/analyze-review/venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

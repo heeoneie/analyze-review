@@ -1,5 +1,7 @@
+import os
 import sys
 from pathlib import Path
+from typing import List
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,9 +19,16 @@ from backend.routers import (  # pylint: disable=wrong-import-position
 
 app = FastAPI(title="Review Analysis Dashboard API", version="1.0.0")
 
+
+def _get_allowed_origins() -> List[str]:
+    raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+    if not raw_origins:
+        return ["http://localhost:5173", "http://localhost:3000"]
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=_get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

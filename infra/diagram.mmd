@@ -1,0 +1,40 @@
+flowchart TB
+  subgraph DNS[DNS]
+    gabia["Gabia DNS\nA record: togethering.site → <EC2_PUBLIC_IP>"]
+  end
+
+  subgraph Client[Client]
+    browser["Browser"]
+  end
+
+  subgraph AWS[AWS]
+    sg["Security Group\nAllow 22/80/443"]
+    ec2["EC2 Instance\nAmazon Linux"]
+    nginx["Nginx\nTLS termination"]
+    backend["FastAPI (uvicorn)\n127.0.0.1:8000\nsystemd"]
+    frontend["Vite build\n/var/www/analyze-review"]
+    envfile["/etc/analyze-review/backend.env\n(Secrets)"]
+    logs["Nginx logs\nlogrotate"]
+    tmpdir["/tmp/analyze-review\n(Upload staging)"]
+  end
+
+  subgraph CI[CI/CD]
+    github["GitHub Actions"]
+  end
+
+  subgraph SSL[SSL]
+    certbot["Certbot\nLet's Encrypt"]
+  end
+
+  gabia --> browser
+  browser -->|HTTPS 443| sg --> nginx
+  nginx -->|/api/* proxy| backend
+  nginx -->|static| frontend
+  envfile --> backend
+  logs --> nginx
+  certbot --> nginx
+  github -->|"sftp backend (/tmp)"| tmpdir
+  github -->|"sftp frontend (/tmp)"| tmpdir
+  github -->|write backend.env| ec2
+  ec2 --> nginx
+  ec2 --> backend

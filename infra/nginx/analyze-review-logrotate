@@ -1,0 +1,12 @@
+/var/log/nginx/analyze-review.access.log /var/log/nginx/analyze-review.error.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        systemctl reload nginx > /dev/null 2>&1 || true
+    endscript
+}

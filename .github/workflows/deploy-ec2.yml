@@ -1,0 +1,119 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  APP_NAME: analyze-review
+  DEPLOY_PATH: /opt/analyze-review/current
+  FRONTEND_PATH: /var/www/analyze-review
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          FRONTEND_ENV_FILE: ${{ secrets.FRONTEND_ENV_FILE }}
+        run: |
+          if [ -z "${FRONTEND_ENV_FILE}" ]; then
+            echo "FRONTEND_ENV_FILE secret is required." >&2
+            exit 1
+          fi
+          if [ -n "${FRONTEND_ENV_FILE}" ]; then
+            printf '%s' "${FRONTEND_ENV_FILE}" > .env.production
+          fi
+          npm ci
+          npm run build
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Prepare SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          SSH_PORT=${{ secrets.EC2_SSH_PORT }}
+          if [ -z "$SSH_PORT" ]; then SSH_PORT=22; fi
+          ssh-keyscan -p "$SSH_PORT" "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload backend code (SFTP)
+        run: |
+          SSH_PORT=${{ secrets.EC2_SSH_PORT }}
+          if [ -z "$SSH_PORT" ]; then SSH_PORT=22; fi
+          ssh -p "$SSH_PORT" "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" 'mkdir -p /tmp/analyze-review /opt/analyze-review/current'
+          tar --exclude=".git" --exclude="frontend" --exclude="tests" -czf /tmp/backend.tgz .
+          cat << 'SFTP_EOF' > /tmp/sftp-backend.txt
+          put /tmp/backend.tgz /tmp/analyze-review/backend.tgz
+          SFTP_EOF
+          sftp -P "$SSH_PORT" -b /tmp/sftp-backend.txt "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
+          ssh -p "$SSH_PORT" "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'SSH_EOF'
+            set -euo pipefail
+            mkdir -p /opt/analyze-review/current
+            rm -rf /opt/analyze-review/current/*
+            tar -xzf /tmp/analyze-review/backend.tgz -C /opt/analyze-review/current
+            rm -f /tmp/analyze-review/backend.tgz
+          SSH_EOF
+
+      - name: Upload frontend build (SFTP)
+        run: |
+          SSH_PORT=${{ secrets.EC2_SSH_PORT }}
+          if [ -z "$SSH_PORT" ]; then SSH_PORT=22; fi
+          ssh -p "$SSH_PORT" "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" 'mkdir -p /tmp/analyze-review /var/www/analyze-review'
+          tar -czf /tmp/frontend.tgz -C frontend/dist .
+          cat << 'SFTP_EOF' > /tmp/sftp-frontend.txt
+          put /tmp/frontend.tgz /tmp/analyze-review/frontend.tgz
+          SFTP_EOF
+          sftp -P "$SSH_PORT" -b /tmp/sftp-frontend.txt "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
+          ssh -p "$SSH_PORT" "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'SSH_EOF'
+            set -euo pipefail
+            mkdir -p /var/www/analyze-review
+            rm -rf /var/www/analyze-review/*
+            tar -xzf /tmp/analyze-review/frontend.tgz -C /var/www/analyze-review
+            rm -f /tmp/analyze-review/frontend.tgz
+          SSH_EOF
+
+      - name: Write backend env from secrets
+        env:
+          BACKEND_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
+        run: |
+          SSH_PORT=${{ secrets.EC2_SSH_PORT }}
+          if [ -z "$SSH_PORT" ]; then SSH_PORT=22; fi
+          if [ -z "${BACKEND_ENV_FILE}" ]; then
+            echo "BACKEND_ENV_FILE secret is required." >&2
+            exit 1
+          fi
+          printf '%s' "${BACKEND_ENV_FILE}" | ssh -p "$SSH_PORT" "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "sudo install -d -m 755 /etc/analyze-review && sudo tee /etc/analyze-review/backend.env > /dev/null && sudo chmod 600 /etc/analyze-review/backend.env"
+
+      - name: Install deps & restart service
+        run: |
+          SSH_PORT=${{ secrets.EC2_SSH_PORT }}
+          if [ -z "$SSH_PORT" ]; then SSH_PORT=22; fi
+          ssh -p "$SSH_PORT" "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'SSH_EOF'
+            set -euo pipefail
+            if [ ! -d /opt/analyze-review/venv ]; then
+              python3 -m venv /opt/analyze-review/venv
+            fi
+            /opt/analyze-review/venv/bin/pip install -r /opt/analyze-review/current/backend/requirements.txt
+            sudo systemctl restart analyze-review-backend
+          SSH_EOF
