@@ -10,6 +10,7 @@ import OntologyGraph from './OntologyGraph';
 import ComplianceReport from './ComplianceReport';
 import MeetingAgenda from './MeetingAgenda';
 import MockScenario from './MockScenario';
+import RiskLoadingSpinner from './RiskLoadingSpinner';
 
 const INDUSTRIES = [
   { id: 'ecommerce', label: '이커머스', icon: '🛒' },
@@ -229,6 +230,11 @@ export default function RiskIntelligence({ analysisResult }) {
       {/* Mock Scenario Cards */}
       {demoResult && <MockScenario data={demoResult} />}
 
+      {/* 전체 로딩 스피너 (demo / runAll 중) */}
+      {(loading.demo || loading.all) && (
+        <RiskLoadingSpinner mode={loading.demo ? 'demo' : 'all'} />
+      )}
+
       {/* Empty State */}
       {!isAnyLoading && !hasResults && !demoResult && (
         <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center">
@@ -243,28 +249,28 @@ export default function RiskIntelligence({ analysisResult }) {
         </div>
       )}
 
-      {/* Ontology Graph */}
-      {(hasResults || isAnyLoading) && (
+      {/* Ontology Graph — demo/all 로딩 중에는 숨김 (스피너가 대신 표시) */}
+      {(hasResults || loading.ontology) && !loading.demo && !loading.all && (
         <OntologyGraph
           data={ontology}
-          loading={loading.all || loading.ontology || loading.demo}
+          loading={loading.ontology}
           error={errors.ontology}
           onGenerate={() => runSingle('ontology')}
         />
       )}
 
       {/* Compliance + Meeting */}
-      {(compliance || meeting || loading.all || loading.demo || loading.compliance || loading.meeting) && (
+      {(compliance || meeting || loading.compliance || loading.meeting) && !loading.demo && !loading.all && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ComplianceReport
             data={compliance}
-            loading={loading.all || loading.compliance || loading.demo}
+            loading={loading.compliance}
             error={errors.compliance}
             onGenerate={() => runSingle('compliance')}
           />
           <MeetingAgenda
             data={meeting}
-            loading={loading.all || loading.meeting || loading.demo}
+            loading={loading.meeting}
             error={errors.meeting}
             onGenerate={() => runSingle('meeting')}
           />

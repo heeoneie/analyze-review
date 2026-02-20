@@ -1,81 +1,57 @@
-import { useRef, useCallback, useEffect, useState } from 'react';
-import ForceGraph2D from 'react-force-graph-2d';
-import { Network, Loader2 } from 'lucide-react';
+import { Network, Loader2, ChevronDown } from 'lucide-react';
 
-const NODE_COLORS = {
-  category: '#EF4444',
-  root_cause: '#F97316',
-  department: '#3B82F6',
-  risk_type: '#8B5CF6',
-  channel: '#10B981',
+const TYPE_CFG = {
+  channel:    { label: '감지 채널',     color: '#10B981', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', ring: 'ring-emerald-300' },
+  category:   { label: '이슈 카테고리', color: '#EF4444', bg: 'bg-red-50',     border: 'border-red-200',     text: 'text-red-700',     ring: 'ring-red-300' },
+  root_cause: { label: '근본 원인',     color: '#F97316', bg: 'bg-orange-50',  border: 'border-orange-200',  text: 'text-orange-700',  ring: 'ring-orange-300' },
+  department: { label: '담당 부서',     color: '#3B82F6', bg: 'bg-blue-50',    border: 'border-blue-200',    text: 'text-blue-700',    ring: 'ring-blue-300' },
+  risk_type:  { label: '리스크 유형',   color: '#8B5CF6', bg: 'bg-purple-50',  border: 'border-purple-200',  text: 'text-purple-700',  ring: 'ring-purple-300' },
 };
 
-const NODE_LABELS = {
-  category: '이슈 카테고리',
-  root_cause: '근본 원인',
-  department: '담당 부서',
-  risk_type: '리스크 유형',
-  channel: '감지 채널',
-};
+const TYPE_ORDER = ['channel', 'category', 'root_cause', 'department', 'risk_type'];
+
+function NodeChip({ node, cfg }) {
+  const severity = node.severity || 0;
+  const isHigh = severity >= 9;
+  const isMed  = severity >= 7 && severity < 9;
+  return (
+    <div
+      className={[
+        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm',
+        cfg.bg, cfg.border,
+        isHigh ? `ring-2 ${cfg.ring}` : '',
+      ].join(' ')}
+    >
+      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.color }} />
+      <span className={`font-semibold ${cfg.text}`}>{node.label}</span>
+      {isHigh && (
+        <span className="ml-0.5 text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold leading-none">
+          {severity}
+        </span>
+      )}
+      {isMed && (
+        <span className="ml-0.5 text-xs bg-orange-400 text-white px-1.5 py-0.5 rounded-full font-bold leading-none">
+          {severity}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function OntologyGraph({ data, loading, error, onGenerate }) {
-  const graphRef = useRef();
-  const containerRef = useRef();
-  const [dimensions, setDimensions] = useState({ width: 800, height: 450 });
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setDimensions({ width: entry.contentRect.width, height: 450 });
-      }
-    });
-    resizeObserver.observe(containerRef.current);
-    return () => resizeObserver.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (data && graphRef.current) {
-      setTimeout(() => graphRef.current?.zoomToFit(400, 40), 500);
+  const grouped = {};
+  if (data?.nodes) {
+    for (const node of data.nodes) {
+      const t = node.type || 'category';
+      if (!grouped[t]) grouped[t] = [];
+      grouped[t].push(node);
     }
-  }, [data]);
-
-  const paintNode = useCallback((node, ctx) => {
-    const size = 4 + (node.severity || 5) * 0.8;
-    const color = NODE_COLORS[node.type] || '#6B7280';
-
-    ctx.beginPath();
-    ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.font = '3.5px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = '#374151';
-    ctx.fillText(node.label || node.id, node.x, node.y + size + 2);
-  }, []);
-
-  const paintLink = useCallback((link, ctx) => {
-    ctx.strokeStyle = '#D1D5DB';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(link.source.x, link.source.y);
-    ctx.lineTo(link.target.x, link.target.y);
-    ctx.stroke();
-
-    if (link.relation) {
-      const midX = (link.source.x + link.target.x) / 2;
-      const midY = (link.source.y + link.target.y) / 2;
-      ctx.font = '2.5px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#9CA3AF';
-      ctx.fillText(link.relation, midX, midY - 2);
+    for (const t of Object.keys(grouped)) {
+      grouped[t].sort((a, b) => (b.severity || 0) - (a.severity || 0));
     }
-  }, []);
+  }
+
+  const visibleTypes = TYPE_ORDER.filter((t) => grouped[t]?.length > 0);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -99,59 +75,73 @@ export default function OntologyGraph({ data, loading, error, onGenerate }) {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center h-[450px] text-gray-400">
+        <div className="flex items-center justify-center h-48 text-gray-400">
           <Loader2 className="animate-spin mr-2" size={20} />
           온톨로지 그래프 생성 중...
         </div>
       ) : data ? (
-        <>
+        <div className="space-y-1">
           {/* Legend */}
-          <div className="flex flex-wrap gap-4 mb-3">
-            {Object.entries(NODE_LABELS).map(([type, label]) => (
+          <div className="flex flex-wrap gap-3 mb-4">
+            {Object.entries(TYPE_CFG).map(([type, cfg]) => (
               <div key={type} className="flex items-center gap-1.5 text-xs text-gray-600">
-                <span
-                  className="w-3 h-3 rounded-full inline-block"
-                  style={{ backgroundColor: NODE_COLORS[type] }}
-                />
-                {label}
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cfg.color }} />
+                {cfg.label}
               </div>
             ))}
+            <span className="ml-2 border-l pl-3 text-xs text-gray-400 flex items-center gap-1">
+              <span className="bg-red-500 text-white px-1.5 rounded-full font-bold">9+</span>
+              고위험
+            </span>
           </div>
 
-          {/* Graph */}
-          <div
-            ref={containerRef}
-            className="border border-gray-100 rounded-xl overflow-hidden bg-gray-50"
-          >
-            <ForceGraph2D
-              ref={graphRef}
-              graphData={{ nodes: data.nodes || [], links: data.links || [] }}
-              width={dimensions.width}
-              height={dimensions.height}
-              nodeCanvasObject={paintNode}
-              linkCanvasObject={paintLink}
-              nodePointerAreaPaint={(node, color, ctx) => {
-                const size = 4 + (node.severity || 5) * 0.8;
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, size + 2, 0, 2 * Math.PI);
-                ctx.fillStyle = color;
-                ctx.fill();
-              }}
-              cooldownTicks={100}
-              d3AlphaDecay={0.02}
-              d3VelocityDecay={0.3}
-            />
+          {/* Hierarchy rows */}
+          <div className="bg-gray-50 rounded-xl p-5 space-y-0.5">
+            {visibleTypes.map((type, idx) => {
+              const cfg = TYPE_CFG[type];
+              const nodes = grouped[type];
+              const showArrow = idx < visibleTypes.length - 1;
+              return (
+                <div key={type}>
+                  <div className="flex items-start gap-4 py-2">
+                    {/* Type label */}
+                    <div className="flex-shrink-0 w-28 pt-1.5 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cfg.color }} />
+                        <span className="text-xs font-semibold text-gray-500">{cfg.label}</span>
+                      </div>
+                    </div>
+                    {/* Divider */}
+                    <div className="flex-shrink-0 w-px bg-gray-200 self-stretch my-0.5" />
+                    {/* Chips */}
+                    <div className="flex flex-wrap gap-2 flex-1">
+                      {nodes.map((node) => (
+                        <NodeChip key={node.id} node={node} cfg={cfg} />
+                      ))}
+                    </div>
+                  </div>
+                  {showArrow && (
+                    <div className="ml-32 pl-5 py-0.5">
+                      <ChevronDown className="text-gray-300" size={16} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Summary */}
           {data.summary && (
-            <p className="mt-3 text-sm text-gray-600 bg-purple-50 rounded-lg p-3">
+            <p className="mt-3 text-sm text-gray-600 bg-purple-50 rounded-lg p-3 leading-relaxed">
               {data.summary}
             </p>
           )}
-        </>
+          <p className="text-xs text-gray-400 text-right pt-1">
+            노드 {data.nodes?.length || 0}개 · 관계 {data.links?.length || 0}개
+          </p>
+        </div>
       ) : (
-        <div className="flex items-center justify-center h-[450px] text-gray-300 text-sm">
+        <div className="flex items-center justify-center h-48 text-gray-300 text-sm">
           &quot;전체 리스크 분석 실행&quot; 또는 &quot;온톨로지 생성&quot; 버튼을 클릭하세요
         </div>
       )}
