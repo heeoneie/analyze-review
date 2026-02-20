@@ -61,7 +61,7 @@ function CommentGrowthChart({ growth, metricLabel }) {
       : { label: '→ 완만', cls: 'text-slate-500' };
 
   return (
-    <div className="mt-2.5 pt-2.5 border-t border-slate-700">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
           <TrendingUp size={11} />
@@ -86,7 +86,6 @@ function CommentGrowthChart({ growth, metricLabel }) {
             </div>
           );
         })}
-        <span className="text-[10px] text-slate-600 self-end pb-4 ml-0.5">({metricLabel})</span>
       </div>
     </div>
   );
@@ -174,39 +173,44 @@ export default function MockScenario({ data }) {
                   </div>
                 </div>
 
-                {/* Content */}
-                <p className="text-xs text-slate-400 leading-relaxed line-clamp-3 mb-2.5">
-                  &ldquo;{signal.content}&rdquo;
-                </p>
+                {/* Body: 좌(콘텐츠) + 우(바 차트) */}
+                <div className="flex gap-4 items-start">
+                  {/* Left */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-slate-400 leading-relaxed line-clamp-3 mb-2.5">
+                      &ldquo;{signal.content}&rdquo;
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {signal.risk_indicators?.map((ind, i) => (
+                        <span
+                          key={i}
+                          className="text-xs px-2 py-0.5 bg-red-950 text-red-400 border border-red-800 rounded-full font-medium"
+                        >
+                          △ {ind}
+                        </span>
+                      ))}
+                    </div>
+                    {signal.metadata && (
+                      <p className="text-[11px] text-slate-600 mt-2">
+                        {signal.metadata.rating && `★ ${signal.metadata.rating}/5 · `}
+                        {signal.metadata.likes && `좋아요 ${signal.metadata.likes} · `}
+                        {signal.metadata.visitor_count && `조회 ${signal.metadata.visitor_count.toLocaleString()} · `}
+                        {signal.metadata.view_count && `뷰 ${signal.metadata.view_count.toLocaleString()} · `}
+                        {new Date(signal.metadata.timestamp).toLocaleDateString('ko-KR')}
+                      </p>
+                    )}
+                  </div>
 
-                {/* Risk Indicators */}
-                <div className="flex flex-wrap gap-1">
-                  {signal.risk_indicators?.map((ind, i) => (
-                    <span
-                      key={i}
-                      className="text-xs px-2 py-0.5 bg-red-950 text-red-400 border border-red-800 rounded-full font-medium"
-                    >
-                      △ {ind}
-                    </span>
-                  ))}
+                  {/* Right: bar chart */}
+                  {signal.comment_growth?.length > 0 && (
+                    <div className="flex-shrink-0 border-l border-slate-700 pl-4">
+                      <CommentGrowthChart
+                        growth={signal.comment_growth}
+                        metricLabel={signal.metric_label}
+                      />
+                    </div>
+                  )}
                 </div>
-
-                {/* Metadata */}
-                {signal.metadata && (
-                  <p className="text-[11px] text-slate-600 mt-2">
-                    {signal.metadata.rating && `★ ${signal.metadata.rating}/5 · `}
-                    {signal.metadata.likes && `좋아요 ${signal.metadata.likes} · `}
-                    {signal.metadata.visitor_count && `조회 ${signal.metadata.visitor_count.toLocaleString()} · `}
-                    {signal.metadata.view_count && `뷰 ${signal.metadata.view_count.toLocaleString()} · `}
-                    {new Date(signal.metadata.timestamp).toLocaleDateString('ko-KR')}
-                  </p>
-                )}
-
-                {/* Comment Growth */}
-                <CommentGrowthChart
-                  growth={signal.comment_growth}
-                  metricLabel={signal.metric_label}
-                />
               </div>
             );
           })}
