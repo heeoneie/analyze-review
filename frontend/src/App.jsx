@@ -71,14 +71,14 @@ function App() {
   const categories = analysisResult?.all_categories ?? {};
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-950">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <h1 className="text-xl font-bold text-gray-900">
+          <h1 className="text-xl font-bold text-white tracking-tight">
             OntoReview — AI Reputation Intelligence
           </h1>
-          <p className="text-sm text-gray-500">멀티채널 리스크 모니터링 · 온톨로지 분석 · 컴플라이언스 자동화</p>
+          <p className="text-sm text-slate-500">멀티채널 리스크 모니터링 · 온톨로지 분석 · 컴플라이언스 자동화</p>
 
           {/* 탭 네비게이션 — 항상 표시 */}
           <nav className="flex gap-1 mt-3 -mb-4" role="tablist">
@@ -93,10 +93,10 @@ function App() {
                   onClick={() => !disabled && setActiveTab(id)}
                   className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
                     activeTab === id
-                      ? 'bg-gray-50 text-gray-900 border border-gray-200 border-b-gray-50'
+                      ? 'bg-slate-950 text-white border border-slate-700 border-b-slate-950'
                       : disabled
-                        ? 'text-gray-300 cursor-not-allowed'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'text-slate-700 cursor-not-allowed'
+                        : 'text-slate-500 hover:text-slate-300'
                   }`}
                 >
                   {label}
@@ -130,7 +130,7 @@ function App() {
 
             {/* Error */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3">
+              <div className="bg-red-950 border border-red-800 text-red-400 rounded-xl px-4 py-3">
                 {error}
               </div>
             )}

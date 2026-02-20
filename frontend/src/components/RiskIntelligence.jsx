@@ -27,24 +27,29 @@ const CHANNELS = [
 ];
 
 const RISK_LEVEL_CONFIG = {
-  GREEN: { label: '안전', bg: 'bg-green-500', text: 'text-green-700', banner: 'bg-green-50 border-green-200' },
-  YELLOW: { label: '주의', bg: 'bg-yellow-400', text: 'text-yellow-700', banner: 'bg-yellow-50 border-yellow-200' },
-  ORANGE: { label: '경고', bg: 'bg-orange-500', text: 'text-orange-700', banner: 'bg-orange-50 border-orange-200' },
-  RED: { label: '치명적', bg: 'bg-red-600', text: 'text-red-700', banner: 'bg-red-50 border-red-300' },
+  GREEN:  { label: '안전',   dot: 'bg-emerald-400', text: 'text-emerald-400', banner: 'bg-emerald-950/40 border-emerald-800' },
+  YELLOW: { label: '주의',   dot: 'bg-amber-400',   text: 'text-amber-400',   banner: 'bg-amber-950/40 border-amber-800' },
+  ORANGE: { label: '경고',   dot: 'bg-orange-400',  text: 'text-orange-400',  banner: 'bg-orange-950/40 border-orange-800' },
+  RED:    { label: '치명적', dot: 'bg-red-500',     text: 'text-red-400',     banner: 'bg-red-950/40 border-red-800' },
 };
 
 function RiskLevelBanner({ level }) {
   if (!level) return null;
   const cfg = RISK_LEVEL_CONFIG[level] || RISK_LEVEL_CONFIG.GREEN;
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 ${cfg.banner} mb-4`}>
-      <span className={`w-3 h-3 rounded-full flex-shrink-0 ${cfg.bg} ${level === 'RED' || level === 'ORANGE' ? 'animate-pulse' : ''}`} />
-      <span className={`text-sm font-bold ${cfg.text}`}>
+    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${cfg.banner}`}>
+      <span className={`relative flex h-3 w-3 flex-shrink-0`}>
+        {(level === 'RED' || level === 'ORANGE') && (
+          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${cfg.dot} opacity-50`} />
+        )}
+        <span className={`relative inline-flex rounded-full h-3 w-3 ${cfg.dot}`} />
+      </span>
+      <span className={`text-sm font-semibold ${cfg.text}`}>
         현재 리스크 등급: {cfg.label}
         {level === 'RED' && ' — 즉각 경영진 대응 필요'}
         {level === 'ORANGE' && ' — 모니터링 강화 필요'}
       </span>
-      <span className={`ml-auto text-xs font-bold px-3 py-1 rounded-full text-white ${cfg.bg}`}>
+      <span className={`ml-auto text-xs font-bold px-3 py-1 rounded-full border ${cfg.banner} ${cfg.text}`}>
         {cfg.label}
       </span>
     </div>
@@ -214,15 +219,15 @@ export default function RiskIntelligence({ analysisResult }) {
   return (
     <div className="space-y-6">
       {/* Header Card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
         <div className="flex items-start justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Shield className="text-purple-600" size={22} />
+            <div className="w-10 h-10 bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center">
+              <Shield className="text-slate-400" size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Risk Intelligence</h2>
-              <p className="text-sm text-gray-500">
+              <h2 className="text-lg font-bold text-white">Risk Intelligence</h2>
+              <p className="text-sm text-slate-500">
                 멀티채널 리스크 모니터링 · 온톨로지 분석 · 컴플라이언스 보고서 · 회의 안건
               </p>
             </div>
@@ -232,12 +237,12 @@ export default function RiskIntelligence({ analysisResult }) {
             <div className="relative">
               <button
                 onClick={handleShare}
-                className="px-3 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors text-sm flex items-center gap-1.5"
+                className="px-3 py-2.5 bg-slate-800 text-slate-300 rounded-xl font-medium hover:bg-slate-700 transition-colors text-sm flex items-center gap-1.5 border border-slate-700"
               >
                 <Share2 size={14} />담당자 공유
               </button>
               {shareToast && (
-                <div className="absolute -bottom-9 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap z-10 shadow">
+                <div className="absolute -bottom-9 left-1/2 -translate-x-1/2 bg-slate-700 text-white text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap z-10 shadow border border-slate-600">
                   ✓ 링크 복사됨
                 </div>
               )}
@@ -247,7 +252,7 @@ export default function RiskIntelligence({ analysisResult }) {
             <button
               onClick={handleDownload}
               disabled={!hasResults && !demoResult}
-              className="px-3 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm flex items-center gap-1.5"
+              className="px-3 py-2.5 bg-slate-800 text-slate-300 rounded-xl font-medium hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm flex items-center gap-1.5 border border-slate-700"
             >
               <Download size={14} />리포트 다운로드
             </button>
@@ -282,14 +287,16 @@ export default function RiskIntelligence({ analysisResult }) {
         {/* Industry + Channels */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 mb-2">
-              <Building2 size={13} />산업 컨텍스트
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              <Building2 size={12} />산업 컨텍스트
             </div>
             <div className="flex gap-2 flex-wrap">
               {INDUSTRIES.map(({ id, label, icon }) => (
                 <button key={id} onClick={() => setIndustry(id)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    industry === id ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+                    industry === id
+                      ? 'bg-indigo-950 text-indigo-300 border-indigo-700'
+                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-300'
                   }`}>
                   {icon} {label}
                 </button>
@@ -297,15 +304,17 @@ export default function RiskIntelligence({ analysisResult }) {
             </div>
           </div>
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 mb-2">
-              <Radio size={13} />모니터링 채널
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              <Radio size={12} />모니터링 채널
             </div>
             <div className="flex gap-2 flex-wrap">
               {channels.map((ch) => (
-                <div key={ch.name} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs ${
-                  ch.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-400'
+                <div key={ch.name} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${
+                  ch.status === 'active'
+                    ? 'bg-emerald-950/50 text-emerald-400 border-emerald-900'
+                    : 'bg-slate-800 text-slate-500 border-slate-700'
                 }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${ch.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${ch.status === 'active' ? 'bg-emerald-400' : 'bg-slate-600'}`} />
                   {ch.name}
                   {ch.count != null && <span className="font-semibold">{ch.count.toLocaleString()}</span>}
                 </div>
@@ -317,7 +326,7 @@ export default function RiskIntelligence({ analysisResult }) {
 
       {/* Error */}
       {errors.demo && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{errors.demo}</div>
+        <div className="bg-red-950 border border-red-800 text-red-400 rounded-xl px-4 py-3 text-sm">{errors.demo}</div>
       )}
 
       {/* Risk Level Banner */}
@@ -333,14 +342,14 @@ export default function RiskIntelligence({ analysisResult }) {
 
       {/* Empty State */}
       {!isAnyLoading && !hasResults && !demoResult && (
-        <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center">
-          <Shield className="text-gray-200 mx-auto mb-3" size={48} />
-          <p className="text-gray-400 text-sm leading-relaxed">
-            <span className="font-semibold text-red-500 cursor-pointer hover:underline" onClick={handleDemo}>
+        <div className="bg-slate-900 rounded-2xl border border-dashed border-slate-700 p-12 text-center">
+          <Shield className="text-slate-700 mx-auto mb-3" size={44} />
+          <p className="text-slate-500 text-sm leading-relaxed">
+            <span className="font-semibold text-red-400 cursor-pointer hover:text-red-300" onClick={handleDemo}>
               ⚡ 충전기 폭발 사건 시연
             </span>
             으로 4채널 동시 감지 → Red Alert 시나리오를 즉시 확인하세요.
-            {analysisResult && <><br />또는 업로드된 데이터로 <span className="text-purple-600 font-semibold">전체 분석 실행</span>을 눌러보세요.</>}
+            {analysisResult && <><br />또는 업로드된 데이터로 <span className="text-indigo-400 font-semibold">전체 분석 실행</span>을 눌러보세요.</>}
           </p>
         </div>
       )}

@@ -9,7 +9,7 @@ const STEPS = [
   { label: '결과 통합 및 리스크 레벨 산정', duration: 3000 },
 ];
 
-const PARALLEL = [1, 2, 3]; // 인덱스 1~3은 병렬
+const PARALLEL = [1, 2, 3];
 
 export default function RiskLoadingSpinner({ mode = 'demo' }) {
   const [currentStep, setCurrentStep] = useState(0);
@@ -41,7 +41,6 @@ export default function RiskLoadingSpinner({ mode = 'demo' }) {
       }
 
       setProgress(Math.min(95, Math.round((elapsed / totalDuration) * 100)));
-
       if (elapsed >= totalDuration) clearInterval(interval);
     }, 100);
 
@@ -56,15 +55,15 @@ export default function RiskLoadingSpinner({ mode = 'demo' }) {
     isParallel(idx) ? currentStep > 3 : idx < currentStep;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-8">
       <div className="flex flex-col items-center">
         {/* 원형 진행률 */}
         <div className="relative mb-6">
           <svg className="w-24 h-24 transform -rotate-90">
-            <circle cx="48" cy="48" r="40" stroke="#e5e7eb" strokeWidth="8" fill="none" />
+            <circle cx="48" cy="48" r="40" stroke="#1e293b" strokeWidth="8" fill="none" />
             <circle
               cx="48" cy="48" r="40"
-              stroke="#8B5CF6"
+              stroke="#6366f1"
               strokeWidth="8"
               fill="none"
               strokeDasharray={251.2}
@@ -74,14 +73,14 @@ export default function RiskLoadingSpinner({ mode = 'demo' }) {
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-2xl font-bold text-purple-600">{progress}%</span>
+            <span className="text-2xl font-bold text-indigo-400">{progress}%</span>
           </div>
         </div>
 
         {/* 현재 작업 */}
         <div className="flex items-center gap-2 mb-6">
-          <Radio className="text-purple-500 animate-pulse" size={18} />
-          <p className="text-base font-medium text-gray-700">
+          <Radio className="text-indigo-400 animate-pulse" size={16} />
+          <p className="text-sm font-medium text-slate-300">
             {mode === 'demo'
               ? currentStep <= 3
                 ? 'AI 엔진 병렬 분석 중...'
@@ -91,7 +90,7 @@ export default function RiskLoadingSpinner({ mode = 'demo' }) {
         </div>
 
         {/* 단계 목록 */}
-        <div className="w-full max-w-md space-y-2">
+        <div className="w-full max-w-md space-y-1.5">
           {steps.map((step, idx) => {
             const done = isDone(idx);
             const active = isActive(idx);
@@ -100,24 +99,24 @@ export default function RiskLoadingSpinner({ mode = 'demo' }) {
             return (
               <div
                 key={idx}
-                className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
+                className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all text-sm ${
                   done
-                    ? 'bg-green-50 text-green-700'
+                    ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-900'
                     : active
-                      ? 'bg-purple-50 text-purple-700'
-                      : 'bg-gray-50 text-gray-400'
+                      ? 'bg-indigo-950/50 text-indigo-300 border border-indigo-900'
+                      : 'bg-slate-800/50 text-slate-600 border border-slate-800'
                 }`}
               >
                 {done ? (
-                  <CheckCircle size={18} className="text-green-500 flex-shrink-0" />
+                  <CheckCircle size={15} className="text-emerald-400 flex-shrink-0" />
                 ) : active ? (
-                  <Loader2 size={18} className="animate-spin text-purple-500 flex-shrink-0" />
+                  <Loader2 size={15} className="animate-spin text-indigo-400 flex-shrink-0" />
                 ) : (
-                  <div className="w-[18px] h-[18px] rounded-full border-2 border-gray-300 flex-shrink-0" />
+                  <div className="w-[15px] h-[15px] rounded-full border border-slate-700 flex-shrink-0" />
                 )}
-                <span className="text-sm font-medium">{step.label}</span>
+                <span className="font-medium">{step.label}</span>
                 {parallel && (
-                  <span className="ml-auto text-xs text-purple-400 font-medium">병렬</span>
+                  <span className="ml-auto text-[10px] text-indigo-500 font-semibold border border-indigo-900 px-1.5 rounded">병렬</span>
                 )}
               </div>
             );
@@ -125,8 +124,8 @@ export default function RiskLoadingSpinner({ mode = 'demo' }) {
         </div>
 
         {mode === 'demo' && (
-          <p className="mt-4 text-xs text-gray-400">
-            온톨로지 · 컴플라이언스 · 회의안건을 동시 생성 중
+          <p className="mt-4 text-xs text-slate-600">
+            온톨로지 · 컴플라이언스 · 회의안건 동시 생성 중
           </p>
         )}
       </div>
