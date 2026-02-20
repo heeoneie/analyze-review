@@ -851,11 +851,11 @@ def _demo_generate_meeting(client, incident_context: str, lang: str = "ko") -> d
     참석자 6-8명, 아래 형식으로 각각 명시.
     필수 포함: 법무팀·CLO·홍보팀·품질관리팀(또는 사건 관련 부서)·CEO.
     외부 변호인 1-2명 반드시 포함.
-    예시: {"department": "법무팀", "role": "CLO", "reason": "법적 대응 총괄"},
-          {"department": "외부 법률", "role": "외부 변호인 1", "reason": "소비자 집단소송 대응"},
-          {"department": "외부 법률", "role": "외부 변호인 2", "reason": "형사 리스크 검토"},
-          {"department": "홍보팀", "role": "팀장", "reason": "위기 커뮤니케이션 총괄"},
-          {"department": "경영", "role": "CEO", "reason": "최종 의사결정"}
+    예시: {{"department": "법무팀", "role": "CLO", "reason": "법적 대응 총괄"}},
+          {{"department": "외부 법률", "role": "외부 변호인 1", "reason": "소비자 집단소송 대응"}},
+          {{"department": "외부 법률", "role": "외부 변호인 2", "reason": "형사 리스크 검토"}},
+          {{"department": "홍보팀", "role": "팀장", "reason": "위기 커뮤니케이션 총괄"}},
+          {{"department": "경영", "role": "CEO", "reason": "최종 의사결정"}}
   ],
   "agenda_items": [안건 4-5개, priority: critical/high],
   "preparation": [사전 준비사항 3개 이상]
