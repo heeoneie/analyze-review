@@ -3,6 +3,7 @@ export const translations = {
     tabs: {
       analysis: '분석 대시보드', reply: '리뷰 답변', risk: '리스크 인텔리전스',
       playbook: '리스크 대응 시뮬레이션', agent: '에이전트 자율 협상 설정',
+      riskMgmt: '리스크 관리',
     },
     header: { subtitle: '멀티채널 리스크 모니터링 · 온톨로지 분석 · 컴플라이언스 자동화' },
     risk: {
@@ -48,6 +49,9 @@ export const translations = {
       label1_hospital: '병원명',   label2_hospital: '진료과/서비스',
       label1_finance: '회사명',    label2_finance: '서비스명',
       label1_gaming: '게임사',     label2_gaming: '게임명',
+      errDemo: '데모 시나리오 분석 실패', errOntology: '온톨로지 생성 실패',
+      errCompliance: '보고서 생성 실패', errMeeting: '회의 안건 생성 실패',
+      errGeneric: '생성 실패',
     },
     mock: {
       viralRisk: '역바이럴', high: '높음', medium: '보통', low: '낮음',
@@ -56,6 +60,7 @@ export const translations = {
       surging: '↑ 급증', increasing: '↑ 증가', steady: '→ 완만',
       trendInterval: '추이 (5분 간격)', reaction: '반응',
       criticalRisk: '치명적', warningRisk: '경고', cautionRisk: '주의',
+      mlSimilarReview: '유사 민원 리뷰', mlReplies: '대댓글', mlVisitors: '방문자', mlReactions: '추천·공감',
     },
     compliance: {
       title: '컴플라이언스 보고서', generate: '보고서 생성', generating: '보고서 생성 중...',
@@ -72,6 +77,16 @@ export const translations = {
       estimated: '예상 소요:', attendees: '참석 대상', presenter: '발표:', preparation: '사전 준비사항',
       empty: '회의 안건을 생성하려면 버튼을 클릭하세요',
       normal: '일반', urgent: '긴급', critical: '초긴급',
+      att_clo: 'CLO', att_legal: '법무팀장', att_lawyer1: '외부 변호인 1',
+      att_lawyer2: '외부 변호인 2', att_pr: '홍보팀장', att_ceo: 'CEO',
+    },
+    ontology: {
+      title: '리스크 인과 관계 DAG', analyzing: '분석 중...', escalation: '경영진 직접 에스컬레이션',
+      lcfg0: '감지 채널', lcfg1: '리스크 사건', lcfg2: '경영 타격', lcfg3: '대응 주체',
+      n_s1: '유튜브 불만댓글', n_s2: '트위터 바이럴', n_s3: '커뮤니티 확산', n_s4: '언론 기사 포착',
+      n_e1: '제품 결함 논란', n_e2: '환불 분쟁 급증', n_e3: '브랜드 신뢰 붕괴',
+      n_i1: '매출 급락', n_i2: '법적 리스크', n_i3: '주가 하락', n_i4: '파트너 이탈',
+      n_a1: '경영진 긴급대응', n_a2: '법무팀', n_a3: 'PR팀', n_a4: 'CS팀 대응',
     },
   },
 
@@ -79,6 +94,7 @@ export const translations = {
     tabs: {
       analysis: 'Analytics', reply: 'Review Reply', risk: 'Risk Intelligence',
       playbook: 'Risk Response Playbook', agent: 'Agent Communication Setup',
+      riskMgmt: 'Risk Management',
     },
     header: { subtitle: 'Multi-Channel Risk Monitoring · Ontology Analysis · Compliance Automation' },
     risk: {
@@ -124,6 +140,9 @@ export const translations = {
       label1_hospital: 'Hospital',     label2_hospital: 'Dept / Service',
       label1_finance: 'Company',       label2_finance: 'Service',
       label1_gaming: 'Game Studio',    label2_gaming: 'Game Title',
+      errDemo: 'Demo scenario analysis failed', errOntology: 'Ontology generation failed',
+      errCompliance: 'Report generation failed', errMeeting: 'Agenda generation failed',
+      errGeneric: 'Generation failed',
     },
     mock: {
       viralRisk: 'Viral Risk:', high: 'High', medium: 'Medium', low: 'Low',
@@ -132,6 +151,7 @@ export const translations = {
       surging: '↑ Surging', increasing: '↑ Rising', steady: '→ Steady',
       trendInterval: 'Trend (5-min)', reaction: 'Reactions',
       criticalRisk: 'Critical', warningRisk: 'Warning', cautionRisk: 'Caution',
+      mlSimilarReview: 'Similar Reviews', mlReplies: 'Replies', mlVisitors: 'Visitors', mlReactions: 'Reactions',
     },
     compliance: {
       title: 'Compliance Report', generate: 'Generate Report', generating: 'Generating report...',
@@ -148,6 +168,16 @@ export const translations = {
       estimated: 'Est. Duration:', attendees: 'Attendees', presenter: 'Presenter:', preparation: 'Preparation',
       empty: 'Click the button to generate a meeting agenda',
       normal: 'Normal', urgent: 'Urgent', critical: 'Critical',
+      att_clo: 'CLO', att_legal: 'Head of Legal', att_lawyer1: 'External Counsel 1',
+      att_lawyer2: 'External Counsel 2', att_pr: 'Head of PR', att_ceo: 'CEO',
+    },
+    ontology: {
+      title: 'Risk Causation DAG', analyzing: 'Analyzing...', escalation: 'Direct Executive Escalation',
+      lcfg0: 'Signal Channels', lcfg1: 'Risk Events', lcfg2: 'Business Impact', lcfg3: 'Response Teams',
+      n_s1: 'YouTube Complaints', n_s2: 'Twitter Viral', n_s3: 'Community Spread', n_s4: 'Press Coverage',
+      n_e1: 'Product Defect', n_e2: 'Refund Disputes', n_e3: 'Brand Trust Crisis',
+      n_i1: 'Revenue Drop', n_i2: 'Legal Risk', n_i3: 'Stock Decline', n_i4: 'Partner Defection',
+      n_a1: 'Exec Emergency', n_a2: 'Legal Team', n_a3: 'PR Team', n_a4: 'CS Response',
     },
   },
 };

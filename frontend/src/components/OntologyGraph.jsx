@@ -1,4 +1,5 @@
 import { Network, Loader2 } from 'lucide-react';
+import { useLang } from '../contexts/LangContext';
 
 const LX  = [14, 214, 414, 614];
 const NW  = 120;
@@ -6,29 +7,29 @@ const NH  = 34;
 const SW  = 782;
 const SH  = 350;
 
-const LCFG = [
-  { label: '감지 채널',   color: '#34D399' },
-  { label: '리스크 사건', color: '#FB923C' },
-  { label: '경영 타격',   color: '#F87171' },
-  { label: '대응 주체',   color: '#818CF8' },
+const LCFG_KEYS = [
+  { labelKey: 'ontology.lcfg0', color: '#34D399' },
+  { labelKey: 'ontology.lcfg1', color: '#FB923C' },
+  { labelKey: 'ontology.lcfg2', color: '#F87171' },
+  { labelKey: 'ontology.lcfg3', color: '#818CF8' },
 ];
 
 const GNODES = [
-  { id: 's1', layer: 0, label: '유튜브 불만댓글',  y: 30  },
-  { id: 's2', layer: 0, label: '트위터 바이럴',    y: 118 },
-  { id: 's3', layer: 0, label: '커뮤니티 확산',    y: 206 },
-  { id: 's4', layer: 0, label: '언론 기사 포착',   y: 294 },
-  { id: 'e1', layer: 1, label: '제품 결함 논란',   y: 74  },
-  { id: 'e2', layer: 1, label: '환불 분쟁 급증',   y: 162 },
-  { id: 'e3', layer: 1, label: '브랜드 신뢰 붕괴', y: 250 },
-  { id: 'i1', layer: 2, label: '매출 급락',        y: 30  },
-  { id: 'i2', layer: 2, label: '법적 리스크',      y: 118 },
-  { id: 'i3', layer: 2, label: '주가 하락',        y: 206 },
-  { id: 'i4', layer: 2, label: '파트너 이탈',      y: 294 },
-  { id: 'a1', layer: 3, label: '경영진 긴급대응',  y: 30  },
-  { id: 'a2', layer: 3, label: '법무팀',           y: 118 },
-  { id: 'a3', layer: 3, label: 'PR팀',             y: 206 },
-  { id: 'a4', layer: 3, label: 'CS팀 대응',        y: 294 },
+  { id: 's1', layer: 0, labelKey: 'ontology.n_s1', y: 30  },
+  { id: 's2', layer: 0, labelKey: 'ontology.n_s2', y: 118 },
+  { id: 's3', layer: 0, labelKey: 'ontology.n_s3', y: 206 },
+  { id: 's4', layer: 0, labelKey: 'ontology.n_s4', y: 294 },
+  { id: 'e1', layer: 1, labelKey: 'ontology.n_e1', y: 74  },
+  { id: 'e2', layer: 1, labelKey: 'ontology.n_e2', y: 162 },
+  { id: 'e3', layer: 1, labelKey: 'ontology.n_e3', y: 250 },
+  { id: 'i1', layer: 2, labelKey: 'ontology.n_i1', y: 30  },
+  { id: 'i2', layer: 2, labelKey: 'ontology.n_i2', y: 118 },
+  { id: 'i3', layer: 2, labelKey: 'ontology.n_i3', y: 206 },
+  { id: 'i4', layer: 2, labelKey: 'ontology.n_i4', y: 294 },
+  { id: 'a1', layer: 3, labelKey: 'ontology.n_a1', y: 30  },
+  { id: 'a2', layer: 3, labelKey: 'ontology.n_a2', y: 118 },
+  { id: 'a3', layer: 3, labelKey: 'ontology.n_a3', y: 206 },
+  { id: 'a4', layer: 3, labelKey: 'ontology.n_a4', y: 294 },
 ];
 
 const GEDGES = [
@@ -63,6 +64,7 @@ function epath(fn, tn) {
 }
 
 function DAGGraph() {
+  const { t } = useLang();
   const nm = Object.fromEntries(GNODES.map((n) => [n.id, n]));
   return (
     <svg viewBox={`0 0 ${SW} ${SH}`} width="100%" style={{ minWidth: 480 }}>
@@ -78,7 +80,7 @@ function DAGGraph() {
       </defs>
 
       {/* layer headers */}
-      {LCFG.map((cfg, i) => (
+      {LCFG_KEYS.map((cfg, i) => (
         <g key={i}>
           <rect
             x={LX[i]} y={0} width={NW} height={22} rx={5}
@@ -89,7 +91,7 @@ function DAGGraph() {
             x={LX[i] + NW / 2} y={14}
             textAnchor="middle" fontSize={10} fontWeight="700" fill={cfg.color}
           >
-            {cfg.label}
+            {t(cfg.labelKey)}
           </text>
         </g>
       ))}
@@ -109,7 +111,7 @@ function DAGGraph() {
 
       {/* nodes */}
       {GNODES.map((n) => {
-        const cfg = LCFG[n.layer];
+        const cfg = LCFG_KEYS[n.layer];
         return (
           <g key={n.id}>
             <rect
@@ -126,7 +128,7 @@ function DAGGraph() {
               fontWeight="500"
               fill="#cbd5e1"
             >
-              {n.label}
+              {t(n.labelKey)}
             </text>
           </g>
         );
@@ -136,15 +138,16 @@ function DAGGraph() {
 }
 
 export default function OntologyGraph({ data, loading, error }) {
+  const { t } = useLang();
   return (
     <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">
       <div className="flex items-center gap-2 mb-5">
         <Network className="text-zinc-400" size={18} />
-        <h3 className="text-base font-bold text-white">리스크 인과 관계 DAG</h3>
+        <h3 className="text-base font-bold text-white">{t('ontology.title')}</h3>
         {loading && (
           <span className="flex items-center gap-1 text-xs text-zinc-500 ml-1">
             <Loader2 className="animate-spin" size={12} />
-            분석 중...
+            {t('ontology.analyzing')}
           </span>
         )}
       </div>
@@ -159,15 +162,15 @@ export default function OntologyGraph({ data, loading, error }) {
 
       {/* legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 px-1">
-        {LCFG.map((cfg, i) => (
+        {LCFG_KEYS.map((cfg, i) => (
           <div key={i} className="flex items-center gap-1.5 text-xs text-zinc-500">
             <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: cfg.color }} />
-            {cfg.label}
+            {t(cfg.labelKey)}
           </div>
         ))}
         <div className="flex items-center gap-1.5 text-xs text-zinc-500 ml-2 border-l border-zinc-700 pl-3">
           <span className="inline-block w-5 h-0.5 flex-shrink-0" style={{ background: '#F87171' }} />
-          경영진 직접 에스컬레이션
+          {t('ontology.escalation')}
         </div>
       </div>
 

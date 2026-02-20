@@ -23,7 +23,7 @@ function App() {
           <nav className="flex items-center gap-2 text-xs" aria-label="breadcrumb">
             <span className="font-bold text-white tracking-tight">OntoReview</span>
             <span className="text-zinc-700">/</span>
-            <span className="text-zinc-500">Risk Management</span>
+            <span className="text-zinc-500">{t('tabs.riskMgmt')}</span>
             <span className="text-zinc-700">/</span>
             <span className="text-zinc-300 font-medium">{t(currentTab.labelKey)}</span>
           </nav>
