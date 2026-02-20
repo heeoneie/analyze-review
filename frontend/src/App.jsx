@@ -31,7 +31,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [ratingThreshold, setRatingThreshold] = useState(3);
-  const [activeTab, setActiveTab] = useState('analysis');
+  const [activeTab, setActiveTab] = useState('risk');
 
   const executeWithAnalysis = async (apiCall, errorMsg) => {
     try {
@@ -76,99 +76,102 @@ function App() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <h1 className="text-xl font-bold text-gray-900">
-            RepShield — AI Reputation Insurance
+            OntoReview — AI Reputation Intelligence
           </h1>
           <p className="text-sm text-gray-500">멀티채널 리스크 모니터링 · 온톨로지 분석 · 컴플라이언스 자동화</p>
 
-          {/* 탭 네비게이션 */}
-          {analysisResult && !isLoading && (
-            <nav className="flex gap-1 mt-3 -mb-4" role="tablist">
-              {TABS.map(({ id, label }) => (
+          {/* 탭 네비게이션 — 항상 표시 */}
+          <nav className="flex gap-1 mt-3 -mb-4" role="tablist">
+            {TABS.map(({ id, label }) => {
+              const disabled = (id === 'analysis' || id === 'reply') && !analysisResult;
+              return (
                 <button
                   key={id}
                   role="tab"
                   aria-selected={activeTab === id}
-                  onClick={() => setActiveTab(id)}
+                  disabled={disabled}
+                  onClick={() => !disabled && setActiveTab(id)}
                   className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
                     activeTab === id
                       ? 'bg-gray-50 text-gray-900 border border-gray-200 border-b-gray-50'
-                      : 'text-gray-500 hover:text-gray-700'
+                      : disabled
+                        ? 'text-gray-300 cursor-not-allowed'
+                        : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
                   {label}
                 </button>
-              ))}
-            </nav>
-          )}
+              );
+            })}
+          </nav>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        {/* File Upload */}
-        <FileUpload
-          onUpload={handleUpload}
-          onUseSample={handleUseSample}
-          onCrawl={handleCrawl}
-          isLoading={isLoading}
-          uploadInfo={uploadInfo}
-          ratingThreshold={ratingThreshold}
-          onRatingThresholdChange={handleRatingThresholdChange}
-        />
-
-        {/* Error */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3">
-            {error}
-          </div>
+        {/* Risk Intelligence — 항상 접근 가능 (CSV 없이도 데모 가능) */}
+        {activeTab === 'risk' && (
+          <RiskIntelligence analysisResult={analysisResult} />
         )}
 
-        {/* Loading */}
-        {isLoading && <LoadingSpinner />}
-
-        {/* Results */}
-        {analysisResult && !isLoading && (
+        {/* 분석/답변 탭 전용 영역 */}
+        {activeTab !== 'risk' && (
           <>
-            {activeTab === 'analysis' && (
-              <>
-                {/* KPI Metrics */}
-                <MetricsOverview
-                  stats={analysisResult.stats}
-                  categoryCount={Object.keys(categories).length}
-                />
+            {/* File Upload */}
+            <FileUpload
+              onUpload={handleUpload}
+              onUseSample={handleUseSample}
+              onCrawl={handleCrawl}
+              isLoading={isLoading}
+              uploadInfo={uploadInfo}
+              ratingThreshold={ratingThreshold}
+              onRatingThresholdChange={handleRatingThresholdChange}
+            />
 
-                {/* Charts + Top Issues */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <CategoryChart allCategories={categories} />
-                  <TopIssuesCard topIssues={analysisResult.top_issues} />
-                </div>
-
-                {/* Emerging Issues + Action Plan */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <EmergingIssues emergingIssues={analysisResult.emerging_issues} />
-                  <ActionPlan recommendations={analysisResult.recommendations} />
-                </div>
-
-                {/* Review List */}
-                <ReviewList uploadInfo={uploadInfo} />
-              </>
-            )}
-
-            {activeTab === 'reply' && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                  <PriorityReviewList uploadInfo={uploadInfo} />
-                </div>
-                <div className="lg:col-span-1">
-                  <div className="sticky top-24">
-                    <ReplyGuide />
-                  </div>
-                </div>
+            {/* Error */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3">
+                {error}
               </div>
             )}
 
-            {activeTab === 'risk' && (
-              <RiskIntelligence analysisResult={analysisResult} />
+            {/* Loading */}
+            {isLoading && <LoadingSpinner />}
+
+            {/* Results */}
+            {analysisResult && !isLoading && (
+              <>
+                {activeTab === 'analysis' && (
+                  <>
+                    <MetricsOverview
+                      stats={analysisResult.stats}
+                      categoryCount={Object.keys(categories).length}
+                    />
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <CategoryChart allCategories={categories} />
+                      <TopIssuesCard topIssues={analysisResult.top_issues} />
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <EmergingIssues emergingIssues={analysisResult.emerging_issues} />
+                      <ActionPlan recommendations={analysisResult.recommendations} />
+                    </div>
+                    <ReviewList uploadInfo={uploadInfo} />
+                  </>
+                )}
+
+                {activeTab === 'reply' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2">
+                      <PriorityReviewList uploadInfo={uploadInfo} />
+                    </div>
+                    <div className="lg:col-span-1">
+                      <div className="sticky top-24">
+                        <ReplyGuide />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

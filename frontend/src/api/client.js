@@ -51,3 +51,4 @@ export const getAllGuides = () => api.get('/reply/guides');
 export const generateOntology = (analysisData) => api.post('/risk/ontology', analysisData);
 export const generateComplianceReport = (analysisData) => api.post('/risk/compliance', analysisData);
 export const generateMeetingAgenda = (analysisData) => api.post('/risk/meeting', analysisData);
+export const runDemoScenario = () => api.post('/risk/demo');

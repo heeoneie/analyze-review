@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.services.risk_service import (
+    analyze_demo_scenario,
     generate_compliance_report,
     generate_meeting_agenda,
     generate_ontology,
@@ -47,6 +48,17 @@ async def create_compliance_report(request: RiskAnalysisRequest):
     except Exception as e:
         logger.error("컴플라이언스 보고서 생성 실패: %s", e)
         raise HTTPException(500, f"보고서 생성 중 오류: {e}") from e
+
+
+@router.post("/demo")
+async def run_demo_scenario():
+    """OO 충전기 폭발 사건 Mock 시나리오 — 4채널 동시 감지 → Red Alert"""
+    try:
+        result = await asyncio.to_thread(analyze_demo_scenario)
+        return result
+    except Exception as e:
+        logger.error("데모 시나리오 분석 실패: %s", e)
+        raise HTTPException(500, f"데모 분석 중 오류: {e}") from e
 
 
 @router.post("/meeting")
