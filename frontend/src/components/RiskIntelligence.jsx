@@ -33,71 +33,6 @@ const RISK_LEVEL_CONFIG = {
   RED:    { label: '치명적', dot: 'bg-red-500',     text: 'text-red-400',     banner: 'bg-red-950/40 border-red-800' },
 };
 
-function RiskSummaryPanel({ demoResult }) {
-  if (!demoResult) return null;
-  const { risk_level, incident_title, channel_signals } = demoResult;
-  const riskPriority = risk_level === 'RED' ? 9 : risk_level === 'ORANGE' ? 7 : 5;
-  const highViral = channel_signals?.find((s) => s.viral_risk === '높음');
-  const viralPriority = highViral ? 8 : 3;
-  const channelCount = channel_signals?.length || 0;
-
-  const cards = [
-    {
-      type: '위협',
-      title: incident_title,
-      priority: riskPriority,
-      highlight: risk_level === 'RED',
-      badgeCls: 'bg-red-600 text-white',
-    },
-    {
-      type: '바이럴 리스크',
-      title: highViral
-        ? `${highViral.platform} 역바이럴 감지`
-        : '바이럴 위험 없음',
-      priority: viralPriority,
-      highlight: viralPriority >= 8,
-      badgeCls: 'bg-amber-600 text-white',
-    },
-    {
-      type: '감지 채널',
-      title: `${channelCount}개 채널 동시 감지`,
-      priority: channelCount,
-      highlight: false,
-      badgeCls: 'bg-indigo-600 text-white',
-    },
-  ];
-
-  return (
-    <div className="space-y-3">
-      {cards.map((card, idx) => (
-        <div
-          key={idx}
-          className={`rounded-xl border p-4 transition-colors ${
-            card.highlight
-              ? 'bg-slate-950 border-slate-500'
-              : 'bg-slate-800/50 border-slate-700'
-          }`}
-        >
-          <p className="text-xs text-slate-500 mb-1.5 uppercase tracking-wide">
-            {card.type}
-          </p>
-          <p className={`text-sm font-bold mb-4 leading-snug ${
-            card.highlight ? 'text-white' : 'text-slate-200'
-          }`}>
-            {card.title}
-          </p>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-500">Priority</span>
-            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold ${card.badgeCls}`}>
-              {card.priority}
-            </span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function RiskLevelBanner({ level }) {
   if (!level) return null;
   const cfg = RISK_LEVEL_CONFIG[level] || RISK_LEVEL_CONFIG.GREEN;
@@ -397,13 +332,8 @@ export default function RiskIntelligence({ analysisResult }) {
       {/* Risk Level Banner */}
       <RiskLevelBanner level={riskLevel} />
 
-      {/* 2-col: MockScenario + Right Summary Panel */}
-      {demoResult && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_268px] gap-4 items-start">
-          <MockScenario data={demoResult} />
-          <RiskSummaryPanel demoResult={demoResult} />
-        </div>
-      )}
+      {/* Mock Scenario Cards */}
+      {demoResult && <MockScenario data={demoResult} />}
 
       {/* 전체 로딩 스피너 (demo / runAll 중) */}
       {(loading.demo || loading.all) && (
