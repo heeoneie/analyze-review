@@ -124,7 +124,7 @@ function injectBrand(obj, brand) {
 }
 
 export default function RiskIntelligence({ analysisResult }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [demoResult, setDemoResult] = useState(null);
   const [ontology, setOntology] = useState(null);
   const [compliance, setCompliance] = useState(null);
@@ -157,6 +157,7 @@ export default function RiskIntelligence({ analysisResult }) {
     all_categories: analysisResult?.all_categories || {},
     stats: analysisResult?.stats || {},
     industry,
+    lang,
   };
 
   const handleDemo = async () => {
@@ -172,7 +173,7 @@ export default function RiskIntelligence({ analysisResult }) {
     setScanPhase(false);
     setLoading((prev) => ({ ...prev, demo: true }));
     try {
-      const res = await runDemoScenario(industry);
+      const res = await runDemoScenario(industry, lang);
       const raw = res.data;
       const data = injectBrand(raw, brand);
       setDemoResult(data);
@@ -181,7 +182,7 @@ export default function RiskIntelligence({ analysisResult }) {
       if (data.compliance) setCompliance(data.compliance);
       if (data.meeting) setMeeting(data.meeting);
     } catch (err) {
-      setErrors({ demo: err.response?.data?.detail || '데모 시나리오 분석 실패' });
+      setErrors({ demo: err.response?.data?.detail || t('risk.errDemo') });
     } finally {
       setLoading((prev) => ({ ...prev, demo: false }));
     }
@@ -202,7 +203,7 @@ export default function RiskIntelligence({ analysisResult }) {
         generateMeetingAgenda(analysisData),
       ]);
       if (ontRes.status === 'fulfilled') setOntology(ontRes.value.data);
-      else setErrors((prev) => ({ ...prev, ontology: '온톨로지 생성 실패' }));
+      else setErrors((prev) => ({ ...prev, ontology: t('risk.errOntology') }));
       if (compRes.status === 'fulfilled') {
         setCompliance(compRes.value.data);
         const lvl = compRes.value.data?.overall_risk_level;
@@ -210,9 +211,9 @@ export default function RiskIntelligence({ analysisResult }) {
         else if (lvl === '경고') setRiskLevel('ORANGE');
         else if (lvl === '주의') setRiskLevel('YELLOW');
         else setRiskLevel('GREEN');
-      } else setErrors((prev) => ({ ...prev, compliance: '보고서 생성 실패' }));
+      } else setErrors((prev) => ({ ...prev, compliance: t('risk.errCompliance') }));
       if (meetRes.status === 'fulfilled') setMeeting(meetRes.value.data);
-      else setErrors((prev) => ({ ...prev, meeting: '회의 안건 생성 실패' }));
+      else setErrors((prev) => ({ ...prev, meeting: t('risk.errMeeting') }));
     } finally {
       setLoading((prev) => ({ ...prev, all: false }));
     }
@@ -226,7 +227,7 @@ export default function RiskIntelligence({ analysisResult }) {
       else if (type === 'compliance') { const res = await generateComplianceReport(analysisData); setCompliance(res.data); }
       else if (type === 'meeting') { const res = await generateMeetingAgenda(analysisData); setMeeting(res.data); }
     } catch {
-      setErrors((prev) => ({ ...prev, [type]: `${type} 생성 실패` }));
+      setErrors((prev) => ({ ...prev, [type]: t('risk.errGeneric') }));
     } finally {
       setLoading((prev) => ({ ...prev, [type]: false }));
     }
@@ -425,6 +426,12 @@ export default function RiskIntelligence({ analysisResult }) {
                   setBrandName(cfg.default1);
                   setProductName(cfg.default2);
                   setSelectedExtra(new Set());
+                  setDemoResult(null);
+                  setOntology(null);
+                  setCompliance(null);
+                  setMeeting(null);
+                  setRiskLevel(null);
+                  setErrors({});
                 }}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
                     industry === id

@@ -42,11 +42,17 @@ INDUSTRY_CONTEXT = {
     },
 }
 
-RISK_SYSTEM_PROMPT = (
+_RISK_SYSTEM_BASE = (
     "You are an enterprise risk intelligence analyst specializing in "
     "multi-channel reputation monitoring and compliance reporting. "
-    "Always respond in Korean with valid JSON."
 )
+
+
+def _get_system_prompt(lang: str = "ko") -> str:
+    lang_instruction = (
+        "Respond entirely in English." if lang == "en" else "Always respond in Korean."
+    )
+    return _RISK_SYSTEM_BASE + lang_instruction + " Output valid JSON."
 
 
 def _get_industry(analysis_data: dict) -> dict:
@@ -56,6 +62,7 @@ def _get_industry(analysis_data: dict) -> dict:
 
 def generate_ontology(analysis_data: dict) -> dict:
     """분석 결과를 기반으로 온톨로지 지식 그래프 생성"""
+    lang = analysis_data.get("lang", "ko")
     ind = _get_industry(analysis_data)
     prompt = f"""다음은 {ind['name']} 산업의 멀티채널({ind['channels']}) 고객 피드백 분석 결과입니다.
 이 데이터를 기반으로 리스크 온톨로지 지식 그래프를 생성하세요.
@@ -112,7 +119,7 @@ def generate_ontology(analysis_data: dict) -> dict:
 7. 채널 노드를 포함하여 어디서 이슈가 감지되었는지 표현하세요"""
 
     client = get_client()
-    content = call_openai_json(client, prompt, system_prompt=RISK_SYSTEM_PROMPT)
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
     result = extract_json_from_text(content)
 
     if not result or "nodes" not in result:
@@ -122,6 +129,7 @@ def generate_ontology(analysis_data: dict) -> dict:
 
 def generate_compliance_report(analysis_data: dict) -> dict:
     """분석 결과를 기반으로 컴플라이언스 모니터링 보고서 생성"""
+    lang = analysis_data.get("lang", "ko")
     ind = _get_industry(analysis_data)
     stats = analysis_data.get("stats", {})
     prompt = f"""다음은 {ind['name']} 산업의 멀티채널 모니터링 결과입니다.
@@ -180,7 +188,7 @@ def generate_compliance_report(analysis_data: dict) -> dict:
 7. 공식적이고 전문적인 어조로 작성하세요"""
 
     client = get_client()
-    content = call_openai_json(client, prompt, system_prompt=RISK_SYSTEM_PROMPT)
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
     result = extract_json_from_text(content)
 
     if not result:
@@ -198,6 +206,7 @@ def generate_compliance_report(analysis_data: dict) -> dict:
 
 def generate_meeting_agenda(analysis_data: dict) -> dict:
     """분석 결과를 기반으로 긴급 회의 안건 자동 생성"""
+    lang = analysis_data.get("lang", "ko")
     ind = _get_industry(analysis_data)
     prompt = f"""다음은 {ind['name']} 산업의 멀티채널 모니터링에서 감지된 리스크 분석 결과입니다.
 긴급 리스크 대응 회의 안건을 생성하세요.
@@ -220,7 +229,11 @@ def generate_meeting_agenda(analysis_data: dict) -> dict:
   "urgency": "긴급",
   "estimated_duration": "60분",
   "attendees": [
-    {{"department": "부서명", "role": "직책", "reason": "참석 사유"}}
+    {{"department": "법무팀", "role": "CLO", "reason": "법적 리스크 총괄"}},
+    {{"department": "외부 법률", "role": "외부 변호인 1", "reason": "소송·규제 대응"}},
+    {{"department": "홍보팀", "role": "팀장", "reason": "위기 커뮤니케이션"}},
+    {{"department": "경영", "role": "CEO", "reason": "최종 의사결정"}},
+    {{"department": "관련 부서", "role": "담당 임원", "reason": "운영 리스크 대응"}}
   ],
   "agenda_items": [
     {{
@@ -252,13 +265,13 @@ def generate_meeting_agenda(analysis_data: dict) -> dict:
 1. urgency: 일반/긴급/초긴급 중 하나 (급증 이슈가 있으면 긴급 이상)
 2. priority: critical/high/medium/low
 3. 급증 이슈가 있으면 반드시 첫 번째 안건으로 배치
-4. attendees에 {ind['name']} 산업에 적합한 부서명과 참석 사유를 명시
+4. attendees에 CLO·CEO·홍보팀장 필수 포함, 외부 변호인 1-2명 반드시 추가, 총 6-8명으로 구성
 5. action_items에 구체적인 담당자와 기한 포함
 6. agenda_items는 3~5개로 구성
 7. {ind['departments']} 중 관련 부서를 참석자로 포함하세요"""
 
     client = get_client()
-    content = call_openai_json(client, prompt, system_prompt=RISK_SYSTEM_PROMPT)
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
     result = extract_json_from_text(content)
 
     if not result:
@@ -711,7 +724,9 @@ def _demo_signals_text(signals: list) -> str:
     return json.dumps(signals, ensure_ascii=False, indent=2)
 
 
-def _demo_generate_ontology(client, signals_text: str, incident_context: str) -> dict:
+def _demo_generate_ontology(
+    client, signals_text: str, incident_context: str, lang: str = "ko"
+) -> dict:
     prompt = f"""다음은 4개 채널에서 동시에 감지된 동일 사건의 데이터입니다.
 
 ## 사건 개요
@@ -744,14 +759,16 @@ def _demo_generate_ontology(client, signals_text: str, incident_context: str) ->
 노드 22~30개, 채널 노드 4개 + person/event/location/legal_clause 각 1개 이상 필수.
 risk_type 노드에 severity 10 포함."""
 
-    content = call_openai_json(client, prompt, system_prompt=RISK_SYSTEM_PROMPT)
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
     result = extract_json_from_text(content)
     if result and "nodes" in result:
         return result
     return {"nodes": [], "links": [], "summary": "온톨로지 생성 실패"}
 
 
-def _demo_generate_compliance(client, signals_text: str, incident_context: str) -> dict:
+def _demo_generate_compliance(
+    client, signals_text: str, incident_context: str, lang: str = "ko"
+) -> dict:
     prompt = f"""다음 4개 채널 멀티채널 위기 감지 결과로 치명적 리스크 컴플라이언스 보고서를 생성하세요.
 
 ## 사건 개요
@@ -806,7 +823,7 @@ def _demo_generate_compliance(client, signals_text: str, incident_context: str) 
 
 각 risk_events의 description을 실제 내용 기반으로 상세히 작성하세요. next_actions 3개 이상."""
 
-    content = call_openai_json(client, prompt, system_prompt=RISK_SYSTEM_PROMPT)
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
     result = extract_json_from_text(content)
     return result if result else {
         "report_title": "OO 충전기 폭발 사건 긴급 리스크 보고서",
@@ -819,7 +836,7 @@ def _demo_generate_compliance(client, signals_text: str, incident_context: str) 
     }
 
 
-def _demo_generate_meeting(client, incident_context: str) -> dict:
+def _demo_generate_meeting(client, incident_context: str, lang: str = "ko") -> dict:
     prompt = f"""다음 위기 상황에 대한 초긴급 경영진 대응 회의 안건을 생성하세요.
 
 ## 위기 개요
@@ -830,14 +847,23 @@ def _demo_generate_meeting(client, incident_context: str) -> dict:
   "meeting_title": "초긴급 충전기 화재 사건 경영진 대응 회의",
   "urgency": "초긴급",
   "estimated_duration": "90분",
-  "attendees": [참석자 5-6명, 법무팀 필수 포함],
+  "attendees": [
+    참석자 6-8명, 아래 형식으로 각각 명시.
+    필수 포함: 법무팀·CLO·홍보팀·품질관리팀(또는 사건 관련 부서)·CEO.
+    외부 변호인 1-2명 반드시 포함.
+    예시: {"department": "법무팀", "role": "CLO", "reason": "법적 대응 총괄"},
+          {"department": "외부 법률", "role": "외부 변호인 1", "reason": "소비자 집단소송 대응"},
+          {"department": "외부 법률", "role": "외부 변호인 2", "reason": "형사 리스크 검토"},
+          {"department": "홍보팀", "role": "팀장", "reason": "위기 커뮤니케이션 총괄"},
+          {"department": "경영", "role": "CEO", "reason": "최종 의사결정"}
+  ],
   "agenda_items": [안건 4-5개, priority: critical/high],
   "preparation": [사전 준비사항 3개 이상]
 }}
 
 각 agenda_item에 discussion_points 2-3개, action_items 2-3개 포함. 매우 구체적으로 작성."""
 
-    content = call_openai_json(client, prompt, system_prompt=RISK_SYSTEM_PROMPT)
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
     result = extract_json_from_text(content)
     return result if result else {
         "meeting_title": "초긴급 충전기 화재 사건 경영진 대응 회의",
@@ -848,7 +874,7 @@ def _demo_generate_meeting(client, incident_context: str) -> dict:
     }
 
 
-def analyze_demo_scenario(industry: str = "ecommerce") -> dict:
+def analyze_demo_scenario(industry: str = "ecommerce", lang: str = "ko") -> dict:
     """산업별 위기 시나리오 분석 — 4채널 동시 감지 Mock (병렬 LLM 호출)"""
     data = DEMO_DATA.get(industry, DEMO_DATA["ecommerce"])
     signals = data["signals"]
@@ -862,13 +888,13 @@ def analyze_demo_scenario(industry: str = "ecommerce") -> dict:
     client = get_client()
     with ThreadPoolExecutor(max_workers=3) as executor:
         ont_f = executor.submit(
-            _demo_generate_ontology, client, signals_text, incident_context
+            _demo_generate_ontology, client, signals_text, incident_context, lang
         )
         comp_f = executor.submit(
-            _demo_generate_compliance, client, signals_text, incident_context
+            _demo_generate_compliance, client, signals_text, incident_context, lang
         )
         meet_f = executor.submit(
-            _demo_generate_meeting, client, incident_context
+            _demo_generate_meeting, client, incident_context, lang
         )
         llm_timeout = 120  # seconds
         try:

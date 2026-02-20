@@ -15,6 +15,11 @@ const PRIORITY_BORDER = {
   low:      'border-l-zinc-600',
 };
 
+const DEFAULT_ATTENDEE_KEYS = [
+  'meeting.att_clo', 'meeting.att_legal', 'meeting.att_lawyer1',
+  'meeting.att_lawyer2', 'meeting.att_pr', 'meeting.att_ceo',
+];
+
 export default function MeetingAgenda({ data, loading, error, onGenerate }) {
   const { t } = useLang();
 
@@ -65,24 +70,21 @@ export default function MeetingAgenda({ data, loading, error, onGenerate }) {
           </div>
 
           {/* Attendees */}
-          {data.attendees?.length > 0 && (
-            <div>
-              <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide flex items-center gap-1 mb-2">
-                <Users size={11} />{t('meeting.attendees')}
-              </h4>
-              <div className="flex flex-wrap gap-1.5">
-                {data.attendees.map((att, idx) => (
-                  <span
-                    key={idx}
-                    className="px-2 py-1 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-zinc-300"
-                    title={att.reason}
-                  >
-                    {att.department} {att.role}
-                  </span>
-                ))}
-              </div>
+          <div>
+            <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide flex items-center gap-1 mb-2">
+              <Users size={11} />{t('meeting.attendees')}
+            </h4>
+            <div className="flex flex-wrap gap-1.5">
+              {DEFAULT_ATTENDEE_KEYS.map((key, idx) => (
+                <span
+                  key={idx}
+                  className="px-2 py-1 bg-amber-950/50 border border-amber-800/60 rounded-lg text-xs text-amber-300"
+                >
+                  {t(key)}
+                </span>
+              ))}
             </div>
-          )}
+          </div>
 
           {/* Agenda Items */}
           {data.agenda_items?.length > 0 && (

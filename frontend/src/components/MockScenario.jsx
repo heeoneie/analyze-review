@@ -10,6 +10,13 @@ const PLATFORM_CONFIG = {
 
 const VIRAL_KEY = { '높음': 'high', '보통': 'medium', '낮음': 'low' };
 
+const METRIC_LABEL_KEY = {
+  '유사 민원 리뷰': 'mock.mlSimilarReview',
+  '대댓글':        'mock.mlReplies',
+  '방문자':        'mock.mlVisitors',
+  '추천·공감':     'mock.mlReactions',
+};
+
 function ViralRiskBadge({ risk }) {
   const { t } = useLang();
   const key = VIRAL_KEY[risk] || 'low';
@@ -54,7 +61,7 @@ function CommentGrowthChart({ growth, metricLabel }) {
       <div className="flex items-center justify-between mb-2">
         <span className="text-[11px] font-medium text-zinc-500 flex items-center gap-1">
           <TrendingUp size={11} />
-          {metricLabel || t('mock.reaction')} {t('mock.trendInterval')}
+          {t(METRIC_LABEL_KEY[metricLabel] || 'mock.reaction')} {t('mock.trendInterval')}
         </span>
         <span className={`text-[11px] ${trend.cls}`}>{trend.label}</span>
       </div>

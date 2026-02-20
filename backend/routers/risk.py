@@ -24,6 +24,7 @@ class RiskAnalysisRequest(BaseModel):
     all_categories: dict = {}
     stats: dict = {}
     industry: str = "ecommerce"
+    lang: str = "ko"
 
 
 @router.post("/ontology")
@@ -51,10 +52,10 @@ async def create_compliance_report(request: RiskAnalysisRequest):
 
 
 @router.post("/demo")
-async def run_demo_scenario(industry: str = "ecommerce"):
+async def run_demo_scenario(industry: str = "ecommerce", lang: str = "ko"):
     """산업별 위기 시나리오 Mock — 4채널 동시 감지 → Red Alert"""
     try:
-        result = await asyncio.to_thread(analyze_demo_scenario, industry)
+        result = await asyncio.to_thread(analyze_demo_scenario, industry, lang)
         return result
     except Exception as e:
         logger.error("데모 시나리오 분석 실패: %s", e)
