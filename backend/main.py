@@ -15,6 +15,7 @@ from backend.routers import (  # pylint: disable=wrong-import-position
     analysis,
     data,
     reply,
+    risk,
 )
 
 app = FastAPI(title="Review Analysis Dashboard API", version="1.0.0")
@@ -37,6 +38,7 @@ app.add_middleware(
 app.include_router(data.router, prefix="/api/data", tags=["data"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 app.include_router(reply.router, prefix="/api/reply", tags=["reply"])
+app.include_router(risk.router, prefix="/api/risk", tags=["risk"])
 
 
 @app.get("/api/health")

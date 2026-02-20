@@ -46,3 +46,10 @@ export const getReplyGuide = (category) =>
   api.post('/reply/guide', { category });
 
 export const getAllGuides = () => api.get('/reply/guides');
+
+// 리스크 인텔리전스 API
+export const generateOntology = (analysisData) => api.post('/risk/ontology', analysisData);
+export const generateComplianceReport = (analysisData) => api.post('/risk/compliance', analysisData);
+export const generateMeetingAgenda = (analysisData) => api.post('/risk/meeting', analysisData);
+export const runDemoScenario = (industry = 'ecommerce') =>
+  api.post('/risk/demo', null, { params: { industry } });
