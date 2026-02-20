@@ -528,7 +528,7 @@ export default function RiskIntelligence({ analysisResult }) {
           <Shield className="text-zinc-700 mx-auto mb-3" size={44} />
           <p className="text-zinc-500 text-sm leading-relaxed">
             <span className="font-semibold text-red-400 cursor-pointer hover:text-red-300" onClick={handleDemo}>
-              {t('risk.emptyDemo')}
+              {t(`risk.emptyDemo_${industry}`)}
             </span>
             {t('risk.emptyDemoSuffix')}
             {analysisResult && <><br />{t('risk.emptyAllSuffix')}</>}
