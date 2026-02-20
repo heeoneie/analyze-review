@@ -47,6 +47,9 @@ function ViralRiskBadge({ risk }) {
 function CommentGrowthChart({ growth, metricLabel }) {
   if (!growth?.length) return null;
 
+  const max = Math.max(...growth.map((p) => p.delta));
+  const MAX_H = 28;
+
   const first = growth[0].delta;
   const last = growth[growth.length - 1].delta;
   const ratio = last / (first || 1);
@@ -58,21 +61,33 @@ function CommentGrowthChart({ growth, metricLabel }) {
       : { label: '→ 완만', cls: 'text-slate-500' };
 
   return (
-    <div className="mt-2 pt-2 border-t border-slate-700 flex items-center gap-1.5 text-[11px]">
-      <TrendingUp size={11} className="text-slate-500 flex-shrink-0" />
-      <span className="text-slate-500 flex-shrink-0">{metricLabel || '반응'}</span>
-      <span className="text-slate-700">·</span>
-      <div className="flex items-center gap-0.5 text-slate-400">
-        {growth.map((point, i) => (
-          <span key={i} className="flex items-center">
-            {i > 0 && <span className="text-slate-700 mx-1">→</span>}
-            <span className={i === growth.length - 1 ? 'text-red-400 font-semibold' : ''}>
-              +{point.delta.toLocaleString()}
-            </span>
-          </span>
-        ))}
+    <div className="mt-2.5 pt-2.5 border-t border-slate-700">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+          <TrendingUp size={11} />
+          {metricLabel || '반응'} 추이 (5분 간격)
+        </span>
+        <span className={`text-[11px] ${trend.cls}`}>{trend.label}</span>
       </div>
-      <span className={`ml-auto flex-shrink-0 ${trend.cls}`}>{trend.label}</span>
+      <div className="flex items-end gap-3">
+        {growth.map((point, i) => {
+          const barH = Math.max(4, Math.round((point.delta / max) * MAX_H));
+          const isLast = i === growth.length - 1;
+          return (
+            <div key={i} className="flex flex-col items-center gap-0.5">
+              <span className={`text-[11px] font-bold ${isLast ? 'text-red-400' : 'text-slate-400'}`}>
+                +{point.delta.toLocaleString()}
+              </span>
+              <div
+                className={`w-5 rounded-t ${isLast ? 'bg-red-600' : 'bg-slate-600'}`}
+                style={{ height: `${barH}px` }}
+              />
+              <span className="text-[10px] text-slate-600 mt-0.5">{point.t}</span>
+            </div>
+          );
+        })}
+        <span className="text-[10px] text-slate-600 self-end pb-4 ml-0.5">({metricLabel})</span>
+      </div>
     </div>
   );
 }
@@ -130,7 +145,7 @@ export default function MockScenario({ data }) {
           </span>
           <span className="text-xs text-slate-600 ml-auto">내부 + 외부 여론 채널</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {channel_signals?.map((signal, idx) => {
             const cfg = PLATFORM_CONFIG[signal.platform] || {
               icon: MessageSquare,
