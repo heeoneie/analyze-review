@@ -72,7 +72,8 @@ export default function RiskIntelligence({ analysisResult }) {
   const [errors, setErrors] = useState({});
   const [industry, setIndustry] = useState('ecommerce');
   const [shareToast, setShareToast] = useState(false);
-  const [brandInput, setBrandInput] = useState('넥서스 파워 충전기');
+  const [brandName, setBrandName] = useState('넥서스');
+  const [productName, setProductName] = useState('파워 충전기 65W');
   const [scanPhase, setScanPhase] = useState(false);
   const inputRef = useRef(null);
 
@@ -86,7 +87,7 @@ export default function RiskIntelligence({ analysisResult }) {
   };
 
   const handleDemo = async () => {
-    const brand = brandInput.trim() || 'OO';
+    const brand = [brandName.trim(), productName.trim()].filter(Boolean).join(' ') || 'OO';
 
     // 1단계: 스캔 애니메이션 (1.5초)
     setScanPhase(true);
@@ -284,38 +285,55 @@ export default function RiskIntelligence({ analysisResult }) {
           </div>
         </div>
 
-        {/* 브랜드/상품명 입력 */}
+        {/* 브랜드 + 상품명 입력 */}
         <div className="mb-5">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-            <Search size={12} />분석 대상 브랜드 · 상품명
+            <Search size={12} />분석 대상 등록
           </div>
-          <div className="flex gap-3">
-            <div className="relative flex-1">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          <div className="flex gap-2">
+            {/* 브랜드명 */}
+            <div className="flex flex-col gap-1 w-44 flex-shrink-0">
+              <label className="text-[11px] text-slate-500 font-medium">브랜드명</label>
               <input
                 ref={inputRef}
                 type="text"
-                value={brandInput}
-                onChange={(e) => setBrandInput(e.target.value)}
+                value={brandName}
+                onChange={(e) => setBrandName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !isAnyLoading && handleDemo()}
-                placeholder="브랜드명 또는 상품명을 입력하세요 (예: 넥서스 파워 충전기)"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors"
+                placeholder="예: 넥서스"
+                className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors"
               />
             </div>
-            <button
-              onClick={handleDemo}
-              disabled={isAnyLoading || !brandInput.trim()}
-              className="px-5 py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors text-sm flex-shrink-0"
-            >
-              {(scanPhase || loading.demo) ? (
-                <><Loader2 className="animate-spin" size={15} />스캔 중...</>
-              ) : (
-                <><Zap size={15} />리스크 분석 시작</>
-              )}
-            </button>
+            {/* 상품명 */}
+            <div className="flex flex-col gap-1 flex-1">
+              <label className="text-[11px] text-slate-500 font-medium">상품명</label>
+              <input
+                type="text"
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !isAnyLoading && handleDemo()}
+                placeholder="예: 파워 충전기 65W"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors"
+              />
+            </div>
+            {/* 분석 버튼 */}
+            <div className="flex flex-col gap-1 flex-shrink-0">
+              <span className="text-[11px] text-transparent font-medium select-none">버튼</span>
+              <button
+                onClick={handleDemo}
+                disabled={isAnyLoading || (!brandName.trim() && !productName.trim())}
+                className="px-5 py-2.5 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors text-sm h-[42px]"
+              >
+                {(scanPhase || loading.demo) ? (
+                  <><Loader2 className="animate-spin" size={15} />스캔 중...</>
+                ) : (
+                  <><Zap size={15} />리스크 분석 시작</>
+                )}
+              </button>
+            </div>
           </div>
           <p className="mt-2 text-xs text-slate-600">
-            입력한 브랜드를 중심으로 온톨로지 엔진이 쿠팡·YouTube·네이버·커뮤니티 4개 채널 여론을 동시 스캔합니다
+            등록된 브랜드·상품을 온톨로지 엔티티로 설정하여 쿠팡·YouTube·네이버·커뮤니티 4채널을 동시 스캔합니다
           </p>
         </div>
 
@@ -375,7 +393,9 @@ export default function RiskIntelligence({ analysisResult }) {
               온톨로지 엔진이 24시간 여론 데이터 스캔 중...
             </p>
             <p className="text-xs text-slate-500 mt-0.5">
-              <span className="text-indigo-400 font-medium">&ldquo;{brandInput}&rdquo;</span>
+              <span className="text-indigo-400 font-medium">
+                {[brandName, productName].filter(Boolean).join(' ')}
+              </span>
               {' '}관련 쿠팡·YouTube·네이버·커뮤니티 신호 감지 중
             </p>
           </div>
