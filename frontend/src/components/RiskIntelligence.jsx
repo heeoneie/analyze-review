@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Shield, Loader2, Radio, Building2, Zap, Share2, Download } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Shield, Loader2, Radio, Building2, Zap, Share2, Download, Search, ScanSearch } from 'lucide-react';
 import {
   generateOntology,
   generateComplianceReport,
@@ -56,6 +56,12 @@ function RiskLevelBanner({ level }) {
   );
 }
 
+// "OO" 플레이스홀더를 브랜드명으로 교체 (deep replace)
+function injectBrand(obj, brand) {
+  if (!brand || !obj) return obj;
+  return JSON.parse(JSON.stringify(obj).replace(/OO/g, brand));
+}
+
 export default function RiskIntelligence({ analysisResult }) {
   const [demoResult, setDemoResult] = useState(null);
   const [ontology, setOntology] = useState(null);
@@ -66,6 +72,9 @@ export default function RiskIntelligence({ analysisResult }) {
   const [errors, setErrors] = useState({});
   const [industry, setIndustry] = useState('ecommerce');
   const [shareToast, setShareToast] = useState(false);
+  const [brandInput, setBrandInput] = useState('넥서스 파워 충전기');
+  const [scanPhase, setScanPhase] = useState(false);
+  const inputRef = useRef(null);
 
   const analysisData = {
     top_issues: analysisResult?.top_issues || [],
@@ -77,16 +86,25 @@ export default function RiskIntelligence({ analysisResult }) {
   };
 
   const handleDemo = async () => {
-    setLoading((prev) => ({ ...prev, demo: true }));
+    const brand = brandInput.trim() || 'OO';
+
+    // 1단계: 스캔 애니메이션 (1.5초)
+    setScanPhase(true);
     setErrors({});
     setDemoResult(null);
     setOntology(null);
     setCompliance(null);
     setMeeting(null);
     setRiskLevel(null);
+    await new Promise((r) => setTimeout(r, 1500));
+    setScanPhase(false);
+
+    // 2단계: API 호출
+    setLoading((prev) => ({ ...prev, demo: true }));
     try {
       const res = await runDemoScenario();
-      const data = res.data;
+      const raw = res.data;
+      const data = injectBrand(raw, brand);
       setDemoResult(data);
       setRiskLevel(data.risk_level);
       if (data.ontology) setOntology(data.ontology);
@@ -219,6 +237,7 @@ export default function RiskIntelligence({ analysisResult }) {
   return (
     <div className="space-y-6">
       {/* Header Card */}
+      {/* Header */}
       <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
         <div className="flex items-start justify-between mb-5">
           <div className="flex items-center gap-3">
@@ -232,12 +251,11 @@ export default function RiskIntelligence({ analysisResult }) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-            {/* 담당자 공유 */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             <div className="relative">
               <button
                 onClick={handleShare}
-                className="px-3 py-2.5 bg-slate-800 text-slate-300 rounded-xl font-medium hover:bg-slate-700 transition-colors text-sm flex items-center gap-1.5 border border-slate-700"
+                className="px-3 py-2 bg-slate-800 text-slate-300 rounded-xl font-medium hover:bg-slate-700 transition-colors text-sm flex items-center gap-1.5 border border-slate-700"
               >
                 <Share2 size={14} />담당자 공유
               </button>
@@ -247,41 +265,58 @@ export default function RiskIntelligence({ analysisResult }) {
                 </div>
               )}
             </div>
-
-            {/* 리포트 다운로드 */}
             <button
               onClick={handleDownload}
               disabled={!hasResults && !demoResult}
-              className="px-3 py-2.5 bg-slate-800 text-slate-300 rounded-xl font-medium hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm flex items-center gap-1.5 border border-slate-700"
+              className="px-3 py-2 bg-slate-800 text-slate-300 rounded-xl font-medium hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm flex items-center gap-1.5 border border-slate-700"
             >
               <Download size={14} />리포트 다운로드
             </button>
-
-            {/* 시연 버튼 */}
-            <button
-              onClick={handleDemo}
-              disabled={isAnyLoading}
-              className="px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors text-sm"
-            >
-              {loading.demo ? (
-                <><Loader2 className="animate-spin" size={15} />분석 중...</>
-              ) : (
-                <><Zap size={15} />충전기 폭발 사건 시연</>
-              )}
-            </button>
-
             {analysisResult && (
               <button
                 onClick={runAll}
                 disabled={isAnyLoading}
-                className="px-4 py-2.5 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors text-sm"
+                className="px-3 py-2 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors text-sm"
               >
-                {loading.all ? (
-                  <><Loader2 className="animate-spin" size={15} />분석 중...</>
-                ) : '전체 분석 실행'}
+                {loading.all ? <><Loader2 className="animate-spin" size={15} />분석 중...</> : '전체 분석 실행'}
               </button>
             )}
           </div>
+        </div>
+
+        {/* 브랜드/상품명 입력 */}
+        <div className="mb-5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+            <Search size={12} />분석 대상 브랜드 · 상품명
+          </div>
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={brandInput}
+                onChange={(e) => setBrandInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !isAnyLoading && handleDemo()}
+                placeholder="브랜드명 또는 상품명을 입력하세요 (예: 넥서스 파워 충전기)"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors"
+              />
+            </div>
+            <button
+              onClick={handleDemo}
+              disabled={isAnyLoading || !brandInput.trim()}
+              className="px-5 py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors text-sm flex-shrink-0"
+            >
+              {(scanPhase || loading.demo) ? (
+                <><Loader2 className="animate-spin" size={15} />스캔 중...</>
+              ) : (
+                <><Zap size={15} />리스크 분석 시작</>
+              )}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-600">
+            입력한 브랜드를 중심으로 온톨로지 엔진이 쿠팡·YouTube·네이버·커뮤니티 4개 채널 여론을 동시 스캔합니다
+          </p>
         </div>
 
         {/* Industry + Channels */}
@@ -327,6 +362,33 @@ export default function RiskIntelligence({ analysisResult }) {
       {/* Error */}
       {errors.demo && (
         <div className="bg-red-950 border border-red-800 text-red-400 rounded-xl px-4 py-3 text-sm">{errors.demo}</div>
+      )}
+
+      {/* 스캔 애니메이션 (1.5초) */}
+      {scanPhase && (
+        <div className="bg-slate-900 rounded-2xl border border-indigo-900 p-6 flex items-center gap-4">
+          <div className="w-10 h-10 bg-indigo-950 border border-indigo-800 rounded-xl flex items-center justify-center flex-shrink-0">
+            <ScanSearch className="text-indigo-400 animate-pulse" size={20} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white">
+              온톨로지 엔진이 24시간 여론 데이터 스캔 중...
+            </p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              <span className="text-indigo-400 font-medium">&ldquo;{brandInput}&rdquo;</span>
+              {' '}관련 쿠팡·YouTube·네이버·커뮤니티 신호 감지 중
+            </p>
+          </div>
+          <div className="ml-auto flex gap-1">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"
+                style={{ animationDelay: `${i * 0.15}s` }}
+              />
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Risk Level Banner */}
