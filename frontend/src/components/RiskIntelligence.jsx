@@ -191,6 +191,10 @@ export default function RiskIntelligence({ analysisResult }) {
     setLoading((prev) => ({ ...prev, all: true }));
     setErrors({});
     setDemoResult(null);
+    setOntology(null);
+    setCompliance(null);
+    setMeeting(null);
+    setRiskLevel(null);
     try {
       const [ontRes, compRes, meetRes] = await Promise.allSettled([
         generateOntology(analysisData),
@@ -527,9 +531,13 @@ export default function RiskIntelligence({ analysisResult }) {
         <div className="bg-zinc-900 rounded-2xl border border-dashed border-zinc-700 p-12 text-center">
           <Shield className="text-zinc-700 mx-auto mb-3" size={44} />
           <p className="text-zinc-500 text-sm leading-relaxed">
-            <span className="font-semibold text-red-400 cursor-pointer hover:text-red-300" onClick={handleDemo}>
+            <button
+              type="button"
+              className="font-semibold text-red-400 hover:text-red-300 underline-offset-2 hover:underline"
+              onClick={handleDemo}
+            >
               {t(`risk.emptyDemo_${industry}`)}
-            </span>
+            </button>
             {t('risk.emptyDemoSuffix')}
             {analysisResult && <><br />{t('risk.emptyAllSuffix')}</>}
           </p>

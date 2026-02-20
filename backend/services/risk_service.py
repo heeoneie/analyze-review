@@ -7,6 +7,8 @@
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
+from datetime import date
 
 from core.utils.json_utils import extract_json_from_text
 from core.utils.openai_client import call_openai_json, get_client
@@ -139,7 +141,7 @@ def generate_compliance_report(analysis_data: dict) -> dict:
 ## 출력 형식
 {{
   "report_title": "{ind['name']} 리스크 모니터링 보고서",
-  "report_date": "2025-02-20",
+  "report_date": "{date.today().isoformat()}",
   "overall_risk_level": "주의",
   "monitoring_summary": "최근 24시간 동안 {ind['channels']} 등 다수 채널에서 총 N건의 고객 피드백을 모니터링한 결과, 부정 피드백 M건이 감지되었습니다. 주요 리스크 영역은 ...",
   "monitored_channels": [
@@ -817,7 +819,7 @@ def _demo_generate_compliance(client, signals_text: str, incident_context: str) 
     }
 
 
-def _demo_generate_meeting(_client, incident_context: str) -> dict:
+def _demo_generate_meeting(client, incident_context: str) -> dict:
     prompt = f"""다음 위기 상황에 대한 초긴급 경영진 대응 회의 안건을 생성하세요.
 
 ## 위기 개요
@@ -835,8 +837,7 @@ def _demo_generate_meeting(_client, incident_context: str) -> dict:
 
 각 agenda_item에 discussion_points 2-3개, action_items 2-3개 포함. 매우 구체적으로 작성."""
 
-    client_obj = get_client()
-    content = call_openai_json(client_obj, prompt, system_prompt=RISK_SYSTEM_PROMPT)
+    content = call_openai_json(client, prompt, system_prompt=RISK_SYSTEM_PROMPT)
     result = extract_json_from_text(content)
     return result if result else {
         "meeting_title": "초긴급 충전기 화재 사건 경영진 대응 회의",
@@ -869,9 +870,33 @@ def analyze_demo_scenario(industry: str = "ecommerce") -> dict:
         meet_f = executor.submit(
             _demo_generate_meeting, client, incident_context
         )
-        ontology = ont_f.result()
-        compliance = comp_f.result()
-        meeting = meet_f.result()
+        llm_timeout = 120  # seconds
+        try:
+            ontology = ont_f.result(timeout=llm_timeout)
+        except FuturesTimeoutError:
+            logger.error("온톨로지 생성 타임아웃")
+            ontology = {"nodes": [], "links": [], "summary": "온톨로지 생성 실패"}
+        try:
+            compliance = comp_f.result(timeout=llm_timeout)
+        except FuturesTimeoutError:
+            logger.error("컴플라이언스 보고서 생성 타임아웃")
+            compliance = {
+                "overall_risk_level": "위험",
+                "monitoring_summary": "",
+                "risk_events": [],
+                "next_actions": [],
+            }
+        try:
+            meeting = meet_f.result(timeout=llm_timeout)
+        except FuturesTimeoutError:
+            logger.error("회의 안건 생성 타임아웃")
+            meeting = {
+                "meeting_title": "",
+                "urgency": "초긴급",
+                "attendees": [],
+                "agenda_items": [],
+                "preparation": [],
+            }
 
     return {
         "risk_level": "RED",

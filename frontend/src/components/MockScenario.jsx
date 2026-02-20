@@ -36,7 +36,7 @@ function CommentGrowthChart({ growth, metricLabel }) {
   const { t } = useLang();
   if (!growth?.length) return null;
 
-  const max = Math.max(...growth.map((p) => p.delta));
+  const max = Math.max(1, ...growth.map((p) => p.delta));
   const MAX_H = 28;
 
   const first = growth[0].delta;
@@ -135,7 +135,7 @@ export default function MockScenario({ data }) {
         <div className="flex items-center gap-2 mb-3">
           <span className="text-sm font-semibold text-zinc-200">{t('mock.detectedSignals')}</span>
           <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 text-xs rounded-full border border-zinc-700">
-            {channel_signals?.length}{t('mock.channels')}
+            {channel_signals?.length ?? 0}{t('mock.channels')}
           </span>
           <span className="text-xs text-zinc-600 ml-auto">{t('mock.internalExternal')}</span>
         </div>
@@ -186,11 +186,13 @@ export default function MockScenario({ data }) {
                     </div>
                     {signal.metadata && (
                       <p className="text-[11px] text-zinc-600 mt-2">
-                        {signal.metadata.rating && `★ ${signal.metadata.rating}/5 · `}
-                        {signal.metadata.likes && `👍 ${signal.metadata.likes} · `}
-                        {signal.metadata.visitor_count && `👁 ${signal.metadata.visitor_count.toLocaleString()} · `}
-                        {signal.metadata.view_count && `👁 ${signal.metadata.view_count.toLocaleString()} · `}
-                        {new Date(signal.metadata.timestamp).toLocaleDateString('ko-KR')}
+                        {signal.metadata.rating != null && `★ ${signal.metadata.rating}/5 · `}
+                        {signal.metadata.likes != null && `👍 ${signal.metadata.likes} · `}
+                        {signal.metadata.visitor_count != null && `👁 ${signal.metadata.visitor_count.toLocaleString()} · `}
+                        {signal.metadata.view_count != null && `👁 ${signal.metadata.view_count.toLocaleString()} · `}
+                        {signal.metadata.timestamp && !isNaN(new Date(signal.metadata.timestamp))
+                          ? new Date(signal.metadata.timestamp).toLocaleDateString('ko-KR')
+                          : ''}
                       </p>
                     )}
                   </div>
