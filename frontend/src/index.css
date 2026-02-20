@@ -3,6 +3,21 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #f8fafc;
+  background-color: #09090b;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+@media print {
+  header,
+  button {
+    display: none !important;
+  }
+  body {
+    background-color: #09090b !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  main {
+    padding: 0 !important;
+  }
 }

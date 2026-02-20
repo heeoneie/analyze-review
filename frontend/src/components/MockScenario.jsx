@@ -1,36 +1,24 @@
 import { AlertTriangle, ShoppingCart, Youtube, PenSquare, MessageSquare, TrendingUp } from 'lucide-react';
+import { useLang } from '../contexts/LangContext';
 
 const PLATFORM_CONFIG = {
-  'Coupang': {
-    icon: ShoppingCart,
-    label: '이커머스 리뷰',
-    type: '내부 채널',
-  },
-  'YouTube': {
-    icon: Youtube,
-    label: '영상 댓글',
-    type: '외부 채널',
-  },
-  'Naver Blog': {
-    icon: PenSquare,
-    label: '블로그 포스트',
-    type: '외부 채널',
-  },
-  'Community (뽐뿌)': {
-    icon: MessageSquare,
-    label: '커뮤니티 게시글',
-    type: '외부 채널',
-  },
+  'Coupang': { icon: ShoppingCart, labelKey: 'risk.chEcommerce' },
+  'YouTube': { icon: Youtube,      labelKey: 'risk.chYoutube' },
+  'Naver Blog': { icon: PenSquare, labelKey: 'risk.chNaver' },
+  'Community (뽐뿌)': { icon: MessageSquare, labelKey: 'risk.chCommunity' },
 };
 
-const VIRAL_RISK_CFG = {
-  '높음': { cls: 'bg-red-950 text-red-400 border border-red-800', dot: 'bg-red-500', pulse: true },
-  '보통': { cls: 'bg-amber-950 text-amber-400 border border-amber-800', dot: 'bg-amber-400', pulse: false },
-  '낮음': { cls: 'bg-slate-800 text-slate-400 border border-slate-700', dot: 'bg-slate-500', pulse: false },
-};
+const VIRAL_KEY = { '높음': 'high', '보통': 'medium', '낮음': 'low' };
 
 function ViralRiskBadge({ risk }) {
-  const cfg = VIRAL_RISK_CFG[risk] || VIRAL_RISK_CFG['낮음'];
+  const { t } = useLang();
+  const key = VIRAL_KEY[risk] || 'low';
+  const STYLE = {
+    high:   { cls: 'bg-red-950 text-red-400 border border-red-800',     dot: 'bg-red-500',   pulse: true },
+    medium: { cls: 'bg-amber-950 text-amber-400 border border-amber-800', dot: 'bg-amber-400', pulse: false },
+    low:    { cls: 'bg-zinc-800 text-zinc-400 border border-zinc-700',   dot: 'bg-zinc-500',  pulse: false },
+  };
+  const cfg = STYLE[key];
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${cfg.cls}`}>
       <span className="relative flex h-1.5 w-1.5">
@@ -39,12 +27,13 @@ function ViralRiskBadge({ risk }) {
         )}
         <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${cfg.dot}`} />
       </span>
-      역바이럴 {risk}
+      {t('mock.viralRisk')} {t(`mock.${key}`)}
     </span>
   );
 }
 
 function CommentGrowthChart({ growth, metricLabel }) {
+  const { t } = useLang();
   if (!growth?.length) return null;
 
   const max = Math.max(...growth.map((p) => p.delta));
@@ -55,17 +44,17 @@ function CommentGrowthChart({ growth, metricLabel }) {
   const ratio = last / (first || 1);
   const trend =
     ratio >= 3
-      ? { label: '↑ 급증', cls: 'text-red-400 font-bold' }
+      ? { label: t('mock.surging'),    cls: 'text-red-400 font-bold' }
       : ratio >= 1.8
-      ? { label: '↑ 증가', cls: 'text-amber-400 font-semibold' }
-      : { label: '→ 완만', cls: 'text-slate-500' };
+      ? { label: t('mock.increasing'), cls: 'text-amber-400 font-semibold' }
+      : { label: t('mock.steady'),     cls: 'text-zinc-500' };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+        <span className="text-[11px] font-medium text-zinc-500 flex items-center gap-1">
           <TrendingUp size={11} />
-          {metricLabel || '반응'} 추이 (5분 간격)
+          {metricLabel || t('mock.reaction')} {t('mock.trendInterval')}
         </span>
         <span className={`text-[11px] ${trend.cls}`}>{trend.label}</span>
       </div>
@@ -75,14 +64,14 @@ function CommentGrowthChart({ growth, metricLabel }) {
           const isLast = i === growth.length - 1;
           return (
             <div key={i} className="flex flex-col items-center gap-0.5">
-              <span className={`text-[11px] font-bold ${isLast ? 'text-red-400' : 'text-slate-400'}`}>
+              <span className={`text-[11px] font-bold ${isLast ? 'text-red-400' : 'text-zinc-400'}`}>
                 +{point.delta.toLocaleString()}
               </span>
               <div
-                className={`w-5 rounded-t ${isLast ? 'bg-red-600' : 'bg-slate-600'}`}
+                className={`w-5 rounded-t ${isLast ? 'bg-red-600' : 'bg-zinc-600'}`}
                 style={{ height: `${barH}px` }}
               />
-              <span className="text-[10px] text-slate-600 mt-0.5">{point.t}</span>
+              <span className="text-[10px] text-zinc-600 mt-0.5">{point.t}</span>
             </div>
           );
         })}
@@ -92,6 +81,7 @@ function CommentGrowthChart({ growth, metricLabel }) {
 }
 
 export default function MockScenario({ data }) {
+  const { t } = useLang();
   if (!data) return null;
 
   const { risk_level, incident_title, incident_summary, clustering_reason, channel_signals } = data;
@@ -100,6 +90,11 @@ export default function MockScenario({ data }) {
     risk_level === 'RED' ? 'border-red-800 bg-red-950/40' :
     risk_level === 'ORANGE' ? 'border-orange-800 bg-orange-950/40' :
     'border-amber-800 bg-amber-950/40';
+
+  const riskLabel =
+    risk_level === 'RED' ? t('mock.criticalRisk') :
+    risk_level === 'ORANGE' ? t('mock.warningRisk') :
+    t('mock.cautionRisk');
 
   return (
     <div className="space-y-4">
@@ -122,12 +117,12 @@ export default function MockScenario({ data }) {
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-400" />
                   </span>
                 )}
-                {risk_level === 'RED' ? '치명적' : risk_level === 'ORANGE' ? '경고' : '주의'}
+                {riskLabel}
               </span>
             </div>
-            <p className="text-sm text-slate-300 leading-relaxed">{incident_summary}</p>
+            <p className="text-sm text-zinc-300 leading-relaxed">{incident_summary}</p>
             {clustering_reason && (
-              <p className="text-xs text-slate-500 mt-2 bg-slate-900/60 rounded-lg px-3 py-1.5 border border-slate-800">
+              <p className="text-xs text-zinc-500 mt-2 bg-zinc-900/60 rounded-lg px-3 py-1.5 border border-zinc-800">
                 🔗 {clustering_reason}
               </p>
             )}
@@ -138,37 +133,36 @@ export default function MockScenario({ data }) {
       {/* Channel Signals */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-sm font-semibold text-slate-200">감지된 채널 신호</span>
-          <span className="px-2 py-0.5 bg-slate-800 text-slate-400 text-xs rounded-full border border-slate-700">
-            {channel_signals?.length}개 채널
+          <span className="text-sm font-semibold text-zinc-200">{t('mock.detectedSignals')}</span>
+          <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 text-xs rounded-full border border-zinc-700">
+            {channel_signals?.length}{t('mock.channels')}
           </span>
-          <span className="text-xs text-slate-600 ml-auto">내부 + 외부 여론 채널</span>
+          <span className="text-xs text-zinc-600 ml-auto">{t('mock.internalExternal')}</span>
         </div>
         <div className="grid grid-cols-1 gap-3">
           {channel_signals?.map((signal, idx) => {
-            const cfg = PLATFORM_CONFIG[signal.platform] || {
-              icon: MessageSquare,
-              label: signal.data_type,
-              type: '채널',
-            };
-            const Icon = cfg.icon;
+            const cfg = PLATFORM_CONFIG[signal.platform];
+            const Icon = cfg?.icon ?? MessageSquare;
+            const labelText = cfg ? t(cfg.labelKey) : signal.data_type;
+            const typeText = signal.channel_type === 'internal' ? t('mock.internal') : t('mock.external');
+
             return (
-              <div key={idx} className="border border-slate-700 bg-slate-900 rounded-xl p-4">
+              <div key={idx} className="border border-zinc-700 bg-zinc-900 rounded-xl p-4">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 bg-slate-800 rounded-lg flex items-center justify-center">
-                      <Icon size={14} className="text-slate-400" />
+                    <div className="w-7 h-7 bg-zinc-800 rounded-lg flex items-center justify-center">
+                      <Icon size={14} className="text-zinc-400" />
                     </div>
-                    <span className="text-sm font-semibold text-slate-200">{signal.platform}</span>
+                    <span className="text-sm font-semibold text-zinc-200">{signal.platform}</span>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap justify-end">
                     {signal.viral_risk && <ViralRiskBadge risk={signal.viral_risk} />}
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
-                      {cfg.type}
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
+                      {typeText}
                     </span>
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
-                      {cfg.label}
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
+                      {labelText}
                     </span>
                   </div>
                 </div>
@@ -177,7 +171,7 @@ export default function MockScenario({ data }) {
                 <div className="flex gap-4 items-start">
                   {/* Left */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-slate-400 leading-relaxed line-clamp-3 mb-2.5">
+                    <p className="text-xs text-zinc-400 leading-relaxed line-clamp-3 mb-2.5">
                       &ldquo;{signal.content}&rdquo;
                     </p>
                     <div className="flex flex-wrap gap-1">
@@ -191,11 +185,11 @@ export default function MockScenario({ data }) {
                       ))}
                     </div>
                     {signal.metadata && (
-                      <p className="text-[11px] text-slate-600 mt-2">
+                      <p className="text-[11px] text-zinc-600 mt-2">
                         {signal.metadata.rating && `★ ${signal.metadata.rating}/5 · `}
-                        {signal.metadata.likes && `좋아요 ${signal.metadata.likes} · `}
-                        {signal.metadata.visitor_count && `조회 ${signal.metadata.visitor_count.toLocaleString()} · `}
-                        {signal.metadata.view_count && `뷰 ${signal.metadata.view_count.toLocaleString()} · `}
+                        {signal.metadata.likes && `👍 ${signal.metadata.likes} · `}
+                        {signal.metadata.visitor_count && `👁 ${signal.metadata.visitor_count.toLocaleString()} · `}
+                        {signal.metadata.view_count && `👁 ${signal.metadata.view_count.toLocaleString()} · `}
                         {new Date(signal.metadata.timestamp).toLocaleDateString('ko-KR')}
                       </p>
                     )}
@@ -203,7 +197,7 @@ export default function MockScenario({ data }) {
 
                   {/* Right: bar chart */}
                   {signal.comment_growth?.length > 0 && (
-                    <div className="flex-shrink-0 border-l border-slate-700 pl-4">
+                    <div className="flex-shrink-0 border-l border-zinc-700 pl-4">
                       <CommentGrowthChart
                         growth={signal.comment_growth}
                         metricLabel={signal.metric_label}

@@ -1,180 +1,76 @@
 import { useState } from 'react';
-import {
-  uploadCSV,
-  fetchSampleData,
-  runAnalysis,
-  crawlReviews,
-  updateSettings,
-} from './api/client';
-import FileUpload from './components/FileUpload';
-import ReviewList from './components/ReviewList';
-import LoadingSpinner from './components/LoadingSpinner';
-import MetricsOverview from './components/MetricsOverview';
-import CategoryChart from './components/CategoryChart';
-import TopIssuesCard from './components/TopIssuesCard';
-import EmergingIssues from './components/EmergingIssues';
-import ActionPlan from './components/ActionPlan';
-import PriorityReviewList from './components/PriorityReviewList';
-import ReplyGuide from './components/ReplyGuide';
+import { useLang } from './contexts/LangContext';
 import RiskIntelligence from './components/RiskIntelligence';
 import './index.css';
 
 const TABS = [
-  { id: 'analysis', label: '분석 대시보드' },
-  { id: 'reply', label: '리뷰 답변' },
-  { id: 'risk', label: '리스크 인텔리전스' },
+  { id: 'risk',     labelKey: 'tabs.risk',     soon: false },
+  { id: 'playbook', labelKey: 'tabs.playbook', soon: true },
+  { id: 'agent',    labelKey: 'tabs.agent',    soon: true },
 ];
 
 function App() {
-  const [uploadInfo, setUploadInfo] = useState(null);
-  const [analysisResult, setAnalysisResult] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [ratingThreshold, setRatingThreshold] = useState(3);
+  const { lang, setLang, t } = useLang();
   const [activeTab, setActiveTab] = useState('risk');
-
-  const executeWithAnalysis = async (apiCall, errorMsg) => {
-    try {
-      setError(null);
-      setIsLoading(true);
-      const { data } = await apiCall();
-      setUploadInfo(data);
-      const result = await runAnalysis();
-      setAnalysisResult(result.data);
-    } catch (err) {
-      setError(err.response?.data?.detail || errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRatingThresholdChange = async (value) => {
-    setRatingThreshold(value);
-    try {
-      await updateSettings(value);
-      const result = await runAnalysis();
-      setAnalysisResult(result.data);
-    } catch (err) {
-      console.error('설정 업데이트 실패:', err);
-    }
-  };
-
-  const handleUpload = (file) =>
-    executeWithAnalysis(() => uploadCSV(file), '분석 중 오류가 발생했습니다.');
-
-  const handleUseSample = () =>
-    executeWithAnalysis(() => fetchSampleData(), '분석 중 오류가 발생했습니다.');
-
-  const handleCrawl = (url) =>
-    executeWithAnalysis(() => crawlReviews(url), '크롤링 중 오류가 발생했습니다.');
-
-  const categories = analysisResult?.all_categories ?? {};
+  const currentTab = TABS.find((tab) => tab.id === activeTab) || TABS[0];
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      {/* Header */}
-      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <h1 className="text-xl font-bold text-white tracking-tight">
-            OntoReview — AI Reputation Intelligence
-          </h1>
-          <p className="text-sm text-slate-500">멀티채널 리스크 모니터링 · 온톨로지 분석 · 컴플라이언스 자동화</p>
+    <div className="min-h-screen bg-zinc-950">
+      <header className="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-10">
 
-          {/* 탭 네비게이션 — 항상 표시 */}
-          <nav className="flex gap-1 mt-3 -mb-4" role="tablist">
-            {TABS.map(({ id, label }) => {
-              const disabled = (id === 'analysis' || id === 'reply') && !analysisResult;
-              return (
-                <button
-                  key={id}
-                  role="tab"
-                  aria-selected={activeTab === id}
-                  disabled={disabled}
-                  onClick={() => !disabled && setActiveTab(id)}
-                  className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                    activeTab === id
-                      ? 'bg-slate-950 text-white border border-slate-700 border-b-slate-950'
-                      : disabled
-                        ? 'text-slate-700 cursor-not-allowed'
-                        : 'text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
+        {/* Row 1: Breadcrumb + LIVE + Lang toggle */}
+        <div className="max-w-7xl mx-auto px-6 py-2.5 flex items-center justify-between border-b border-zinc-800/50">
+          <nav className="flex items-center gap-2 text-xs" aria-label="breadcrumb">
+            <span className="font-bold text-white tracking-tight">OntoReview</span>
+            <span className="text-zinc-700">/</span>
+            <span className="text-zinc-500">Risk Management</span>
+            <span className="text-zinc-700">/</span>
+            <span className="text-zinc-300 font-medium">{t(currentTab.labelKey)}</span>
+          </nav>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+              </span>
+              <span className="text-xs text-emerald-400 font-bold tracking-widest">LIVE</span>
+            </div>
+            <button
+              onClick={() => setLang(lang === 'ko' ? 'en' : 'ko')}
+              className="px-2.5 py-1 text-xs font-bold text-zinc-400 border border-zinc-700 rounded-md hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+            >
+              {lang === 'ko' ? 'EN' : '한'}
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: Tab navigation — underline style */}
+        <div className="max-w-7xl mx-auto px-6">
+          <nav className="flex" role="tablist">
+            {TABS.map(({ id, labelKey, soon }) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={activeTab === id}
+                disabled={soon}
+                onClick={() => !soon && setActiveTab(id)}
+                className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                  activeTab === id
+                    ? 'border-white text-white'
+                    : soon
+                      ? 'border-transparent text-zinc-600 cursor-not-allowed'
+                      : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
+                }`}
+              >
+                {t(labelKey)}
+              </button>
+            ))}
           </nav>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        {/* Risk Intelligence — 항상 접근 가능 (CSV 없이도 데모 가능) */}
-        {activeTab === 'risk' && (
-          <RiskIntelligence analysisResult={analysisResult} />
-        )}
-
-        {/* 분석/답변 탭 전용 영역 */}
-        {activeTab !== 'risk' && (
-          <>
-            {/* File Upload */}
-            <FileUpload
-              onUpload={handleUpload}
-              onUseSample={handleUseSample}
-              onCrawl={handleCrawl}
-              isLoading={isLoading}
-              uploadInfo={uploadInfo}
-              ratingThreshold={ratingThreshold}
-              onRatingThresholdChange={handleRatingThresholdChange}
-            />
-
-            {/* Error */}
-            {error && (
-              <div className="bg-red-950 border border-red-800 text-red-400 rounded-xl px-4 py-3">
-                {error}
-              </div>
-            )}
-
-            {/* Loading */}
-            {isLoading && <LoadingSpinner />}
-
-            {/* Results */}
-            {analysisResult && !isLoading && (
-              <>
-                {activeTab === 'analysis' && (
-                  <>
-                    <MetricsOverview
-                      stats={analysisResult.stats}
-                      categoryCount={Object.keys(categories).length}
-                    />
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <CategoryChart allCategories={categories} />
-                      <TopIssuesCard topIssues={analysisResult.top_issues} />
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <EmergingIssues emergingIssues={analysisResult.emerging_issues} />
-                      <ActionPlan recommendations={analysisResult.recommendations} />
-                    </div>
-                    <ReviewList uploadInfo={uploadInfo} />
-                  </>
-                )}
-
-                {activeTab === 'reply' && (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2">
-                      <PriorityReviewList uploadInfo={uploadInfo} />
-                    </div>
-                    <div className="lg:col-span-1">
-                      <div className="sticky top-24">
-                        <ReplyGuide />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
+      <main className="max-w-7xl mx-auto px-6 py-6">
+        {activeTab === 'risk' && <RiskIntelligence />}
       </main>
     </div>
   );

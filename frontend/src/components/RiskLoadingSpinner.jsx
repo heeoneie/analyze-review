@@ -55,7 +55,7 @@ export default function RiskLoadingSpinner({ mode = 'demo' }) {
     isParallel(idx) ? currentStep > 3 : idx < currentStep;
 
   return (
-    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-8">
+    <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-8">
       <div className="flex flex-col items-center">
         {/* 원형 진행률 */}
         <div className="relative mb-6">
@@ -80,7 +80,7 @@ export default function RiskLoadingSpinner({ mode = 'demo' }) {
         {/* 현재 작업 */}
         <div className="flex items-center gap-2 mb-6">
           <Radio className="text-indigo-400 animate-pulse" size={16} />
-          <p className="text-sm font-medium text-slate-300">
+          <p className="text-sm font-medium text-zinc-300">
             {mode === 'demo'
               ? currentStep <= 3
                 ? 'AI 엔진 병렬 분석 중...'
@@ -104,7 +104,7 @@ export default function RiskLoadingSpinner({ mode = 'demo' }) {
                     ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-900'
                     : active
                       ? 'bg-indigo-950/50 text-indigo-300 border border-indigo-900'
-                      : 'bg-slate-800/50 text-slate-600 border border-slate-800'
+                      : 'bg-zinc-800/50 text-zinc-600 border border-zinc-800'
                 }`}
               >
                 {done ? (
@@ -112,7 +112,7 @@ export default function RiskLoadingSpinner({ mode = 'demo' }) {
                 ) : active ? (
                   <Loader2 size={15} className="animate-spin text-indigo-400 flex-shrink-0" />
                 ) : (
-                  <div className="w-[15px] h-[15px] rounded-full border border-slate-700 flex-shrink-0" />
+                  <div className="w-[15px] h-[15px] rounded-full border border-zinc-700 flex-shrink-0" />
                 )}
                 <span className="font-medium">{step.label}</span>
                 {parallel && (
@@ -124,7 +124,7 @@ export default function RiskLoadingSpinner({ mode = 'demo' }) {
         </div>
 
         {mode === 'demo' && (
-          <p className="mt-4 text-xs text-slate-600">
+          <p className="mt-4 text-xs text-zinc-600">
             온톨로지 · 컴플라이언스 · 회의안건 동시 생성 중
           </p>
         )}

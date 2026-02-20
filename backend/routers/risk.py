@@ -51,10 +51,10 @@ async def create_compliance_report(request: RiskAnalysisRequest):
 
 
 @router.post("/demo")
-async def run_demo_scenario():
-    """OO 충전기 폭발 사건 Mock 시나리오 — 4채널 동시 감지 → Red Alert"""
+async def run_demo_scenario(industry: str = "ecommerce"):
+    """산업별 위기 시나리오 Mock — 4채널 동시 감지 → Red Alert"""
     try:
-        result = await asyncio.to_thread(analyze_demo_scenario)
+        result = await asyncio.to_thread(analyze_demo_scenario, industry)
         return result
     except Exception as e:
         logger.error("데모 시나리오 분석 실패: %s", e)
