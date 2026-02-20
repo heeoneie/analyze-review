@@ -269,11 +269,21 @@ DEMO_SIGNALS = [
         "channel_type": "internal",
         "data_type": "Product Review",
         "item_name": "초소형 고속 충전기 65W",
-        "content": "사용 중에 퍽 소리가 나면서 타는 냄새가 나요. 아이 방에서 쓰다가 불날 뻔했습니다. 제품 결함 같은데 환불해주세요.",
+        "content": (
+            "사용 중에 퍽 소리가 나면서 타는 냄새가 나요. "
+            "아이 방에서 쓰다가 불날 뻔했습니다. 제품 결함 같은데 환불해주세요."
+        ),
         "metadata": {
             "rating": 1, "is_verified_purchase": True, "timestamp": "2026-02-20T10:30:00Z"
         },
         "risk_indicators": ["화재위험", "폭발", "안전결함"],
+        "metric_label": "유사 민원 리뷰",
+        "viral_risk": "보통",
+        "comment_growth": [
+            {"t": "+5분", "delta": 2},
+            {"t": "+10분", "delta": 5},
+            {"t": "+20분", "delta": 9},
+        ],
     },
     {
         "platform": "YouTube",
@@ -281,35 +291,66 @@ DEMO_SIGNALS = [
         "data_type": "Video Comment",
         "video_title": "[리뷰] 가성비 끝판왕 OO 충전기 한 달 사용기",
         "channel_name": "테크마스터TV",
-        "content": "이거 저도 샀는데 커뮤니티 보니까 저만 터진 게 아니더라고요. 제조사 대응도 엉망이라는데 불매해야 하는 거 아님?",
+        "content": (
+            "이거 저도 샀는데 커뮤니티 보니까 저만 터진 게 아니더라고요. "
+            "제조사 대응도 엉망이라는데 불매해야 하는 거 아님?"
+        ),
         "metadata": {
             "likes": 156, "replies_count": 24,
             "author_subscriber_count": 500, "timestamp": "2026-02-20T11:15:00Z"
         },
         "risk_indicators": ["불매운동 징후", "집단 불만", "확산성 높음"],
+        "metric_label": "대댓글",
+        "viral_risk": "높음",
+        "comment_growth": [
+            {"t": "+5분", "delta": 8},
+            {"t": "+10분", "delta": 19},
+            {"t": "+20분", "delta": 41},
+        ],
     },
     {
         "platform": "Naver Blog",
         "channel_type": "external",
         "data_type": "Blog Post",
         "post_title": "실제 경험담: OO 충전기 폭발 사고와 제조사의 무책임한 대응",
-        "content": "충전기가 터져서 멀티탭까지 다 탔습니다. 업체에 전화했더니 사용자 과실이라며 보상을 거부하네요. 소비자원에 고발할 예정입니다. (사진 첨부)",
+        "content": (
+            "충전기가 터져서 멀티탭까지 다 탔습니다. "
+            "업체에 전화했더니 사용자 과실이라며 보상을 거부하네요. "
+            "소비자원에 고발할 예정입니다. (사진 첨부)"
+        ),
         "metadata": {
             "visitor_count": 1200, "is_top_exposure": True, "timestamp": "2026-02-19T18:00:00Z"
         },
         "risk_indicators": ["법적 분쟁", "증거 포함", "고노출 데이터"],
+        "metric_label": "방문자",
+        "viral_risk": "높음",
+        "comment_growth": [
+            {"t": "+5분", "delta": 94},
+            {"t": "+10분", "delta": 267},
+            {"t": "+20분", "delta": 531},
+        ],
     },
     {
         "platform": "Community (뽐뿌)",
         "channel_type": "external",
         "data_type": "Post Text",
         "post_title": "형들 이번 OO 충전기 이슈 정리해준다.txt",
-        "content": "회로 설계 자체가 65W를 못 버티게 설계됨. 뜯어보니까 콘덴서 싸구려 썼네. 이거 조만간 터질 일만 남았다 다들 쓰지 마라.",
+        "content": (
+            "회로 설계 자체가 65W를 못 버티게 설계됨. "
+            "뜯어보니까 콘덴서 싸구려 썼네. 이거 조만간 터질 일만 남았다 다들 쓰지 마라."
+        ),
         "metadata": {
             "view_count": 4500, "recommend_count": 89,
             "board_name": "자유게시판", "timestamp": "2026-02-20T13:45:00Z"
         },
         "risk_indicators": ["기술적 결함 폭로", "전문가 분석 포함", "여론 선동"],
+        "metric_label": "추천·공감",
+        "viral_risk": "높음",
+        "comment_growth": [
+            {"t": "+5분", "delta": 11},
+            {"t": "+10분", "delta": 29},
+            {"t": "+20분", "delta": 57},
+        ],
     },
 ]
 

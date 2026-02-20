@@ -1,4 +1,4 @@
-import { AlertTriangle, ShoppingCart, Youtube, PenSquare, MessageSquare } from 'lucide-react';
+import { AlertTriangle, ShoppingCart, Youtube, PenSquare, MessageSquare, TrendingUp } from 'lucide-react';
 
 const PLATFORM_CONFIG = {
   'Coupang': {
@@ -42,6 +42,12 @@ const RISK_LEVEL_STYLES = {
   RED: { bg: 'bg-red-600', text: '치명적', pulse: true },
 };
 
+const VIRAL_RISK_CFG = {
+  '높음': { bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-500', pulse: true },
+  '보통': { bg: 'bg-orange-100', text: 'text-orange-700', dot: 'bg-orange-400', pulse: false },
+  '낮음': { bg: 'bg-gray-100', text: 'text-gray-500', dot: 'bg-gray-400', pulse: false },
+};
+
 function RiskBadge({ level }) {
   const style = RISK_LEVEL_STYLES[level] || RISK_LEVEL_STYLES.GREEN;
   return (
@@ -54,6 +60,71 @@ function RiskBadge({ level }) {
       )}
       {style.text}
     </span>
+  );
+}
+
+function ViralRiskBadge({ risk }) {
+  const cfg = VIRAL_RISK_CFG[risk] || VIRAL_RISK_CFG['낮음'];
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${cfg.bg} ${cfg.text}`}>
+      <span className={`relative flex h-1.5 w-1.5`}>
+        {cfg.pulse && (
+          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${cfg.dot} opacity-75`} />
+        )}
+        <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${cfg.dot}`} />
+      </span>
+      역바이럴 {risk}
+    </span>
+  );
+}
+
+function CommentGrowthChart({ growth, metricLabel }) {
+  if (!growth?.length) return null;
+
+  const max = Math.max(...growth.map((p) => p.delta));
+  const MAX_H = 28; // px
+
+  const first = growth[0].delta;
+  const last = growth[growth.length - 1].delta;
+  const ratio = last / (first || 1);
+  const trend =
+    ratio >= 3
+      ? { label: '↑ 급증', cls: 'text-red-600 font-bold' }
+      : ratio >= 1.8
+      ? { label: '↑ 증가', cls: 'text-orange-500 font-semibold' }
+      : { label: '→ 완만', cls: 'text-gray-400' };
+
+  return (
+    <div className="mt-2.5 pt-2.5 border-t border-dashed border-gray-200">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-gray-500 flex items-center gap-1">
+          <TrendingUp size={11} className="text-gray-400" />
+          {metricLabel || '반응'} 증가 추이 (5분 간격)
+        </span>
+        <span className={`text-xs ${trend.cls}`}>{trend.label}</span>
+      </div>
+      <div className="flex items-end gap-3">
+        {growth.map((point, i) => {
+          const barH = Math.max(4, Math.round((point.delta / max) * MAX_H));
+          const isLast = i === growth.length - 1;
+          return (
+            <div key={i} className="flex flex-col items-center gap-0.5">
+              <span className={`text-[11px] font-bold ${isLast ? 'text-red-600' : 'text-orange-500'}`}>
+                +{point.delta.toLocaleString()}
+              </span>
+              <div
+                className={`w-5 rounded-t transition-all ${isLast ? 'bg-red-400' : 'bg-orange-300'}`}
+                style={{ height: `${barH}px` }}
+              />
+              <span className="text-[10px] text-gray-400 mt-0.5">{point.t}</span>
+            </div>
+          );
+        })}
+        <span className="text-[10px] text-gray-400 self-end pb-4 ml-0.5">
+          ({metricLabel})
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -120,7 +191,8 @@ export default function MockScenario({ data }) {
                     <Icon size={16} className="text-gray-600" />
                     <span className="text-sm font-bold text-gray-800">{signal.platform}</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {signal.viral_risk && <ViralRiskBadge risk={signal.viral_risk} />}
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.typeColor}`}>
                       {cfg.type}
                     </span>
@@ -147,7 +219,7 @@ export default function MockScenario({ data }) {
                   ))}
                 </div>
 
-                {/* Metadata hint */}
+                {/* Metadata */}
                 {signal.metadata && (
                   <p className="text-xs text-gray-400 mt-2">
                     {signal.metadata.rating && `★ ${signal.metadata.rating}/5 · `}
@@ -157,6 +229,12 @@ export default function MockScenario({ data }) {
                     {new Date(signal.metadata.timestamp).toLocaleDateString('ko-KR')}
                   </p>
                 )}
+
+                {/* Comment Growth Chart */}
+                <CommentGrowthChart
+                  growth={signal.comment_growth}
+                  metricLabel={signal.metric_label}
+                />
               </div>
             );
           })}
