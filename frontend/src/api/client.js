@@ -53,3 +53,17 @@ export const generateComplianceReport = (analysisData) => api.post('/risk/compli
 export const generateMeetingAgenda = (analysisData) => api.post('/risk/meeting', analysisData);
 export const runDemoScenario = (industry = 'ecommerce', lang = 'ko') =>
   api.post('/risk/demo', null, { params: { industry, lang } });
+
+// AI 모델 평가 API
+export const getEvaluationMetrics = () => api.get('/evaluate/metrics');
+export const getDatasetInfo = () => api.get('/evaluate/dataset/info');
+
+// YouTube 실데이터 분석 API
+export const analyzeYouTube = (query, brand, options = {}) =>
+  api.post('/youtube/analyze', {
+    query,
+    brand,
+    lang: options.lang || 'ko',
+    max_videos: options.maxVideos || 3,
+    max_comments_per_video: options.maxComments || 15,
+  });

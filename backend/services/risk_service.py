@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """
 리스크 인텔리전스 서비스
 온톨로지 그래프, 컴플라이언스 보고서, 회의 안건 자동 생성
@@ -871,6 +872,258 @@ def _demo_generate_meeting(client, incident_context: str, lang: str = "ko") -> d
         "attendees": [],
         "agenda_items": [],
         "preparation": [],
+    }
+
+
+def _real_generate_ontology(
+    client, signals_text: str, incident_context: str, signal_count: int, lang: str = "ko"
+) -> dict:
+    """실제 수집 데이터 기반 온톨로지 생성 (mock 고정 문구 없음)"""
+    prompt = f"""다음은 YouTube에서 실시간 수집한 {signal_count}개의 댓글 시그널입니다.
+
+## 사건 개요
+{incident_context}
+
+## 수집된 댓글 시그널
+{signals_text[:5000]}
+
+## 분석 지시
+수집된 댓글들에서 공통으로 언급되는 리스크 이슈의 인과관계 지식 그래프를 생성하세요.
+
+핵심 포인트:
+- 댓글에서 실제 언급된 이슈, 원인, 관련 부서/인물 기반으로 노드 생성
+- 이슈 발생 → 리스크 전파 → 브랜드/법적/운영 영향 흐름을 표현
+- [이슈-원인-부서-리스크유형] 간 인과관계 포함
+- severity는 댓글 빈도·좋아요 수 기반으로 현실적으로 배정
+
+## 출력 형식
+{{
+  "nodes": [
+    {{"id": "n1", "label": "노드명", "type": "category|root_cause|department|risk_type|channel|event", "severity": 7}}
+  ],
+  "links": [
+    {{"source": "n1", "target": "n2", "relation": "관계명"}}
+  ],
+  "summary": "수집된 댓글 기반 리스크 인과관계 요약 (2-3문장)"
+}}
+
+노드 15~25개. risk_type 노드 2개 이상, 실제 데이터 기반으로 작성."""
+
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
+    result = extract_json_from_text(content)
+    if result and "nodes" in result:
+        return result
+    return {"nodes": [], "links": [], "summary": "온톨로지 생성 실패"}
+
+
+def _real_generate_compliance(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    client, signals_text: str, incident_context: str,
+    signal_count: int, brand: str, lang: str = "ko"
+) -> dict:
+    """실제 수집 데이터 기반 컴플라이언스 보고서 생성 (mock 고정 문구 없음)"""
+    today = date.today().isoformat()
+    prompt = f"""다음 YouTube 댓글 수집 결과로 리스크 컴플라이언스 보고서를 생성하세요.
+
+## 사건 개요
+{incident_context}
+
+## 수집된 시그널 ({signal_count}개 YouTube 댓글)
+{signals_text[:5000]}
+
+## 출력 형식
+{{
+  "report_title": "{brand} 리스크 모니터링 보고서",
+  "report_date": "{today}",
+  "overall_risk_level": "위험|경고|주의|안전 중 하나",
+  "monitoring_summary": "수집된 댓글 기반으로 실제 상황을 2-3문장으로 요약",
+  "monitored_channels": [
+    {{"channel": "YouTube 댓글", "feed_count": {signal_count}, "risk_count": 0, "status": "active"}}
+  ],
+  "risk_assessment": {{
+    "legal": {{"level": "low|medium|high", "description": "법적 리스크 설명"}},
+    "reputation": {{"level": "low|medium|high", "description": "평판 리스크 설명"}},
+    "operational": {{"level": "low|medium|high", "description": "운영 리스크 설명"}},
+    "safety": {{"level": "low|medium|high", "description": "안전 리스크 설명"}}
+  }},
+  "risk_events": [
+    {{
+      "id": 1, "severity": "critical|high|medium|low",
+      "category": "실제 이슈 카테고리",
+      "channel": "YouTube 댓글",
+      "description": "댓글에서 발견된 실제 이슈 설명",
+      "affected_count": 댓글수,
+      "recommended_action": "구체적 권고 조치"
+    }}
+  ],
+  "next_actions": ["즉각 조치 3개 이상"]
+}}
+
+risk_events는 실제 댓글 내용 기반으로 작성. overall_risk_level과 risk_assessment level은 실제 데이터 심각도 반영."""
+
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
+    result = extract_json_from_text(content)
+    return result if result else {
+        "report_title": f"{brand} 리스크 모니터링 보고서",
+        "overall_risk_level": "주의",
+        "monitoring_summary": (
+            f"YouTube에서 {brand} 관련 {signal_count}개 댓글을 수집했습니다."
+        ),
+        "monitored_channels": [
+            {"channel": "YouTube 댓글", "feed_count": signal_count,
+             "risk_count": 0, "status": "active"}
+        ],
+        "risk_assessment": {},
+        "risk_events": [],
+        "next_actions": [],
+    }
+
+
+def _real_generate_meeting(
+    client, incident_context: str, brand: str, lang: str = "ko"
+) -> dict:
+    """실제 수집 데이터 기반 회의 안건 생성 (mock 고정 문구 없음)"""
+    prompt = f"""다음 위기 상황에 대한 경영진 대응 회의 안건을 생성하세요.
+
+## 위기 개요
+{incident_context}
+
+## 브랜드
+{brand}
+
+## 출력 형식
+{{
+  "meeting_title": "{brand} 리스크 대응 회의",
+  "urgency": "초긴급|긴급|일반 중 리스크 수준에 맞게",
+  "estimated_duration": "XX분",
+  "attendees": [
+    참석자 5-7명. 사건 내용에 맞는 부서 포함.
+    예시: {{"department": "법무팀", "role": "CLO", "reason": "법적 대응 총괄"}},
+          {{"department": "홍보팀", "role": "팀장", "reason": "위기 커뮤니케이션"}},
+          {{"department": "경영", "role": "CEO", "reason": "최종 의사결정"}}
+  ],
+  "agenda_items": [안건 3-4개, priority: critical/high/medium],
+  "preparation": [사전 준비사항 3개 이상]
+}}
+
+각 agenda_item에 discussion_points 2개, action_items 2개 포함. 실제 사건 내용 기반으로 구체적으로 작성."""
+
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
+    result = extract_json_from_text(content)
+    return result if result else {
+        "meeting_title": f"{brand} 리스크 대응 회의",
+        "urgency": "긴급",
+        "attendees": [],
+        "agenda_items": [],
+        "preparation": [],
+    }
+
+
+def analyze_youtube_scenario(  # pylint: disable=too-many-locals
+    signals: list[dict], brand: str, lang: str = "ko"
+) -> dict:
+    """
+    실제 YouTube 댓글 시그널을 LLM으로 분석.
+    analyze_demo_scenario 와 동일한 출력 형식 반환.
+    """
+    signals_text = _demo_signals_text(signals)
+
+    # ① 사건 개요 추론 (incident_title / summary / risk_level / clustering_reason)
+    client = get_client()
+    overview_prompt = f"""다음은 YouTube에서 수집한 '{brand}' 관련 실제 댓글 데이터입니다.
+
+## 수집 시그널 ({len(signals)}개 댓글)
+{signals_text[:6000]}
+
+## 지시
+1. 이 댓글들에서 핵심 리스크 사건을 탐지하고 아래 형식의 JSON을 반환하세요.
+2. 리스크 없으면 risk_level을 "GREEN"으로 하세요.
+
+{{
+  "incident_title": "사건 한 줄 제목 (20자 이내)",
+  "incident_summary": "2-3문장 요약",
+  "risk_level": "RED|YELLOW|GREEN",
+  "clustering_reason": "동일 사건으로 클러스터링된 근거 (1-2문장)"
+}}"""
+
+    overview_raw = call_openai_json(client, overview_prompt, system_prompt=_get_system_prompt(lang))
+    overview = extract_json_from_text(overview_raw) or {}
+
+    incident_title = overview.get("incident_title", f"{brand} 리스크 감지")
+    incident_summary = overview.get(
+        "incident_summary",
+        f"YouTube에서 {brand} 관련 부정 시그널 {len(signals)}건이 수집되었습니다."
+    )
+    risk_level = overview.get("risk_level", "YELLOW")
+    clustering_reason = overview.get(
+        "clustering_reason",
+        f"YouTube 댓글 {len(signals)}건에서 공통 키워드 클러스터링"
+    )
+
+    incident_context = (
+        f"사건명: {incident_title}\n"
+        f"요약: {incident_summary}\n"
+        f"클러스터링 근거: {clustering_reason}"
+    )
+
+    # ② 온톨로지·컴플라이언스·회의 생성
+    # Gemini: 순차 실행 (RPM 스파이크 방지) / OpenAI: 병렬 실행 (속도 우선)
+    from core import config as _cfg  # pylint: disable=import-outside-toplevel
+
+    if _cfg.LLM_PROVIDER == "google":
+        # 순차 실행 — Gemini RPM 초과 방지
+        n = len(signals)
+        ontology = _real_generate_ontology(client, signals_text, incident_context, n, lang)
+        compliance = _real_generate_compliance(
+            client, signals_text, incident_context, n, brand, lang
+        )
+        meeting = _real_generate_meeting(client, incident_context, brand, lang)
+    else:
+        # 병렬 실행 — OpenAI 속도 우선
+        llm_timeout = 120
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            ont_f = executor.submit(
+                _real_generate_ontology, client, signals_text, incident_context, len(signals), lang
+            )
+            comp_f = executor.submit(
+                _real_generate_compliance,
+                client, signals_text, incident_context, len(signals), brand, lang,
+            )
+            meet_f = executor.submit(
+                _real_generate_meeting, client, incident_context, brand, lang
+            )
+            try:
+                ontology = ont_f.result(timeout=llm_timeout)
+            except FuturesTimeoutError:
+                ontology = {"nodes": [], "links": [], "summary": "온톨로지 생성 실패"}
+            try:
+                compliance = comp_f.result(timeout=llm_timeout)
+            except FuturesTimeoutError:
+                compliance = {
+                    "overall_risk_level": risk_level,
+                    "monitoring_summary": "",
+                    "risk_events": [],
+                    "next_actions": [],
+                }
+            try:
+                meeting = meet_f.result(timeout=llm_timeout)
+            except FuturesTimeoutError:
+                meeting = {
+                    "meeting_title": "",
+                    "urgency": "긴급",
+                    "attendees": [],
+                    "agenda_items": [],
+                    "preparation": [],
+                }
+
+    return {
+        "risk_level": risk_level,
+        "incident_title": incident_title,
+        "incident_summary": incident_summary,
+        "clustering_reason": clustering_reason,
+        "channel_signals": signals,
+        "ontology": ontology,
+        "compliance": compliance,
+        "meeting": meeting,
     }
 
 

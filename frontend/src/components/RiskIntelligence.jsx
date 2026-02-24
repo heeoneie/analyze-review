@@ -5,6 +5,7 @@ import {
   generateComplianceReport,
   generateMeetingAgenda,
   runDemoScenario,
+  analyzeYouTube,
 } from '../api/client';
 import { useLang } from '../contexts/LangContext';
 import OntologyGraph from './OntologyGraph';
@@ -12,6 +13,7 @@ import ComplianceReport from './ComplianceReport';
 import MeetingAgenda from './MeetingAgenda';
 import MockScenario from './MockScenario';
 import RiskLoadingSpinner from './RiskLoadingSpinner';
+import ModelQuality from './ModelQuality';
 
 const INDUSTRIES = [
   { id: 'ecommerce', labelKey: 'risk.ecommerce', icon: '🛒' },
@@ -139,6 +141,7 @@ export default function RiskIntelligence({ analysisResult }) {
   const [productName, setProductName] = useState(INDUSTRY_INPUT_CFG.ecommerce.default2);
   const [scanPhase, setScanPhase] = useState(false);
   const [selectedExtra, setSelectedExtra] = useState(new Set());
+  const [dataSource, setDataSource] = useState(null); // 'youtube' | 'mock'
   const inputRef = useRef(null);
 
   const toggleExtra = (id) => {
@@ -162,6 +165,7 @@ export default function RiskIntelligence({ analysisResult }) {
 
   const handleDemo = async () => {
     const brand = [brandName.trim(), productName.trim()].filter(Boolean).join(' ') || 'OO';
+    const query = [brandName.trim(), productName.trim()].filter(Boolean).join(' ');
     setScanPhase(true);
     setErrors({});
     setDemoResult(null);
@@ -169,13 +173,23 @@ export default function RiskIntelligence({ analysisResult }) {
     setCompliance(null);
     setMeeting(null);
     setRiskLevel(null);
+    setDataSource(null);
     await new Promise((r) => setTimeout(r, 1500));
     setScanPhase(false);
     setLoading((prev) => ({ ...prev, demo: true }));
     try {
-      const res = await runDemoScenario(industry, lang);
-      const raw = res.data;
-      const data = injectBrand(raw, brand);
+      // ① YouTube 실데이터 우선 시도
+      let data = null;
+      try {
+        const ytRes = await analyzeYouTube(query || brand, brandName.trim() || 'Brand', { lang });
+        data = ytRes.data;
+        setDataSource('youtube');
+      } catch {
+        // API 키 없거나 quota 초과 시 mock으로 폴백
+        const res = await runDemoScenario(industry, lang);
+        data = injectBrand(res.data, brand);
+        setDataSource('mock');
+      }
       setDemoResult(data);
       setRiskLevel(data.risk_level);
       if (data.ontology) setOntology(data.ontology);
@@ -525,6 +539,23 @@ export default function RiskIntelligence({ analysisResult }) {
       {/* Risk Level Banner */}
       <RiskLevelBanner level={riskLevel} />
 
+      {/* 데이터 소스 뱃지 */}
+      {dataSource && (
+        <div className="flex items-center gap-2">
+          {dataSource === 'youtube' ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-950/50 border border-red-800/60 text-xs font-medium text-red-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+              YouTube 실데이터
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-xs font-medium text-zinc-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+              데모 시나리오
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Mock Scenario Cards */}
       {demoResult && <MockScenario data={demoResult} />}
 
@@ -578,6 +609,9 @@ export default function RiskIntelligence({ analysisResult }) {
           />
         </div>
       )}
+
+      {/* AI Model Quality */}
+      <ModelQuality />
     </div>
   );
 }
