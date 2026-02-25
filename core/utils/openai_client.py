@@ -89,7 +89,7 @@ def call_openai_json(
     if config.LLM_PROVIDER == "google":
         # 429 시 backoff 재시도 → 최종 실패 시 OpenAI 폴백
         last_exc = None
-        for attempt, delay in enumerate([0] + _GEMINI_RETRY_DELAYS):
+        for attempt, delay in enumerate([0, *_GEMINI_RETRY_DELAYS]):
             if delay:
                 logger.warning("Gemini 429 — %d초 대기 후 재시도 (attempt %d)", delay, attempt + 1)
                 time.sleep(delay)

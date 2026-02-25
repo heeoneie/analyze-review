@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from datetime import date
 
+from core import config as _cfg
 from core.utils.json_utils import extract_json_from_text
 from core.utils.openai_client import call_openai_json, get_client
 
@@ -721,7 +722,7 @@ DEMO_DATA = {
 }
 
 
-def _demo_signals_text(signals: list) -> str:
+def _signals_to_text(signals: list) -> str:
     return json.dumps(signals, ensure_ascii=False, indent=2)
 
 
@@ -1025,7 +1026,7 @@ def analyze_youtube_scenario(  # pylint: disable=too-many-locals
     실제 YouTube 댓글 시그널을 LLM으로 분석.
     analyze_demo_scenario 와 동일한 출력 형식 반환.
     """
-    signals_text = _demo_signals_text(signals)
+    signals_text = _signals_to_text(signals)
 
     # ① 사건 개요 추론 (incident_title / summary / risk_level / clustering_reason)
     client = get_client()
@@ -1067,8 +1068,6 @@ def analyze_youtube_scenario(  # pylint: disable=too-many-locals
 
     # ② 온톨로지·컴플라이언스·회의 생성
     # Gemini: 순차 실행 (RPM 스파이크 방지) / OpenAI: 병렬 실행 (속도 우선)
-    from core import config as _cfg  # pylint: disable=import-outside-toplevel
-
     if _cfg.LLM_PROVIDER == "google":
         # 순차 실행 — Gemini RPM 초과 방지
         n = len(signals)
@@ -1134,7 +1133,7 @@ def analyze_demo_scenario(industry: str = "ecommerce", lang: str = "ko") -> dict
     """산업별 위기 시나리오 분석 — 4채널 동시 감지 Mock (병렬 LLM 호출)"""
     data = DEMO_DATA.get(industry, DEMO_DATA["ecommerce"])
     signals = data["signals"]
-    signals_text = _demo_signals_text(signals)
+    signals_text = _signals_to_text(signals)
     incident_context = (
         f"사건명: {data['incident_title']}\n"
         f"요약: {data['incident_summary']}\n"

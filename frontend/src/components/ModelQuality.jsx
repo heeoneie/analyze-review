@@ -14,24 +14,26 @@ const CATEGORY_LABELS = {
   other: 'Other',
 };
 
-function MetricBar({ value, color = 'bg-emerald-500' }) {
+function MetricBar({ value = 0, color = 'bg-emerald-500' }) {
+  const safe = Math.min(Math.max(Number(value) || 0, 0), 1);
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
         <div
           className={`h-full ${color} rounded-full transition-all duration-700`}
-          style={{ width: `${(value * 100).toFixed(1)}%` }}
+          style={{ width: `${(safe * 100).toFixed(1)}%` }}
         />
       </div>
       <span className="text-xs text-zinc-300 w-12 text-right font-mono">
-        {(value * 100).toFixed(1)}%
+        {(safe * 100).toFixed(1)}%
       </span>
     </div>
   );
 }
 
-function ScoreBadge({ value }) {
-  const pct = value * 100;
+function ScoreBadge({ value = 0 }) {
+  const safe = Math.min(Math.max(Number(value) || 0, 0), 1);
+  const pct = safe * 100;
   const color =
     pct >= 85 ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' :
     pct >= 75 ? 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10' :
@@ -58,7 +60,9 @@ export default function ModelQuality() {
         setMetrics(m);
         setDatasetInfo(d);
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('ModelQuality fetch failed:', err);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -74,6 +78,8 @@ export default function ModelQuality() {
   if (!metrics) return null;
 
   const { overall, per_class, meta, rag_comparison, error_analysis } = metrics;
+  if (!overall) return null;
+
   const topCategories = Object.entries(per_class || {})
     .sort((a, b) => b[1].f1 - a[1].f1)
     .slice(0, 5);
@@ -115,7 +121,7 @@ export default function ModelQuality() {
           ].map(({ label, value }) => (
             <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-center">
               <div className="text-lg font-bold text-white font-mono">
-                {(value * 100).toFixed(1)}%
+                {((Number(value) || 0) * 100).toFixed(1)}%
               </div>
               <div className="text-xs text-zinc-500 mt-0.5">{label}</div>
             </div>
