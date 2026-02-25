@@ -49,5 +49,5 @@ async def analyze_youtube(req: YouTubeAnalyzeRequest):
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
-        logger.error("YouTube 분석 실패: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"YouTube 분석 중 오류: {e}") from e
+        logger.exception("YouTube 분석 실패")
+        raise HTTPException(status_code=500, detail="YouTube 분석 중 오류가 발생했습니다.") from e

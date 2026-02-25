@@ -29,8 +29,11 @@ def _search_videos(query: str, max_results: int, api_key: str) -> list[dict]:
 
     videos = []
     for item in data.get("items", []):
+        video_id = item.get("id", {}).get("videoId")
+        if not video_id:
+            continue
         videos.append({
-            "video_id": item["id"]["videoId"],
+            "video_id": video_id,
             "title": item["snippet"]["title"],
             "channel_name": item["snippet"]["channelTitle"],
             "published_at": item["snippet"]["publishedAt"],

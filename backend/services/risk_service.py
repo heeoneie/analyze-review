@@ -1093,11 +1093,13 @@ def analyze_youtube_scenario(  # pylint: disable=too-many-locals
             )
             try:
                 ontology = ont_f.result(timeout=llm_timeout)
-            except FuturesTimeoutError:
+            except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+                logger.error("온톨로지 생성 실패", exc_info=True)
                 ontology = {"nodes": [], "links": [], "summary": "온톨로지 생성 실패"}
             try:
                 compliance = comp_f.result(timeout=llm_timeout)
-            except FuturesTimeoutError:
+            except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+                logger.error("컴플라이언스 보고서 생성 실패", exc_info=True)
                 compliance = {
                     "overall_risk_level": risk_level,
                     "monitoring_summary": "",
@@ -1106,7 +1108,8 @@ def analyze_youtube_scenario(  # pylint: disable=too-many-locals
                 }
             try:
                 meeting = meet_f.result(timeout=llm_timeout)
-            except FuturesTimeoutError:
+            except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+                logger.error("회의 안건 생성 실패", exc_info=True)
                 meeting = {
                     "meeting_title": "",
                     "urgency": "긴급",
@@ -1152,13 +1155,13 @@ def analyze_demo_scenario(industry: str = "ecommerce", lang: str = "ko") -> dict
         llm_timeout = 120  # seconds
         try:
             ontology = ont_f.result(timeout=llm_timeout)
-        except FuturesTimeoutError:
-            logger.error("온톨로지 생성 타임아웃")
+        except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+            logger.error("온톨로지 생성 실패", exc_info=True)
             ontology = {"nodes": [], "links": [], "summary": "온톨로지 생성 실패"}
         try:
             compliance = comp_f.result(timeout=llm_timeout)
-        except FuturesTimeoutError:
-            logger.error("컴플라이언스 보고서 생성 타임아웃")
+        except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+            logger.error("컴플라이언스 보고서 생성 실패", exc_info=True)
             compliance = {
                 "overall_risk_level": "위험",
                 "monitoring_summary": "",
@@ -1167,8 +1170,8 @@ def analyze_demo_scenario(industry: str = "ecommerce", lang: str = "ko") -> dict
             }
         try:
             meeting = meet_f.result(timeout=llm_timeout)
-        except FuturesTimeoutError:
-            logger.error("회의 안건 생성 타임아웃")
+        except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+            logger.error("회의 안건 생성 실패", exc_info=True)
             meeting = {
                 "meeting_title": "",
                 "urgency": "초긴급",

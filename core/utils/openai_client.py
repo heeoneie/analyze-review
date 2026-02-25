@@ -99,7 +99,7 @@ def call_openai_json(
                 if getattr(e, "status_code", None) == 429:
                     last_exc = e
                     continue  # 재시도
-                raise  # 429 외 에러는 바로 OpenAI 폴백
+                break  # 429 외 에러는 바로 OpenAI 폴백
             except Exception:  # pylint: disable=broad-except
                 break  # 비 429 예외는 바로 OpenAI 폴백
 

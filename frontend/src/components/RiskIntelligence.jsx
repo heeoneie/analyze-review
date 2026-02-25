@@ -13,7 +13,6 @@ import ComplianceReport from './ComplianceReport';
 import MeetingAgenda from './MeetingAgenda';
 import MockScenario from './MockScenario';
 import RiskLoadingSpinner from './RiskLoadingSpinner';
-import ModelQuality from './ModelQuality';
 
 const INDUSTRIES = [
   { id: 'ecommerce', labelKey: 'risk.ecommerce', icon: '🛒' },
@@ -610,8 +609,6 @@ export default function RiskIntelligence({ analysisResult }) {
         </div>
       )}
 
-      {/* AI Model Quality */}
-      <ModelQuality />
     </div>
   );
 }
