@@ -66,4 +66,4 @@ export const analyzeYouTube = (query, brand, options = {}) =>
     lang: options.lang || 'ko',
     max_videos: options.maxVideos || 3,
     max_comments_per_video: options.maxComments || 15,
-  }); origin/feat/risk-intelligence
+  });
