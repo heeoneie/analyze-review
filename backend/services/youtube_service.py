@@ -30,13 +30,14 @@ def _search_videos(query: str, max_results: int, api_key: str) -> list[dict]:
     videos = []
     for item in data.get("items", []):
         video_id = item.get("id", {}).get("videoId")
-        if not video_id:
+        snippet = item.get("snippet", {})
+        if not video_id or not snippet:
             continue
         videos.append({
             "video_id": video_id,
-            "title": item["snippet"]["title"],
-            "channel_name": item["snippet"]["channelTitle"],
-            "published_at": item["snippet"]["publishedAt"],
+            "title": snippet.get("title", ""),
+            "channel_name": snippet.get("channelTitle", ""),
+            "published_at": snippet.get("publishedAt", ""),
         })
     return videos
 
@@ -62,16 +63,20 @@ def _get_video_comments(video_id: str, max_results: int, api_key: str) -> list[d
 
     comments = []
     for item in data.get("items", []):
-        top = item["snippet"]["topLevelComment"]["snippet"]
-        text = top.get("textOriginal", top.get("textDisplay", "")).strip()
-        if not text:
-            continue
-        comments.append({
-            "text": text,
-            "likes": int(top.get("likeCount", 0)),
-            "replies_count": int(item["snippet"].get("totalReplyCount", 0)),
-            "timestamp": top.get("publishedAt", ""),
-        })
+        try:
+            item_snippet = item.get("snippet", {})
+            top = item_snippet.get("topLevelComment", {}).get("snippet", {})
+            text = top.get("textOriginal", top.get("textDisplay", "")).strip()
+            if not text:
+                continue
+            comments.append({
+                "text": text,
+                "likes": int(top.get("likeCount") or 0),
+                "replies_count": int(item_snippet.get("totalReplyCount") or 0),
+                "timestamp": top.get("publishedAt", ""),
+            })
+        except (KeyError, TypeError, ValueError) as e:
+            logger.debug("댓글 파싱 실패 (건너뜀): %s", e)
     return comments
 
 

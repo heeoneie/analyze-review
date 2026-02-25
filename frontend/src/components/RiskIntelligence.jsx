@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, lazy, Suspense } from 'react';
 import { Shield, Loader2, Radio, Building2, Zap, Share2, Download, Search, ScanSearch } from 'lucide-react';
 import {
   generateOntology,
@@ -13,7 +13,7 @@ import ComplianceReport from './ComplianceReport';
 import MeetingAgenda from './MeetingAgenda';
 import MockScenario from './MockScenario';
 import RiskLoadingSpinner from './RiskLoadingSpinner';
-import ModelQuality from './ModelQuality';
+const DevModelQuality = import.meta.env.DEV ? lazy(() => import('./ModelQuality')) : null;
 
 const INDUSTRIES = [
   { id: 'ecommerce', labelKey: 'risk.ecommerce', icon: '🛒' },
@@ -611,7 +611,11 @@ export default function RiskIntelligence({ analysisResult }) {
       )}
 
       {/* AI Model Quality — 로컬 개발 환경에서만 표시 */}
-      {import.meta.env.DEV && <ModelQuality />}
+      {import.meta.env.DEV && DevModelQuality && (
+        <Suspense fallback={null}>
+          <DevModelQuality />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -952,7 +952,7 @@ def _real_generate_compliance(  # pylint: disable=too-many-arguments,too-many-po
       "category": "실제 이슈 카테고리",
       "channel": "YouTube 댓글",
       "description": "댓글에서 발견된 실제 이슈 설명",
-      "affected_count": 댓글수,
+      "affected_count": 0,
       "recommended_action": "구체적 권고 조치"
     }}
   ],

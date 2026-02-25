@@ -24,9 +24,12 @@ _gemini_client = None  # pylint: disable=invalid-name
 
 
 def get_client():
-    """OpenAI 클라이언트 반환 (기본)"""
+    """OpenAI 클라이언트 반환. OPENAI_API_KEY 미설정 시 None 반환 (Gemini 모드 지원)."""
     global _openai_client  # pylint: disable=global-statement
     if _openai_client is None:
+        if not config.OPENAI_API_KEY:
+            logger.warning("OPENAI_API_KEY가 설정되지 않아 OpenAI 클라이언트를 초기화할 수 없습니다.")
+            return None
         _openai_client = OpenAI(api_key=config.OPENAI_API_KEY)
     return _openai_client
 
@@ -41,6 +44,8 @@ def _get_gemini_client():
 
 def _call_openai(client, prompt, system_prompt, model, temperature):
     """OpenAI API 호출"""
+    if client is None:
+        raise RuntimeError("OpenAI 클라이언트 없음 (OPENAI_API_KEY 미설정)")
     response = client.chat.completions.create(
         model=model,
         messages=[
