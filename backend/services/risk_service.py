@@ -1129,6 +1129,7 @@ def analyze_youtube_scenario(  # pylint: disable=too-many-locals
     }
 
 
+
 def analyze_demo_scenario(industry: str = "ecommerce", lang: str = "ko") -> dict:
     """산업별 위기 시나리오 분석 — 4채널 동시 감지 Mock (병렬 LLM 호출)"""
     data = DEMO_DATA.get(industry, DEMO_DATA["ecommerce"])
