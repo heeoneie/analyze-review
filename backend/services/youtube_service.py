@@ -1,4 +1,4 @@
-"""YouTube Data API v3 댓글 수집 서비스"""
+"""YouTube Data API v3 댓글 수집 서비스 — 리스크 트리거 키워드 다중 검색"""
 
 import logging
 from datetime import datetime, timezone
@@ -12,15 +12,23 @@ logger = logging.getLogger(__name__)
 
 YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
 
+# 산업별 리스크 트리거 키워드 (영어 — 글로벌 타겟)
+RISK_TRIGGERS: dict[str, list[str]] = {
+    "ecommerce": ["defect", "scam", "recall", "fake", "lawsuit", "refund"],
+    "hospital":  ["malpractice", "death", "infection", "fraud", "lawsuit"],
+    "finance":   ["scam", "data breach", "fraud", "frozen account", "SEC"],
+    "gaming":    ["pay to win", "rigged", "dead game", "toxic", "crunch"],
+}
+
 
 def _search_videos(query: str, max_results: int, api_key: str) -> list[dict]:
-    """YouTube 검색으로 관련 영상 목록 반환"""
+    """YouTube 검색으로 관련 영상 목록 반환 (영어 콘텐츠 우선)"""
     params = {
         "part": "snippet",
         "q": query,
         "type": "video",
         "maxResults": max_results,
-        "relevanceLanguage": "ko",
+        "relevanceLanguage": "en",
         "key": api_key,
     }
     resp = requests.get(f"{YOUTUBE_API_BASE}/search", params=params, timeout=15)
@@ -28,11 +36,13 @@ def _search_videos(query: str, max_results: int, api_key: str) -> list[dict]:
     data = resp.json()
 
     videos = []
+    seen_ids: set[str] = set()
     for item in data.get("items", []):
         video_id = item.get("id", {}).get("videoId")
         snippet = item.get("snippet", {})
-        if not video_id or not snippet:
+        if not video_id or not snippet or video_id in seen_ids:
             continue
+        seen_ids.add(video_id)
         videos.append({
             "video_id": video_id,
             "title": snippet.get("title", ""),
@@ -109,18 +119,28 @@ def _to_channel_signal(video: dict, comment: dict) -> dict:
     }
 
 
-def collect_youtube_signals(
+def _build_risk_queries(query: str, industry: str) -> list[str]:
+    """기본 쿼리 + 산업별 리스크 트리거 조합 쿼리 목록 생성"""
+    triggers = RISK_TRIGGERS.get(industry, RISK_TRIGGERS["ecommerce"])
+    queries = [f"{query} {t}" for t in triggers[:4]]  # 상위 4개 트리거
+    logger.info("리스크 검색 쿼리 생성: %s", queries)
+    return queries
+
+
+def collect_youtube_signals(  # pylint: disable=too-many-locals
     query: str,
     max_videos: int = 3,
     max_comments_per_video: int = 15,
+    industry: str = "ecommerce",
 ) -> tuple[list[dict], dict]:
     """
-    YouTube Data API v3로 댓글 수집 후 channel_signals 형식으로 반환.
+    YouTube Data API v3로 리스크 키워드 다중 검색 후 댓글 수집.
 
     Args:
-        query: 검색어 (브랜드명, 제품명, 이슈 키워드 등)
+        query: 검색어 (브랜드명 + 제품명)
         max_videos: 수집할 최대 영상 수
         max_comments_per_video: 영상당 최대 댓글 수
+        industry: 산업 컨텍스트 (ecommerce|hospital|finance|gaming)
 
     Returns:
         (signals, meta)  — signals는 channel_signal 딕셔너리 목록
@@ -129,15 +149,30 @@ def collect_youtube_signals(
     if not api_key:
         raise ValueError("YOUTUBE_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.")
 
-    logger.info("YouTube 검색 시작: query=%s", query)
-    candidates = _search_videos(
-        query, max_results=max_videos + 3, api_key=api_key
-    )
+    # 산업별 리스크 트리거로 다중 검색
+    risk_queries = _build_risk_queries(query, industry)
+    logger.info("YouTube 리스크 검색 시작: base=%s, queries=%d개", query, len(risk_queries))
+
+    all_candidates: list[dict] = []
+    seen_video_ids: set[str] = set()
+
+    for rq in risk_queries:
+        try:
+            videos = _search_videos(rq, max_results=3, api_key=api_key)
+            for v in videos:
+                if v["video_id"] not in seen_video_ids:
+                    seen_video_ids.add(v["video_id"])
+                    v["search_query"] = rq
+                    all_candidates.append(v)
+        except RequestException as e:
+            logger.warning("검색 실패 query=%s: %s", rq, e)
+
+    logger.info("후보 영상 %d개 (중복 제거 후)", len(all_candidates))
 
     signals: list[dict] = []
     collected_videos = 0
 
-    for video in candidates:
+    for video in all_candidates:
         if collected_videos >= max_videos:
             break
 
@@ -158,6 +193,7 @@ def collect_youtube_signals(
 
     meta = {
         "query": query,
+        "risk_queries": risk_queries,
         "collected_videos": collected_videos,
         "total_signals": len(signals),
         "collected_at": datetime.now(timezone.utc).isoformat(),
