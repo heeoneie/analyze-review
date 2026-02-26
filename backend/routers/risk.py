@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -100,9 +100,12 @@ def get_ontology_graph(
             since_dt = datetime.fromisoformat(since)
         except ValueError as exc:
             raise HTTPException(400, "Invalid 'since' format. Use ISO 8601.") from exc
-        # Ensure TZ-aware comparison
         if since_dt.tzinfo is None:
-            since_dt = since_dt.replace(tzinfo=timezone.utc)
+            raise HTTPException(
+                400,
+                "The 'since' parameter must be a timezone-aware ISO datetime "
+                "string (e.g., ends with 'Z' or '+00:00').",
+            )
         node_q = node_q.filter(Node.last_seen_at >= since_dt)
 
     nodes = node_q.order_by(Node.severity_score.desc()).limit(limit).all()
