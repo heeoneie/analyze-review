@@ -63,6 +63,29 @@ export default function RiskPlaybook({ nodeName, industry, onBack }) {
   const selectedNodeName = (nodeName ?? '').trim();
   const hasNode = selectedNodeName.length > 0;
 
+  const fetchPlaybook = (controller) => {
+    setIsLoading(true);
+    setError(null);
+    setScenarios(null);
+
+    const signal = controller?.signal;
+
+    generatePlaybook({
+      node_name: selectedNodeName,
+      industry: industry || 'ecommerce',
+      lang,
+    })
+      .then((res) => {
+        if (!signal?.aborted) setScenarios(res.data?.scenarios ?? []);
+      })
+      .catch((err) => {
+        if (!signal?.aborted) setError(err.response?.data?.detail || t('playbook.error'));
+      })
+      .finally(() => {
+        if (!signal?.aborted) setIsLoading(false);
+      });
+  };
+
   useEffect(() => {
     if (!hasNode) {
       setIsLoading(false);
@@ -73,31 +96,7 @@ export default function RiskPlaybook({ nodeName, industry, onBack }) {
 
     const controller = new AbortController();
     controllerRef.current = controller;
-
-    setIsLoading(true);
-    setError(null);
-    setScenarios(null);
-
-    generatePlaybook({
-      node_name: selectedNodeName,
-      industry: industry || 'ecommerce',
-      lang,
-    })
-      .then((res) => {
-        if (!controller.signal.aborted) {
-          setScenarios(res.data?.scenarios ?? []);
-        }
-      })
-      .catch((err) => {
-        if (!controller.signal.aborted) {
-          setError(err.response?.data?.detail || t('playbook.error'));
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
-      });
+    fetchPlaybook(controller);
 
     return () => {
       controller.abort();
@@ -106,19 +105,7 @@ export default function RiskPlaybook({ nodeName, industry, onBack }) {
 
   const handleRetry = () => {
     if (!hasNode) return;
-
-    setIsLoading(true);
-    setError(null);
-    setScenarios(null);
-
-    generatePlaybook({
-      node_name: selectedNodeName,
-      industry: industry || 'ecommerce',
-      lang,
-    })
-      .then((res) => setScenarios(res.data?.scenarios ?? []))
-      .catch((err) => setError(err.response?.data?.detail || t('playbook.error')))
-      .finally(() => setIsLoading(false));
+    fetchPlaybook(null);
   };
 
   /* ── Empty State: no node selected ── */

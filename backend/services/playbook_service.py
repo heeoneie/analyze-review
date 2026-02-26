@@ -173,16 +173,26 @@ def generate_playbook(
     )
 
     for attempt in range(2):  # max 1 retry
-        raw = call_openai_json(client, prompt, system_prompt)
+        try:
+            raw = call_openai_json(client, prompt, system_prompt)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "LLM 호출 실패 (attempt %d)", attempt + 1, exc_info=True,
+            )
+            if attempt == 0:
+                continue
+            return _safe_fallback(node_name, industry, lang)
+
         try:
             parsed = json.loads(raw)
         except (json.JSONDecodeError, TypeError):
             parsed = extract_json_from_text(raw)
             if parsed is None:
                 if attempt == 0:
-                    logger.warning("JSON 파싱 실패, 재시도 (attempt %d)", attempt + 1)
+                    logger.warning(
+                        "JSON 파싱 실패, 재시도 (attempt %d)", attempt + 1,
+                    )
                     continue
-                # Final fallback
                 return _safe_fallback(node_name, industry, lang)
 
         try:
@@ -191,60 +201,93 @@ def generate_playbook(
                 return result.model_dump()
         except Exception:  # pylint: disable=broad-exception-caught
             if attempt == 0:
-                logger.warning("Pydantic 검증 실패, 재시도 (attempt %d)", attempt + 1)
+                logger.warning(
+                    "Pydantic 검증 실패, 재시도 (attempt %d)", attempt + 1,
+                )
                 continue
 
     return _safe_fallback(node_name, industry, lang)
 
 
 def _safe_fallback(
-    node_name: Optional[str],
-    industry: str,
-    lang: str,  # pylint: disable=unused-argument
+    node_name: Optional[str], industry: str, lang: str,
 ) -> dict:
     """Return a safe, schema-compliant fallback when LLM fails."""
     logger.error("LLM 생성 2회 실패 — safe fallback 반환")
     target = node_name or industry
+
+    if lang == "ko":
+        steps = [
+            [
+                f"{target} 관련 신호를 24시간 모니터링",
+                "CS팀 내부 FAQ 준비",
+                "고객 커뮤니케이션 템플릿 작성",
+            ],
+            [
+                f"{target} 관련 공식 입장문 발표",
+                "CS팀과 통합 메시징 조율",
+                "주요 미디어 대상 내러티브 관리",
+            ],
+            [
+                f"{target} 법적 리스크 검토 착수",
+                "C레벨 경영진 에스컬레이션",
+                "규제 컴플라이언스 문서 준비",
+            ],
+        ]
+        impacts = [
+            "최소 개입으로 고객 신뢰를 유지하며 "
+            "선제적 커뮤니케이션 수행",
+            "균형 잡힌 대응으로 내러티브를 통제하며 "
+            "이해관계자 우려 해소",
+            "법적·규제 리스크로부터 기업을 보호하는 "
+            "최대 봉쇄 전략",
+        ]
+    else:
+        steps = [
+            [
+                f"Monitor {target} signals for 24 hours",
+                "Prepare internal FAQ for CS team",
+                "Draft customer communication template",
+            ],
+            [
+                f"Issue official statement regarding {target}",
+                "Coordinate with CS for unified messaging",
+                "Engage key media contacts for narrative control",
+            ],
+            [
+                f"Initiate legal review of {target} exposure",
+                "Escalate to C-level for executive decision",
+                "Prepare regulatory compliance documentation",
+            ],
+        ]
+        impacts = [
+            "Minimal disruption; maintains customer trust "
+            "through proactive communication.",
+            "Balanced response; controls narrative "
+            "while addressing stakeholder concerns.",
+            "Maximum containment; protects company "
+            "from legal and regulatory risk.",
+        ]
+
     return PlaybookResponse(
         scenarios=[
             ScenarioItem(
                 strategy_name="Conservative",
                 primary_agent="CS",
-                action_steps=[
-                    f"Monitor {target} signals for 24 hours",
-                    "Prepare internal FAQ for CS team",
-                    "Draft customer communication template",
-                ],
-                estimated_impact=(
-                    "Minimal disruption; maintains customer trust "
-                    "through proactive communication."
-                ),
+                action_steps=steps[0],
+                estimated_impact=impacts[0],
             ),
             ScenarioItem(
                 strategy_name="Moderate",
                 primary_agent="PR",
-                action_steps=[
-                    f"Issue official statement regarding {target}",
-                    "Coordinate with CS for unified messaging",
-                    "Engage key media contacts for narrative control",
-                ],
-                estimated_impact=(
-                    "Balanced response; controls narrative "
-                    "while addressing stakeholder concerns."
-                ),
+                action_steps=steps[1],
+                estimated_impact=impacts[1],
             ),
             ScenarioItem(
                 strategy_name="Aggressive",
                 primary_agent="Legal",
-                action_steps=[
-                    f"Initiate legal review of {target} exposure",
-                    "Escalate to C-level for executive decision",
-                    "Prepare regulatory compliance documentation",
-                ],
-                estimated_impact=(
-                    "Maximum containment; protects company "
-                    "from legal and regulatory risk."
-                ),
+                action_steps=steps[2],
+                estimated_impact=impacts[2],
             ),
         ]
     ).model_dump()

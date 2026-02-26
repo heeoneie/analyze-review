@@ -161,5 +161,7 @@ def create_playbook(
             db=db,
         )
     except Exception as e:
-        logger.error("플레이북 생성 실패: %s", e)
-        raise HTTPException(500, f"플레이북 생성 중 오류: {e}") from e
+        logger.error("플레이북 생성 실패: %s", e, exc_info=True)
+        raise HTTPException(
+            500, "플레이북 생성 중 내부 서버 오류가 발생했습니다."
+        ) from e
