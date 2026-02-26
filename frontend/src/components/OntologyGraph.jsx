@@ -37,7 +37,9 @@ function getLayoutedElements(nodes, edges) {
   dagreGraph.setGraph({ rankdir: 'LR' });
 
   // Clear stale data from previous layout runs
-  dagreGraph.nodes().forEach((n) => dagreGraph.removeNode(n));
+  dagreGraph.nodes().forEach((n) => {
+    dagreGraph.removeNode(n);
+  });
 
   nodes.forEach((node) => {
     dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
@@ -376,6 +378,7 @@ export default function OntologyGraph({ data, loading, error: parentError }) {
           <SlidersHorizontal size={13} className={`flex-shrink-0 ${isLiveOverride ? 'text-zinc-600' : 'text-zinc-500'}`} />
           <input
             type="range"
+            aria-label="Minimum severity filter"
             min={0}
             max={10}
             step={0.5}
@@ -416,6 +419,8 @@ export default function OntologyGraph({ data, loading, error: parentError }) {
                 Node Detail
               </span>
               <button
+                type="button"
+                aria-label="Close node detail"
                 onClick={() => setSelectedNode(null)}
                 className="p-1 rounded-md text-zinc-500 hover:text-zinc-300
                   hover:bg-zinc-800 transition-colors"
