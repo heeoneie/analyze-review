@@ -24,35 +24,29 @@ import {
 import { useLang } from '../contexts/LangContext';
 
 /* ────────────────────────────────────────────
-   Dagre layout — defined OUTSIDE component
-   to prevent recreation on every render
+   Dagre layout — new instance per call to
+   avoid shared-state race conditions
    ──────────────────────────────────────────── */
-const dagreGraph = new dagre.graphlib.Graph();
-dagreGraph.setDefaultEdgeLabel(() => ({}));
-
 const NODE_WIDTH = 250;
 const NODE_HEIGHT = 80;
 
 function getLayoutedElements(nodes, edges) {
-  dagreGraph.setGraph({ rankdir: 'LR' });
-
-  // Clear stale data from previous layout runs
-  dagreGraph.nodes().forEach((n) => {
-    dagreGraph.removeNode(n);
-  });
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: 'LR' });
 
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   });
 
   edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.source, edge.target);
+    g.setEdge(edge.source, edge.target);
   });
 
-  dagre.layout(dagreGraph);
+  dagre.layout(g);
 
   const layoutedNodes = nodes.map((node) => {
-    const pos = dagreGraph.node(node.id);
+    const pos = g.node(node.id);
     const fallback = node.position ?? { x: 0, y: 0 };
     return {
       ...node,
@@ -84,24 +78,16 @@ function CustomRiskNode({ data }) {
   const severity = data.severity_score ?? 0;
   const Icon = TYPE_ICONS[data.type] || Network;
 
-  let borderColor, shadowClass, badgeColor;
-  if (severity >= 8) {
-    borderColor = 'border-rose-500';
-    shadowClass = 'shadow-[0_0_15px_rgba(225,29,72,0.3)]';
-    badgeColor = 'bg-rose-500/20 text-rose-400';
-  } else if (severity >= 5) {
-    borderColor = 'border-amber-500';
-    shadowClass = 'shadow-[0_0_10px_rgba(245,158,11,0.2)]';
-    badgeColor = 'bg-amber-500/20 text-amber-400';
-  } else {
-    borderColor = 'border-emerald-600';
-    shadowClass = '';
-    badgeColor = 'bg-emerald-500/20 text-emerald-400';
-  }
+  const shadowClass =
+    severity >= 8
+      ? 'shadow-[0_0_15px_rgba(225,29,72,0.3)]'
+      : severity >= 5
+        ? 'shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+        : '';
 
   return (
     <div
-      className={`bg-zinc-900 ${borderColor} border text-zinc-100 ${shadowClass} rounded-lg p-3 min-w-[200px]`}
+      className={`bg-zinc-900 ${severityBorder(severity)} border text-zinc-100 ${shadowClass} rounded-lg p-3 min-w-[200px]`}
     >
       <Handle
         type="target"
@@ -118,7 +104,7 @@ function CustomRiskNode({ data }) {
         <Icon size={14} className="text-zinc-400 flex-shrink-0" />
         <span className="text-xs text-zinc-500 capitalize">{data.type}</span>
         <span
-          className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto font-medium ${badgeColor}`}
+          className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto font-medium ${severityBadge(severity)}`}
         >
           {severity.toFixed(1)}
         </span>
@@ -227,27 +213,9 @@ export default function OntologyGraph({ data, loading, error: parentError }) {
   /* --- Single unified useEffect: props.data override OR API fetch --- */
   useEffect(() => {
     // If parent provides live-generated data, use it — skip fetch
+    // Reuse applyGraphData so edge severity styling is applied consistently
     if (data?.nodes?.length) {
-      const rfNodes = data.nodes.map((n) => ({
-        id: String(n.id),
-        type: 'custom',
-        data: {
-          label: n.data?.label ?? n.label ?? n.id,
-          type: n.data?.type ?? n.type ?? 'signal',
-          severity_score: n.data?.severity_score ?? n.severity ?? 0,
-        },
-        position: n.position ?? { x: 0, y: 0 },
-      }));
-
-      const rfEdges = (data.edges ?? data.links ?? []).map((e, i) => ({
-        id: String(e.id ?? `e-${e.source}-${e.target}-${i}`),
-        source: String(e.source),
-        target: String(e.target),
-        label: e.label ?? e.relation ?? '',
-        data: e.data ?? {},
-      }));
-
-      applyGraphData(rfNodes, rfEdges);
+      applyGraphData(data.nodes, data.edges ?? data.links ?? []);
       return;
     }
 
