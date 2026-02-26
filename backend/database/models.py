@@ -30,18 +30,18 @@ class Node(Base):
     type: Mapped[str] = mapped_column(String(64), nullable=False)
     severity_score: Mapped[float] = mapped_column(Float, default=0.0)
     source: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime, default=_utcnow, onupdate=_utcnow,
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
     )
 
     outgoing_edges: Mapped[list["Edge"]] = relationship(
         "Edge", foreign_keys="Edge.source_node_id", back_populates="source_node",
-        cascade="all, delete-orphan",
+        cascade="all, delete-orphan", passive_deletes=True,
     )
     incoming_edges: Mapped[list["Edge"]] = relationship(
         "Edge", foreign_keys="Edge.target_node_id", back_populates="target_node",
-        cascade="all, delete-orphan",
+        cascade="all, delete-orphan", passive_deletes=True,
     )
 
     __table_args__ = (
@@ -62,9 +62,9 @@ class Edge(Base):
     relationship_type: Mapped[str] = mapped_column(String(128), nullable=False)
     weight: Mapped[float] = mapped_column(Float, default=1.0)
     source: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime, default=_utcnow, onupdate=_utcnow,
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
     )
 
     source_node: Mapped["Node"] = relationship(

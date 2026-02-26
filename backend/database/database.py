@@ -1,17 +1,18 @@
 """SQLite database engine and session factory for ontology persistence."""
 
+import os
 from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-# Project root = 3 levels up from this file (database.py → database/ → backend/ → project root)
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_DB_DIR = _PROJECT_ROOT / "data"
-_DB_DIR.mkdir(parents=True, exist_ok=True)
-_DB_PATH = _DB_DIR / "ontology.db"
-
-DATABASE_URL = f"sqlite:///{_DB_PATH}"
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    _PROJECT_ROOT = Path(__file__).resolve().parents[2]
+    _DB_DIR = _PROJECT_ROOT / "data"
+    _DB_DIR.mkdir(parents=True, exist_ok=True)
+    _DB_PATH = _DB_DIR / "ontology.db"
+    DATABASE_URL = f"sqlite:///{_DB_PATH}"
 
 engine = create_engine(
     DATABASE_URL,

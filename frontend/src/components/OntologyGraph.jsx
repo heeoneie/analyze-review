@@ -105,12 +105,13 @@ function DynamicDAG({ nodes: rawNodes, links: rawLinks }) {
       })}
 
       {/* edges */}
-      {edges.map((e, i) => {
+      {edges.map((e) => {
         const fn = nodeMap[e.source];
         const tn = nodeMap[e.target];
         const isHigh = (fn.severity || 0) >= 7 || (tn.severity || 0) >= 7;
+        const edgeKey = `${e.source}-${e.target}-${e.relation || ''}`;
         return (
-          <path key={i} d={epath(fn, tn)} fill="none"
+          <path key={edgeKey} d={epath(fn, tn)} fill="none"
             stroke={isHigh ? '#F87171' : '#334155'}
             strokeWidth={isHigh ? 2 : 1}
             strokeOpacity={isHigh ? 0.9 : 0.55}

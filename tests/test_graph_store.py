@@ -1,6 +1,7 @@
 """Tests for ontology graph persistence (in-memory SQLite — no LLM calls)."""
 
 import logging
+from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import create_engine
@@ -146,10 +147,16 @@ def test_dangling_edge_skipped(db_session):
 
 
 def test_timestamps_are_utc(db_session):
+    before = datetime.now(timezone.utc).replace(tzinfo=None)
     persist_ontology(db_session, MOCK_ONTOLOGY, source="test")
+    after = datetime.now(timezone.utc).replace(tzinfo=None)
+
     node = db_session.query(Node).first()
     assert node.created_at is not None
     assert node.last_seen_at is not None
+    # SQLite strips tzinfo on round-trip; verify value is within UTC window
+    assert before <= node.created_at <= after
+    assert before <= node.last_seen_at <= after
 
 
 def test_db_none_logs_warning_and_returns_zero(caplog):
