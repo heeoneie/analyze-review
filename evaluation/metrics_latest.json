@@ -1,0 +1,78 @@
+{
+  "meta": {
+    "model": "gemini-2.0-flash",
+    "temperature": 0.3,
+    "dataset_size": 60,
+    "evaluated_at": "2026-02-24T15:07:23.391564",
+    "mode": "baseline",
+    "dataset_file": "evaluation/evaluation_dataset.csv"
+  },
+  "overall": {
+    "accuracy": 0.9667,
+    "precision_weighted": 0.9714,
+    "recall_weighted": 0.9667,
+    "f1_weighted": 0.9646
+  },
+  "per_class": {
+    "customer_service": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 6
+    },
+    "damaged_packaging": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 6
+    },
+    "delivery_delay": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 6
+    },
+    "missing_parts": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 6
+    },
+    "not_as_described": {
+      "precision": 0.8571,
+      "recall": 1.0,
+      "f1": 0.9231,
+      "support": 6
+    },
+    "other": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 6
+    },
+    "poor_quality": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 6
+    },
+    "price_issue": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 6
+    },
+    "size_issue": {
+      "precision": 0.8571,
+      "recall": 1.0,
+      "f1": 0.9231,
+      "support": 6
+    },
+    "wrong_item": {
+      "precision": 1.0,
+      "recall": 0.6667,
+      "f1": 0.8,
+      "support": 6
+    }
+  }
+}

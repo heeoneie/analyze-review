@@ -1,3 +1,4 @@
+# pylint: disable=wrong-import-position,wrong-import-order,ungrouped-imports
 """
 Level 1: 정량적 평가 시스템
 AI 예측 결과와 Ground Truth를 비교하여 정확도 측정
@@ -9,19 +10,69 @@ import os
 import sys
 from datetime import datetime
 
-import matplotlib.pyplot as plt
+import matplotlib
+
+matplotlib.use('Agg')  # non-interactive backend — pyplot import 전에 반드시 호출
+
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np
 import pandas as pd
 import seaborn as sns
-from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    precision_recall_fscore_support,
+)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from core.analyzer import ReviewAnalyzer  # pylint: disable=wrong-import-position
+from core import config as _config  # pylint: disable=wrong-import-position
+from core.utils.json_utils import (
+    extract_json_from_text,  # pylint: disable=wrong-import-position
+)
+from core.utils.openai_client import (  # pylint: disable=wrong-import-position
+    call_openai_json,
+    get_client,
+)
+from core.utils.review_categories import (
+    CATEGORIES_BULLETS,  # pylint: disable=wrong-import-position
+)
+
+
+class _NumpyEncoder(json.JSONEncoder):
+    """numpy 타입을 Python 기본 타입으로 변환"""
+    def default(self, o):
+        if isinstance(o, np.integer):
+            return int(o)
+        if isinstance(o, np.floating):
+            return float(o)
+        return super().default(o)
+
+
+def _build_eval_prompt(reviews_text: str, review_count: int) -> str:
+    """평가 전용 프롬프트 — 고정 영어 카테고리 사용 (ground truth와 일치)"""
+    return (
+        f"Classify {review_count} e-commerce reviews into exactly one category each.\n\n"
+        "Categories (use the exact key name, no translation):\n"
+        f"{CATEGORIES_BULLETS}\n"
+        "Reviews:\n"
+        f"{reviews_text}\n\n"
+        "Output JSON:\n"
+        '{{\n'
+        '  "categories": [\n'
+        '    {{"review_number": 1, "category": "delivery_delay", "brief_issue": "..."}},\n'
+        '    ...\n'
+        '  ]\n'
+        '}}\n'
+        "Rules: category MUST be one of the keys above (English snake_case). "
+        "Never translate or create new category names."
+    )
+
 
 class Evaluator:
     def __init__(self, ground_truth_file='evaluation/evaluation_dataset.csv'):
         self.ground_truth_file = ground_truth_file
-        self.analyzer = ReviewAnalyzer()
+        self._client = get_client()
 
     def load_ground_truth(self):
         """Ground Truth 데이터 로드"""
@@ -38,9 +89,22 @@ class Evaluator:
         return df
 
     def predict_categories(self, reviews_text_list):
-        """AI로 카테고리 예측"""
+        """AI로 카테고리 예측 (고정 영어 카테고리 사용)"""
         print("\n🤖 AI 예측 중...")
-        categorization = self.analyzer.categorize_issues(reviews_text_list)
+
+        reviews_text = "\n---\n".join(
+            f"{i + 1}. {text[:500]}" for i, text in enumerate(reviews_text_list)
+        )
+        prompt = _build_eval_prompt(reviews_text, len(reviews_text_list))
+        content = call_openai_json(
+            self._client,
+            prompt,
+            system_prompt=(
+                "You are an expert review classifier. "
+                "Always return the exact English snake_case category key."
+            ),
+        )
+        categorization = extract_json_from_text(content) or {}
 
         # 예측 결과를 리뷰 순서대로 정렬
         predictions = {}
@@ -137,14 +201,14 @@ class Evaluator:
         # 메트릭스 저장
         metrics_file = f'results/{mode}_metrics_{timestamp}.json'
         with open(metrics_file, 'w', encoding='utf-8') as f:
-            json.dump(metrics, f, indent=2, ensure_ascii=False)
+            json.dump(metrics, f, indent=2, ensure_ascii=False, cls=_NumpyEncoder)
         print(f"\n💾 메트릭스 저장: {metrics_file}")
 
         # 에러 케이스 저장
         if errors:
             errors_file = f'results/{mode}_errors_{timestamp}.json'
             with open(errors_file, 'w', encoding='utf-8') as f:
-                json.dump(errors, f, indent=2, ensure_ascii=False)
+                json.dump(errors, f, indent=2, ensure_ascii=False, cls=_NumpyEncoder)
             print(f"💾 에러 케이스 저장: {errors_file}")
 
     def print_results(self, metrics, errors):

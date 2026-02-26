@@ -4,6 +4,10 @@ openai>=1.0.0
 google-genai>=1.0.0
 python-dotenv>=1.0.0
 kagglehub>=0.2.0
+requests>=2.31.0
+
+# Database (Ontology Persistence)
+sqlalchemy>=2.0.0
 
 # Dev Tools
 pylint>=3.0.0

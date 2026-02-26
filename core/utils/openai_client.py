@@ -1,32 +1,41 @@
 """
 LLM API 호출 공통 유틸리티
-OpenAI 우선 호출, 실패 시 Google Gemini 폴백
+LLM_PROVIDER=google  → Gemini 우선, 429시 backoff 재시도 후 OpenAI 폴백 (로컬 개발)
+LLM_PROVIDER=openai  → OpenAI 우선, Gemini 폴백 (배포 환경, 기본값)
 """
 
 import logging
+import time
 
 from google import genai
 from google.genai import types
+from google.genai.errors import ClientError as GeminiClientError
 from openai import OpenAI
 
 from core import config
 
 logger = logging.getLogger(__name__)
 
+# Gemini 429 재시도 설정
+_GEMINI_RETRY_DELAYS = [10, 30]  # 1차: 10초 대기, 2차: 30초 대기 후 OpenAI 폴백
+
 _openai_client = None  # pylint: disable=invalid-name
 _gemini_client = None  # pylint: disable=invalid-name
 
 
 def get_client():
-    """OpenAI 클라이언트 반환 (기본)"""
+    """OpenAI 클라이언트 반환. OPENAI_API_KEY 미설정 시 None 반환 (Gemini 모드 지원)."""
     global _openai_client  # pylint: disable=global-statement
     if _openai_client is None:
+        if not config.OPENAI_API_KEY:
+            logger.warning("OPENAI_API_KEY가 설정되지 않아 OpenAI 클라이언트를 초기화할 수 없습니다.")
+            return None
         _openai_client = OpenAI(api_key=config.OPENAI_API_KEY)
     return _openai_client
 
 
-def _get_fallback_client():
-    """Gemini 클라이언트 반환 (폴백)"""
+def _get_gemini_client():
+    """Gemini 클라이언트 반환"""
     global _gemini_client  # pylint: disable=global-statement
     if _gemini_client is None:
         _gemini_client = genai.Client(api_key=config.GOOGLE_API_KEY)
@@ -35,6 +44,8 @@ def _get_fallback_client():
 
 def _call_openai(client, prompt, system_prompt, model, temperature):
     """OpenAI API 호출"""
+    if client is None:
+        raise RuntimeError("OpenAI 클라이언트 없음 (OPENAI_API_KEY 미설정)")
     response = client.chat.completions.create(
         model=model,
         messages=[
@@ -48,8 +59,8 @@ def _call_openai(client, prompt, system_prompt, model, temperature):
 
 
 def _call_gemini(prompt, system_prompt, temperature):
-    """Gemini API 폴백 호출"""
-    fallback = _get_fallback_client()
+    """Gemini API 호출"""
+    fallback = _get_gemini_client()
     response = fallback.models.generate_content(
         model=config.FALLBACK_LLM_MODEL,
         contents=prompt,
@@ -70,23 +81,35 @@ def call_openai_json(
     temperature=None,
 ):
     """
-    LLM API를 호출하여 JSON 응답을 반환
-    OpenAI 우선, 실패 시 Gemini 폴백
-
-    Args:
-        client: OpenAI 클라이언트 (get_client() 반환값)
-        prompt: 사용자 프롬프트
-        system_prompt: 시스템 프롬프트
-        model: 사용할 모델 (기본값: config.LLM_MODEL)
-        temperature: 온도 설정 (기본값: config.LLM_TEMPERATURE)
-
-    Returns:
-        API 응답의 text content (문자열)
+    LLM API를 호출하여 JSON 응답을 반환.
+    LLM_PROVIDER 환경변수에 따라 primary/fallback 순서가 바뀜:
+      - "google" : Gemini 우선 → OpenAI 폴백  (로컬 개발)
+      - "openai" : OpenAI 우선 → Gemini 폴백  (배포, 기본값)
     """
     if model is None:
         model = config.LLM_MODEL
     if temperature is None:
         temperature = config.LLM_TEMPERATURE
+
+    if config.LLM_PROVIDER == "google":
+        # 429 시 backoff 재시도 → 최종 실패 시 OpenAI 폴백
+        last_exc = None
+        for attempt, delay in enumerate([0, *_GEMINI_RETRY_DELAYS]):
+            if delay:
+                logger.warning("Gemini 429 — %d초 대기 후 재시도 (attempt %d)", delay, attempt + 1)
+                time.sleep(delay)
+            try:
+                return _call_gemini(prompt, system_prompt, temperature)
+            except GeminiClientError as e:
+                if getattr(e, "status_code", None) == 429:
+                    last_exc = e
+                    continue  # 재시도
+                break  # 429 외 에러는 바로 OpenAI 폴백
+            except Exception:  # pylint: disable=broad-except
+                break  # 비 429 예외는 바로 OpenAI 폴백
+
+        logger.warning("Gemini 재시도 소진, OpenAI 폴백 (last_exc=%s)", last_exc)
+        return _call_openai(client, prompt, system_prompt, model, temperature)
 
     try:
         return _call_openai(client, prompt, system_prompt, model, temperature)

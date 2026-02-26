@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """
 리스크 인텔리전스 서비스
 온톨로지 그래프, 컴플라이언스 보고서, 회의 안건 자동 생성
@@ -10,6 +11,11 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from datetime import date
 
+from sqlalchemy.orm import Session
+
+# Ontology persistence
+from backend.database.graph_store import persist_ontology
+from core import config as _cfg
 from core.utils.json_utils import extract_json_from_text
 from core.utils.openai_client import call_openai_json, get_client
 
@@ -60,7 +66,7 @@ def _get_industry(analysis_data: dict) -> dict:
     return INDUSTRY_CONTEXT.get(industry_id, INDUSTRY_CONTEXT["ecommerce"])
 
 
-def generate_ontology(analysis_data: dict) -> dict:
+def generate_ontology(analysis_data: dict, db: Session | None = None) -> dict:
     """분석 결과를 기반으로 온톨로지 지식 그래프 생성"""
     lang = analysis_data.get("lang", "ko")
     ind = _get_industry(analysis_data)
@@ -124,6 +130,7 @@ def generate_ontology(analysis_data: dict) -> dict:
 
     if not result or "nodes" not in result:
         return {"nodes": [], "links": [], "summary": "온톨로지 생성에 실패했습니다."}
+    persist_ontology(db, result, source="generate_ontology")
     return result
 
 
@@ -720,12 +727,13 @@ DEMO_DATA = {
 }
 
 
-def _demo_signals_text(signals: list) -> str:
+def _signals_to_text(signals: list) -> str:
     return json.dumps(signals, ensure_ascii=False, indent=2)
 
 
 def _demo_generate_ontology(
-    client, signals_text: str, incident_context: str, lang: str = "ko"
+    client, signals_text: str, incident_context: str, lang: str = "ko",
+    db: Session | None = None,
 ) -> dict:
     prompt = f"""다음은 4개 채널에서 동시에 감지된 동일 사건의 데이터입니다.
 
@@ -762,6 +770,7 @@ risk_type 노드에 severity 10 포함."""
     content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
     result = extract_json_from_text(content)
     if result and "nodes" in result:
+        persist_ontology(db, result, source="demo")
         return result
     return {"nodes": [], "links": [], "summary": "온톨로지 생성 실패"}
 
@@ -874,11 +883,316 @@ def _demo_generate_meeting(client, incident_context: str, lang: str = "ko") -> d
     }
 
 
-def analyze_demo_scenario(industry: str = "ecommerce", lang: str = "ko") -> dict:
+def _real_generate_ontology(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    client, signals_text: str, incident_context: str, signal_count: int, lang: str = "ko",
+    db: Session | None = None,
+) -> dict:
+    """실제 수집 데이터 기반 온톨로지 생성 (mock 고정 문구 없음)"""
+    prompt = f"""다음은 YouTube에서 실시간 수집한 {signal_count}개의 댓글 시그널입니다.
+
+## 사건 개요
+{incident_context}
+
+## 수집된 댓글 시그널
+{signals_text[:5000]}
+
+## 분석 지시
+위 댓글에서 실제로 언급된 리스크 키워드를 추출하고, 4-layer 인과관계 DAG를 생성하세요.
+
+### 4-Layer 구조 (반드시 준수)
+1. **Signal** (layer=0): 댓글에서 직접 언급된 구체적 신호 (예: "hearing damage reported", "battery exploded")
+2. **Event** (layer=1): 시그널이 가리키는 실제 사건/이슈 (예: "Product Defect Pattern", "Safety Incident")
+3. **Impact** (layer=2): 사건으로 인한 비즈니스 영향 (예: "Class Action Risk", "Brand Trust Erosion")
+4. **Response** (layer=3): 권고 대응 조치 (예: "Recall Assessment", "PR Crisis Response")
+
+### 핵심 규칙
+- Signal 노드는 댓글에서 **실제 언급된 표현**을 기반으로 생성 (창작 금지)
+- 각 layer에 최소 2개 노드
+- links는 반드시 layer 0→1→2→3 방향으로만 연결 (역방향 금지)
+- severity 기준 (엄격 적용):
+  - 9-10: 뉴스 보도·소송·리콜·사망 등 확인된 대형 사건
+  - 7-8: 다수 사용자가 보고한 반복적 결함·안전 이슈
+  - 5-6: 소수 사용자의 개별 불만·의혹 제기
+  - 3-4: 일반적 불만 수준, 리스크라기보단 피드백
+  - 1-2: 리스크 근거 없음
+- 리스크 키워드가 "없음"이면 노드 수를 최소화하고 severity를 3 이하로
+
+## 출력 형식
+{{
+  "nodes": [
+    {{"id": "n1", "label": "노드명 (영문)", "type": "signal|event|impact|response", "layer": 0, "severity": 7}}
+  ],
+  "links": [
+    {{"source": "n1", "target": "n2", "relation": "관계명"}}
+  ],
+  "summary": "수집된 댓글 기반 리스크 인과관계 요약 (2-3문장)"
+}}
+
+노드 12~20개, links 15~30개."""
+
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
+    result = extract_json_from_text(content)
+    if result and "nodes" in result:
+        persist_ontology(db, result, source="youtube")
+        return result
+    return {"nodes": [], "links": [], "summary": "온톨로지 생성 실패"}
+
+
+def _real_generate_compliance(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    client, signals_text: str, incident_context: str,
+    signal_count: int, brand: str, lang: str = "ko"
+) -> dict:
+    """실제 수집 데이터 기반 컴플라이언스 보고서 생성 (mock 고정 문구 없음)"""
+    today = date.today().isoformat()
+    prompt = f"""다음 YouTube 댓글 수집 결과로 리스크 컴플라이언스 보고서를 생성하세요.
+
+## 사건 개요
+{incident_context}
+
+## 수집된 시그널 ({signal_count}개 YouTube 댓글)
+{signals_text[:5000]}
+
+## 출력 형식
+{{
+  "report_title": "{brand} 리스크 모니터링 보고서",
+  "report_date": "{today}",
+  "overall_risk_level": "위험|경고|주의|안전 중 하나",
+  "monitoring_summary": "수집된 댓글 기반으로 실제 상황을 2-3문장으로 요약",
+  "monitored_channels": [
+    {{"channel": "YouTube 댓글", "feed_count": {signal_count}, "risk_count": 0, "status": "active"}}
+  ],
+  "risk_assessment": {{
+    "legal": {{"level": "low|medium|high", "description": "법적 리스크 설명"}},
+    "reputation": {{"level": "low|medium|high", "description": "평판 리스크 설명"}},
+    "operational": {{"level": "low|medium|high", "description": "운영 리스크 설명"}},
+    "safety": {{"level": "low|medium|high", "description": "안전 리스크 설명"}}
+  }},
+  "risk_events": [
+    {{
+      "id": 1, "severity": "critical|high|medium|low",
+      "category": "실제 이슈 카테고리",
+      "channel": "YouTube 댓글",
+      "description": "댓글에서 발견된 실제 이슈 설명",
+      "affected_count": 0,
+      "recommended_action": "구체적 권고 조치"
+    }}
+  ],
+  "next_actions": ["즉각 조치 3개 이상"]
+}}
+
+risk_events는 실제 댓글 내용 기반으로 작성. overall_risk_level과 risk_assessment level은 실제 데이터 심각도 반영."""
+
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
+    result = extract_json_from_text(content)
+    return result if result else {
+        "report_title": f"{brand} 리스크 모니터링 보고서",
+        "overall_risk_level": "주의",
+        "monitoring_summary": (
+            f"YouTube에서 {brand} 관련 {signal_count}개 댓글을 수집했습니다."
+        ),
+        "monitored_channels": [
+            {"channel": "YouTube 댓글", "feed_count": signal_count,
+             "risk_count": 0, "status": "active"}
+        ],
+        "risk_assessment": {},
+        "risk_events": [],
+        "next_actions": [],
+    }
+
+
+def _real_generate_meeting(
+    client, incident_context: str, brand: str, lang: str = "ko"
+) -> dict:
+    """실제 수집 데이터 기반 회의 안건 생성 (mock 고정 문구 없음)"""
+    prompt = f"""다음 위기 상황에 대한 경영진 대응 회의 안건을 생성하세요.
+
+## 위기 개요
+{incident_context}
+
+## 브랜드
+{brand}
+
+## 출력 형식 (모든 필드 필수)
+{{
+  "meeting_title": "{brand} 리스크 대응 회의",
+  "urgency": "초긴급|긴급|일반 중 리스크 수준에 맞게",
+  "estimated_duration": "60분",
+  "attendees": [
+    {{"department": "법무팀", "role": "CLO", "reason": "법적 대응 총괄"}},
+    {{"department": "홍보팀", "role": "팀장", "reason": "위기 커뮤니케이션"}},
+    {{"department": "품질관리팀", "role": "팀장", "reason": "제품 품질 점검"}},
+    {{"department": "CS팀", "role": "팀장", "reason": "고객 불만 대응"}},
+    {{"department": "경영", "role": "CEO", "reason": "최종 의사결정"}}
+  ],
+  "agenda_items": [
+    {{
+      "topic": "안건 제목 (사건 기반 구체적으로)",
+      "duration": "15분",
+      "priority": "critical",
+      "discussion_points": ["논의사항 1", "논의사항 2"],
+      "action_items": ["조치사항 1", "조치사항 2"]
+    }}
+  ],
+  "preparation": ["사전 준비사항 1", "사전 준비사항 2", "사전 준비사항 3"]
+}}
+
+규칙:
+- agenda_items 3~4개, 각각 topic/duration/priority/discussion_points/action_items 필수
+- attendees는 사건 내용에 맞는 부서 5~7명
+- 실제 사건 내용 기반으로 구체적으로 작성 (일반론 금지)"""
+
+    content = call_openai_json(client, prompt, system_prompt=_get_system_prompt(lang))
+    result = extract_json_from_text(content)
+    return result if result else {
+        "meeting_title": f"{brand} 리스크 대응 회의",
+        "urgency": "긴급",
+        "attendees": [],
+        "agenda_items": [],
+        "preparation": [],
+    }
+
+
+def analyze_youtube_scenario(  # pylint: disable=too-many-locals
+    signals: list[dict], brand: str, lang: str = "ko",
+    db: Session | None = None,
+) -> dict:
+    """
+    실제 YouTube 댓글 시그널을 LLM으로 분석.
+    analyze_demo_scenario 와 동일한 출력 형식 반환.
+    """
+    signals_text = _signals_to_text(signals)
+
+    # ① 사건 개요 추론 (incident_title / summary / risk_level / clustering_reason)
+    client = get_client()
+    overview_prompt = f"""다음은 YouTube에서 수집한 '{brand}' 관련 실제 댓글 데이터입니다.
+
+## 수집 시그널 ({len(signals)}개 댓글)
+{signals_text[:6000]}
+
+## 리스크 판별 기준
+아래에 해당하면 리스크로 분류하세요:
+- 신체 상해/건강 위협 언급 (bleeding, hearing damage, burn, injury, 청력 손상 등)
+- 제품 결함 보고 (broken out of box, defective, malfunction, 고장, 불량 등)
+- 제품 결함 은폐 의혹 (pretend doesn't exist, won't admit, known issue, 알면서 무시 등)
+- 과금/사기 주장 + 구체적 근거 (scam, overcharge, rip off + 금액/경험 언급)
+- 법적 소송·리콜·규제 위반·집단소송 언급
+- 안전 사고·데이터 유출·사망·감염 관련 보고
+
+아래는 리스크가 아닙니다:
+- 단순 구매 추천/비추천 (love it, hate it, don't buy)
+- 음질/디자인/착용감 등 취향 의견
+- 구체적 사기 주장 없이 "비싸다"는 일반 불만
+- 경쟁 제품 비교 (X is better than Y)
+
+## 지시
+1. 위 기준으로 댓글을 분류하고, 리스크 댓글이 1건 이상이면 해당 리스크를 요약하세요.
+2. 리스크 댓글이 0건이면 risk_level을 "GREEN"으로 하세요.
+3. risk_keywords: 감지된 리스크 키워드 목록 (온톨로지 생성에 사용됨)
+
+{{
+  "incident_title": "사건 한 줄 제목 (20자 이내, 리스크 없으면 'No significant risk detected')",
+  "incident_summary": "2-3문장 요약",
+  "risk_level": "RED|YELLOW|GREEN",
+  "clustering_reason": "동일 사건으로 클러스터링된 근거 (1-2문장)",
+  "risk_comment_count": 0,
+  "risk_keywords": ["keyword1", "keyword2"]
+}}"""
+
+    overview_raw = call_openai_json(client, overview_prompt, system_prompt=_get_system_prompt(lang))
+    overview = extract_json_from_text(overview_raw) or {}
+
+    incident_title = overview.get("incident_title", f"{brand} 리스크 감지")
+    incident_summary = overview.get(
+        "incident_summary",
+        f"YouTube에서 {brand} 관련 부정 시그널 {len(signals)}건이 수집되었습니다."
+    )
+    risk_level = overview.get("risk_level", "YELLOW")
+    clustering_reason = overview.get(
+        "clustering_reason",
+        f"YouTube 댓글 {len(signals)}건에서 공통 키워드 클러스터링"
+    )
+
+    risk_keywords = overview.get("risk_keywords", [])
+
+    incident_context = (
+        f"사건명: {incident_title}\n"
+        f"요약: {incident_summary}\n"
+        f"클러스터링 근거: {clustering_reason}\n"
+        f"감지된 리스크 키워드: {', '.join(risk_keywords) if risk_keywords else '없음'}"
+    )
+
+    # ② 온톨로지·컴플라이언스·회의 생성
+    # Gemini: 순차 실행 (RPM 스파이크 방지) / OpenAI: 병렬 실행 (속도 우선)
+    if _cfg.LLM_PROVIDER == "google":
+        # 순차 실행 — Gemini RPM 초과 방지
+        n = len(signals)
+        ontology = _real_generate_ontology(client, signals_text, incident_context, n, lang, db=db)
+        compliance = _real_generate_compliance(
+            client, signals_text, incident_context, n, brand, lang
+        )
+        meeting = _real_generate_meeting(client, incident_context, brand, lang)
+    else:
+        # 병렬 실행 — OpenAI 속도 우선
+        llm_timeout = 120
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            ont_f = executor.submit(
+                _real_generate_ontology, client, signals_text,
+                incident_context, len(signals), lang, db,
+            )
+            comp_f = executor.submit(
+                _real_generate_compliance,
+                client, signals_text, incident_context, len(signals), brand, lang,
+            )
+            meet_f = executor.submit(
+                _real_generate_meeting, client, incident_context, brand, lang
+            )
+            try:
+                ontology = ont_f.result(timeout=llm_timeout)
+            except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+                logger.error("온톨로지 생성 실패", exc_info=True)
+                ontology = {"nodes": [], "links": [], "summary": "온톨로지 생성 실패"}
+            try:
+                compliance = comp_f.result(timeout=llm_timeout)
+            except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+                logger.error("컴플라이언스 보고서 생성 실패", exc_info=True)
+                compliance = {
+                    "overall_risk_level": risk_level,
+                    "monitoring_summary": "",
+                    "risk_events": [],
+                    "next_actions": [],
+                }
+            try:
+                meeting = meet_f.result(timeout=llm_timeout)
+            except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+                logger.error("회의 안건 생성 실패", exc_info=True)
+                meeting = {
+                    "meeting_title": "",
+                    "urgency": "긴급",
+                    "attendees": [],
+                    "agenda_items": [],
+                    "preparation": [],
+                }
+
+    return {
+        "risk_level": risk_level,
+        "incident_title": incident_title,
+        "incident_summary": incident_summary,
+        "clustering_reason": clustering_reason,
+        "channel_signals": signals,
+        "ontology": ontology,
+        "compliance": compliance,
+        "meeting": meeting,
+    }
+
+
+
+def analyze_demo_scenario(  # pylint: disable=too-many-locals
+    industry: str = "ecommerce", lang: str = "ko", db: Session | None = None,
+) -> dict:
     """산업별 위기 시나리오 분석 — 4채널 동시 감지 Mock (병렬 LLM 호출)"""
     data = DEMO_DATA.get(industry, DEMO_DATA["ecommerce"])
     signals = data["signals"]
-    signals_text = _demo_signals_text(signals)
+    signals_text = _signals_to_text(signals)
     incident_context = (
         f"사건명: {data['incident_title']}\n"
         f"요약: {data['incident_summary']}\n"
@@ -888,7 +1202,7 @@ def analyze_demo_scenario(industry: str = "ecommerce", lang: str = "ko") -> dict
     client = get_client()
     with ThreadPoolExecutor(max_workers=3) as executor:
         ont_f = executor.submit(
-            _demo_generate_ontology, client, signals_text, incident_context, lang
+            _demo_generate_ontology, client, signals_text, incident_context, lang, db
         )
         comp_f = executor.submit(
             _demo_generate_compliance, client, signals_text, incident_context, lang
@@ -899,13 +1213,13 @@ def analyze_demo_scenario(industry: str = "ecommerce", lang: str = "ko") -> dict
         llm_timeout = 120  # seconds
         try:
             ontology = ont_f.result(timeout=llm_timeout)
-        except FuturesTimeoutError:
-            logger.error("온톨로지 생성 타임아웃")
+        except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+            logger.error("온톨로지 생성 실패", exc_info=True)
             ontology = {"nodes": [], "links": [], "summary": "온톨로지 생성 실패"}
         try:
             compliance = comp_f.result(timeout=llm_timeout)
-        except FuturesTimeoutError:
-            logger.error("컴플라이언스 보고서 생성 타임아웃")
+        except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+            logger.error("컴플라이언스 보고서 생성 실패", exc_info=True)
             compliance = {
                 "overall_risk_level": "위험",
                 "monitoring_summary": "",
@@ -914,8 +1228,8 @@ def analyze_demo_scenario(industry: str = "ecommerce", lang: str = "ko") -> dict
             }
         try:
             meeting = meet_f.result(timeout=llm_timeout)
-        except FuturesTimeoutError:
-            logger.error("회의 안건 생성 타임아웃")
+        except (FuturesTimeoutError, Exception):  # pylint: disable=broad-except
+            logger.error("회의 안건 생성 실패", exc_info=True)
             meeting = {
                 "meeting_title": "",
                 "urgency": "초긴급",

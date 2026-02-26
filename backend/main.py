@@ -11,12 +11,19 @@ PROJECT_ROOT = str(Path(__file__).resolve().parents[1])
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+from backend.database.database import engine  # pylint: disable=wrong-import-position
+from backend.database.models import Base  # pylint: disable=wrong-import-position
 from backend.routers import (  # pylint: disable=wrong-import-position
     analysis,
     data,
+    evaluate,
     reply,
     risk,
+    youtube,
 )
+
+# Create SQLite tables on startup (no-op if already exist)
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Review Analysis Dashboard API", version="1.0.0")
 
@@ -39,6 +46,8 @@ app.include_router(data.router, prefix="/api/data", tags=["data"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 app.include_router(reply.router, prefix="/api/reply", tags=["reply"])
 app.include_router(risk.router, prefix="/api/risk", tags=["risk"])
+app.include_router(evaluate.router, prefix="/api/evaluate", tags=["evaluate"])
+app.include_router(youtube.router, prefix="/api/youtube", tags=["youtube"])
 
 
 @app.get("/api/health")

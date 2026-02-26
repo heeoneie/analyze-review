@@ -2,14 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Business Direction
+
+**OntoReview** — 온톨로지 기반 글로벌 리스크 인텔리전스 플랫폼 ("Palantir for Reputation")
+
+- **원래**: 이커머스 리뷰 관리 PoC → **전환 후**: 무사고 증명 B2B SaaS
+- **차별점**: 단순 감성 통계가 아닌 온톨로지 + Knowledge Graph + AI로 리스크 인과관계 추론
+- **타겟**: 병원/금융/핀테크(1티어), 글로벌 브랜드(2티어), 게임/엔터(3티어)
+- **데이터 전략**: 현재 Mock → 공식 API 우선 (YouTube → Reddit → Naver 순서, 봇 크롤링 지양)
+- **6개 탭 중 1개 구현**: Risk Intelligence만 완성, 나머지 5개 Coming Soon
+  - ✅ Risk Intelligence (온톨로지 그래프 + 컴플라이언스 + 회의 안건)
+  - 🔒 Risk Response Playbook / Agent Communication Setup / Domain Ontology Studio / Global Compliance Tracker / Trust & Safety Audit
+- **설계 원칙**: 다국어 처음부터(한/영), 글로벌 타겟, 기술 2개 이상 융합, 프리미엄 포지셔닝
+
 ## Project Overview
 
-This is an **E-commerce Review Analysis PoC** that uses LLM (GPT-4o-mini) to analyze customer reviews and automatically extract:
-1. Top 3 most frequent issues from negative reviews
-2. Emerging issues showing significant increase trends
-3. Actionable business recommendations
-
-The system processes review text through OpenAI's API to categorize problems, identify patterns, and generate Korean-language improvement suggestions for e-commerce operations.
+이커머스 리뷰 분석 PoC로 시작하여 리스크 인텔리전스 플랫폼으로 발전. LLM(GPT-4o-mini)으로 리뷰/소셜 데이터를 분석해 리스크 인과관계를 추론하고, 컴플라이언스 보고서 및 긴급 회의 안건을 자동 생성한다.
 
 ## Project Structure
 
