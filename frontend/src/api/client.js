@@ -54,6 +54,9 @@ export const generateMeetingAgenda = (analysisData) => api.post('/risk/meeting',
 export const runDemoScenario = (industry = 'ecommerce', lang = 'ko') =>
   api.post('/risk/demo', null, { params: { industry, lang } });
 
+// 플레이북 API
+export const generatePlaybook = (body) => api.post('/risk/playbook/generate', body);
+
 // AI 모델 평가 API
 export const getEvaluationMetrics = () => api.get('/evaluate/metrics');
 export const getDatasetInfo = () => api.get('/evaluate/dataset/info');

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.database.database import get_db
 from backend.database.models import Edge, Node
+from backend.services.playbook_service import generate_playbook
 from backend.services.risk_service import (
     analyze_demo_scenario,
     generate_compliance_report,
@@ -136,3 +137,29 @@ def get_ontology_graph(
     ]
 
     return {"nodes": rf_nodes, "edges": rf_edges}
+
+
+# ── Playbook ──────────────────────────────────
+
+class PlaybookRequest(BaseModel):
+    node_name: str | None = None
+    industry: str | None = "ecommerce"
+    lang: str | None = "ko"
+
+
+@router.post("/playbook/generate")
+def create_playbook(
+    request: PlaybookRequest,
+    db: Session = Depends(get_db),
+):
+    """Generate a 3-scenario multi-agent response playbook."""
+    try:
+        return generate_playbook(
+            node_name=request.node_name,
+            industry=request.industry or "ecommerce",
+            lang=request.lang or "ko",
+            db=db,
+        )
+    except Exception as e:
+        logger.error("플레이북 생성 실패: %s", e)
+        raise HTTPException(500, f"플레이북 생성 중 오류: {e}") from e

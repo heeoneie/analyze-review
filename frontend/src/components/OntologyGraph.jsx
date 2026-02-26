@@ -20,6 +20,7 @@ import {
   Zap,
   X,
   SlidersHorizontal,
+  Crosshair,
 } from 'lucide-react';
 import { useLang } from '../contexts/LangContext';
 
@@ -151,7 +152,7 @@ function severityLabel(score) {
 /* ────────────────────────────────────────────
    Main Component
    ──────────────────────────────────────────── */
-export default function OntologyGraph({ data, loading, error: parentError }) {
+export default function OntologyGraph({ id, data, loading, error: parentError, onNavigatePlaybook }) {
   const { t } = useLang();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -280,7 +281,7 @@ export default function OntologyGraph({ data, loading, error: parentError }) {
   const isLiveOverride = Boolean(data?.nodes?.length);
 
   return (
-    <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">
+    <div id={id} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">
       {/* Header */}
       <div className="flex items-center gap-2 mb-5">
         <Network className="text-zinc-400" size={18} />
@@ -457,6 +458,21 @@ export default function OntologyGraph({ data, loading, error: parentError }) {
                   Evidence linking coming soon
                 </p>
               </div>
+
+              {/* Generate Playbook CTA */}
+              {onNavigatePlaybook && (
+                <button
+                  type="button"
+                  onClick={() => onNavigatePlaybook(selectedNode.data.label)}
+                  className="w-full mt-2 flex items-center justify-center gap-2
+                    bg-zinc-100 text-zinc-900 font-semibold text-sm
+                    rounded-lg px-4 py-2.5
+                    hover:bg-white transition-colors"
+                >
+                  <Crosshair size={14} />
+                  {t('ontology.generatePlaybook')}
+                </button>
+              )}
             </div>
           </div>
           </div>

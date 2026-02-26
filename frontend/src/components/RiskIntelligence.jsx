@@ -125,7 +125,7 @@ function injectBrand(obj, brand) {
   return JSON.parse(JSON.stringify(obj).replace(/OO/g, brand));
 }
 
-export default function RiskIntelligence({ analysisResult }) {
+export default function RiskIntelligence({ analysisResult, onNavigatePlaybook }) {
   const { t, lang } = useLang();
   const [demoResult, setDemoResult] = useState(null);
   const [ontology, setOntology] = useState(null);
@@ -583,10 +583,12 @@ export default function RiskIntelligence({ analysisResult }) {
       {/* Ontology Graph */}
       {(hasResults || loading.ontology) && !loading.demo && !loading.all && (
         <OntologyGraph
+          id="ontology-graph"
           data={ontology}
           loading={loading.ontology}
           error={errors.ontology}
           onGenerate={() => runSingle('ontology')}
+          onNavigatePlaybook={onNavigatePlaybook ? (nodeName) => onNavigatePlaybook(nodeName, industry) : undefined}
         />
       )}
 
