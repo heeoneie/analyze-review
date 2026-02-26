@@ -46,7 +46,8 @@ class ScenarioItem(BaseModel):
     def ensure_non_empty_steps(cls, v):
         if not v or not isinstance(v, list) or len(v) == 0:
             return ["Triage immediately"]
-        return [str(s) for s in v if s]
+        cleaned = [str(s) for s in v if s]
+        return cleaned if cleaned else ["Triage immediately"]
 
 
 class PlaybookResponse(BaseModel):
