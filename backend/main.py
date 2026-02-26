@@ -11,6 +11,8 @@ PROJECT_ROOT = str(Path(__file__).resolve().parents[1])
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+from backend.database.database import engine  # pylint: disable=wrong-import-position
+from backend.database.models import Base  # pylint: disable=wrong-import-position
 from backend.routers import (  # pylint: disable=wrong-import-position
     analysis,
     data,
@@ -19,6 +21,9 @@ from backend.routers import (  # pylint: disable=wrong-import-position
     risk,
     youtube,
 )
+
+# Create SQLite tables on startup (no-op if already exist)
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Review Analysis Dashboard API", version="1.0.0")
 
