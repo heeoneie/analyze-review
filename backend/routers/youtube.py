@@ -1,6 +1,5 @@
 """YouTube 실데이터 수집 + 리스크 분석 API"""
 
-import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,7 +24,7 @@ class YouTubeAnalyzeRequest(BaseModel):
 
 
 @router.post("/analyze")
-async def analyze_youtube(
+def analyze_youtube(
     req: YouTubeAnalyzeRequest,
     db: Session = Depends(get_db),
 ):
@@ -33,7 +32,7 @@ async def analyze_youtube(
     YouTube 댓글을 실시간 수집한 뒤 리스크 인텔리전스 분석 수행.
     analyze_demo_scenario 와 동일한 응답 구조 반환.
     """
-    def _run():
+    try:
         signals, meta = collect_youtube_signals(
             query=req.query,
             max_videos=req.max_videos,
@@ -48,10 +47,6 @@ async def analyze_youtube(
 
         result = analyze_youtube_scenario(signals, brand=req.brand, lang=req.lang, db=db)
         result["meta"] = meta
-        return result
-
-    try:
-        result = await asyncio.to_thread(_run)
         return result
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e

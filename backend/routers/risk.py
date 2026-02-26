@@ -1,6 +1,5 @@
 """리스크 인텔리전스 API 엔드포인트"""
 
-import asyncio
 import logging
 from datetime import datetime
 
@@ -32,54 +31,44 @@ class RiskAnalysisRequest(BaseModel):
 
 
 @router.post("/ontology")
-async def create_ontology(
+def create_ontology(
     request: RiskAnalysisRequest,
     db: Session = Depends(get_db),
 ):
     try:
-        result = await asyncio.to_thread(
-            generate_ontology, request.model_dump(), db
-        )
-        return result
+        return generate_ontology(request.model_dump(), db)
     except Exception as e:
         logger.error("온톨로지 생성 실패: %s", e)
         raise HTTPException(500, f"온톨로지 생성 중 오류: {e}") from e
 
 
 @router.post("/compliance")
-async def create_compliance_report(request: RiskAnalysisRequest):
+def create_compliance_report(request: RiskAnalysisRequest):
     try:
-        result = await asyncio.to_thread(
-            generate_compliance_report, request.model_dump()
-        )
-        return result
+        return generate_compliance_report(request.model_dump())
     except Exception as e:
         logger.error("컴플라이언스 보고서 생성 실패: %s", e)
         raise HTTPException(500, f"보고서 생성 중 오류: {e}") from e
 
 
 @router.post("/demo")
-async def run_demo_scenario(
+def run_demo_scenario(
     industry: str = "ecommerce",
     lang: str = "ko",
     db: Session = Depends(get_db),
 ):
     """산업별 위기 시나리오 Mock — 4채널 동시 감지 → Red Alert"""
     try:
-        result = await asyncio.to_thread(analyze_demo_scenario, industry, lang, db)
-        return result
+        return analyze_demo_scenario(industry, lang, db)
     except Exception as e:
         logger.error("데모 시나리오 분석 실패: %s", e)
         raise HTTPException(500, f"데모 분석 중 오류: {e}") from e
 
 
 @router.post("/meeting")
-async def create_meeting_agenda(request: RiskAnalysisRequest):
+def create_meeting_agenda(request: RiskAnalysisRequest):
     try:
-        result = await asyncio.to_thread(
-            generate_meeting_agenda, request.model_dump()
-        )
-        return result
+        return generate_meeting_agenda(request.model_dump())
     except Exception as e:
         logger.error("회의 안건 생성 실패: %s", e)
         raise HTTPException(500, f"회의 안건 생성 중 오류: {e}") from e
