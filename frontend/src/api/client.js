@@ -63,6 +63,7 @@ export const analyzeYouTube = (query, brand, options = {}) =>
   api.post('/youtube/analyze', {
     query,
     brand,
+    industry: options.industry || 'ecommerce',
     lang: options.lang || 'ko',
     max_videos: options.maxVideos || 3,
     max_comments_per_video: options.maxComments || 15,

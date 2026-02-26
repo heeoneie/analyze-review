@@ -181,7 +181,7 @@ export default function RiskIntelligence({ analysisResult }) {
       // ① YouTube 실데이터 우선 시도
       let data = null;
       try {
-        const ytRes = await analyzeYouTube(query || brand, brandName.trim() || 'Brand', { lang });
+        const ytRes = await analyzeYouTube(query || brand, brandName.trim() || 'Brand', { industry, lang });
         data = ytRes.data;
         setDataSource('youtube');
       } catch {
@@ -393,8 +393,7 @@ export default function RiskIntelligence({ analysisResult }) {
                 value={brandName}
                 onChange={(e) => setBrandName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !isAnyLoading && handleDemo()}
-                readOnly
-                className="bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none cursor-default transition-colors"
+                className="bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors"
               />
             </div>
             <div className="flex flex-col gap-1 flex-1">
@@ -406,8 +405,7 @@ export default function RiskIntelligence({ analysisResult }) {
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !isAnyLoading && handleDemo()}
-                readOnly
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none cursor-default transition-colors"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors"
               />
             </div>
             <div className="flex flex-col gap-1 flex-shrink-0">
