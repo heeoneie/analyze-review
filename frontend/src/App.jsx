@@ -1,18 +1,27 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useLang } from './contexts/LangContext';
 import RiskIntelligence from './components/RiskIntelligence';
+import RiskPlaybook from './components/RiskPlaybook';
 import './index.css';
 
 const TABS = [
   { id: 'risk',     labelKey: 'tabs.risk',     soon: false },
-  { id: 'playbook', labelKey: 'tabs.playbook', soon: true },
+  { id: 'playbook', labelKey: 'tabs.playbook', soon: false },
   { id: 'agent',    labelKey: 'tabs.agent',    soon: true },
 ];
 
 function App() {
   const { lang, setLang, t } = useLang();
   const [activeTab, setActiveTab] = useState('risk');
+  const [playbookNode, setPlaybookNode] = useState(null);
+  const [playbookIndustry, setPlaybookIndustry] = useState('ecommerce');
   const currentTab = TABS.find((tab) => tab.id === activeTab) || TABS[0];
+
+  const handleNavigatePlaybook = useCallback((nodeName, industry) => {
+    setPlaybookNode(nodeName || null);
+    setPlaybookIndustry(industry || 'ecommerce');
+    setActiveTab('playbook');
+  }, []);
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -70,7 +79,23 @@ function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-6">
-        {activeTab === 'risk' && <RiskIntelligence />}
+        {/* RiskIntelligence: display:none으로 숨겨 상태 보존 */}
+        <div style={{ display: activeTab === 'risk' ? undefined : 'none' }}>
+          <RiskIntelligence onNavigatePlaybook={handleNavigatePlaybook} />
+        </div>
+        {activeTab === 'playbook' && (
+          <RiskPlaybook
+            key={playbookNode}
+            nodeName={playbookNode}
+            industry={playbookIndustry}
+            onBack={() => {
+              setActiveTab('risk');
+              requestAnimationFrame(() => {
+                document.getElementById('ontology-graph')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              });
+            }}
+          />
+        )}
       </main>
     </div>
   );
