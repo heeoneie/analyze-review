@@ -125,6 +125,11 @@ const nodeTypes = { custom: CustomRiskNode };
 /* ────────────────────────────────────────────
    Severity helpers
    ──────────────────────────────────────────── */
+function toSeverityScore(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function severityBorder(score) {
   if (score >= 8) return 'border-rose-500';
   if (score >= 5) return 'border-amber-500';
@@ -171,7 +176,7 @@ export default function OntologyGraph({ data, loading, error: parentError }) {
       data: {
         label: n.data?.label ?? n.label ?? n.id,
         type: n.data?.type ?? n.type ?? 'signal',
-        severity_score: n.data?.severity_score ?? n.severity ?? 0,
+        severity_score: toSeverityScore(n.data?.severity_score ?? n.severity),
       },
       position: n.position ?? { x: 0, y: 0 },
     }));
@@ -215,6 +220,7 @@ export default function OntologyGraph({ data, loading, error: parentError }) {
     // If parent provides live-generated data, use it — skip fetch
     // Reuse applyGraphData so edge severity styling is applied consistently
     if (data?.nodes?.length) {
+      setSelectedNode(null);
       applyGraphData(data.nodes, data.edges ?? data.links ?? []);
       return;
     }
@@ -240,8 +246,10 @@ export default function OntologyGraph({ data, loading, error: parentError }) {
         })
         .then((result) => {
           if (result.nodes?.length > 0) {
+            setSelectedNode(null);
             applyGraphData(result.nodes, result.edges ?? []);
           } else {
+            setSelectedNode(null);
             setNodes([]);
             setEdges([]);
           }
