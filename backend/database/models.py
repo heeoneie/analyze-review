@@ -80,3 +80,21 @@ class Edge(Base):
             name="uq_edge_src_tgt_rel",
         ),
     )
+
+
+class Review(Base):
+    """Ingested review from any source (Amazon, Coupang, CSV, etc.)."""
+
+    __tablename__ = "reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    product_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    body: Mapped[str] = mapped_column(String(4096), nullable=False)
+    severity: Mapped[float] = mapped_column(Float, default=0.0)
+    risk_label: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )

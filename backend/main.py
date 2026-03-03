@@ -17,6 +17,7 @@ from backend.routers import (  # pylint: disable=wrong-import-position
     analysis,
     data,
     evaluate,
+    kpi,
     reply,
     risk,
     youtube,
@@ -48,6 +49,7 @@ app.include_router(reply.router, prefix="/api/reply", tags=["reply"])
 app.include_router(risk.router, prefix="/api/risk", tags=["risk"])
 app.include_router(evaluate.router, prefix="/api/evaluate", tags=["evaluate"])
 app.include_router(youtube.router, prefix="/api/youtube", tags=["youtube"])
+app.include_router(kpi.router, prefix="/api/kpi", tags=["kpi"])
 
 
 @app.get("/api/health")

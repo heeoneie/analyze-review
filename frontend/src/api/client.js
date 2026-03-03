@@ -57,6 +57,12 @@ export const runDemoScenario = (industry = 'ecommerce', lang = 'ko') =>
 // 플레이북 API
 export const generatePlaybook = (body) => api.post('/risk/playbook/generate', body);
 
+// KPI & Amazon pipeline
+export const getKpiSummary = () => api.get('/kpi/summary');
+export const getRiskTimeline = (limit = 20) =>
+  api.get('/kpi/timeline', { params: { limit } });
+export const ingestAmazon = (url) => api.post('/data/amazon', { url });
+
 // AI 모델 평가 API
 export const getEvaluationMetrics = () => api.get('/evaluate/metrics');
 export const getDatasetInfo = () => api.get('/evaluate/dataset/info');

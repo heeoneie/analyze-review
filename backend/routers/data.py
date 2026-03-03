@@ -5,10 +5,13 @@ from enum import Enum
 from pathlib import Path
 
 import pandas as pd
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
+from backend.database.database import get_db
 from backend.services import progress
+from backend.services.amazon_service import ingest_amazon_mock
 from backend.services.crawler_service import (
     crawl_reviews,
     save_reviews_to_csv,
@@ -24,6 +27,10 @@ uploaded_files = {}
 analysis_settings = {"rating_threshold": 3}
 
 PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
+
+
+class AmazonRequest(BaseModel):
+    url: str
 
 
 class CrawlRequest(BaseModel):
@@ -275,3 +282,20 @@ def get_prioritized_reviews(
         "page_size": page_size,
         "total_pages": (total + page_size - 1) // page_size,
     }
+
+
+@router.post("/amazon")
+def ingest_amazon_reviews(
+    request: AmazonRequest,
+    db: Session = Depends(get_db),
+):
+    """Ingest Amazon reviews (mock for MVP) and persist to SQLite."""
+    if not request.url.strip():
+        raise HTTPException(400, "Amazon product URL is required.")
+    try:
+        return ingest_amazon_mock(request.url.strip(), db)
+    except Exception:
+        logger.exception("Amazon ingestion failed")
+        raise HTTPException(
+            500, "Amazon review ingestion failed."
+        ) from None
