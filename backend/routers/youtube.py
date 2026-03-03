@@ -49,6 +49,7 @@ def analyze_youtube(
         result["meta"] = meta
         return result
     except ValueError as e:
+        logger.warning("YouTube 분석 검증 실패: %s", e)
         raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
         logger.exception("YouTube 분석 실패")

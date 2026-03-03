@@ -220,7 +220,7 @@ export default function OntologyGraph({ id, data, loading, error: parentError, o
   useEffect(() => {
     // If parent provides live-generated data, use it — skip fetch
     // Reuse applyGraphData so edge severity styling is applied consistently
-    if (data?.nodes?.length) {
+    if (Array.isArray(data?.nodes) && data.nodes.length > 0) {
       setSelectedNode(null);
       applyGraphData(data.nodes, data.edges ?? data.links ?? []);
       return;
@@ -278,7 +278,7 @@ export default function OntologyGraph({ id, data, loading, error: parentError, o
 
   const displayError = parentError || fetchError;
   const showLoading = loading || isLoading;
-  const isLiveOverride = Boolean(data?.nodes?.length);
+  const isLiveOverride = Array.isArray(data?.nodes) && data.nodes.length > 0;
 
   return (
     <div id={id} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">

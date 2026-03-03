@@ -6,6 +6,7 @@ AI 예측 결과와 Ground Truth를 비교하여 정확도 측정
 
 import argparse
 import json
+import logging
 import os
 import sys
 from datetime import datetime
@@ -37,6 +38,8 @@ from core.utils.openai_client import (  # pylint: disable=wrong-import-position
 from core.utils.review_categories import (
     CATEGORIES_BULLETS,  # pylint: disable=wrong-import-position
 )
+
+logger = logging.getLogger(__name__)
 
 
 class _NumpyEncoder(json.JSONEncoder):
@@ -73,6 +76,8 @@ class Evaluator:
     def __init__(self, ground_truth_file='evaluation/evaluation_dataset.csv'):
         self.ground_truth_file = ground_truth_file
         self._client = get_client()
+        if self._client is None:
+            logger.warning("OpenAI 클라이언트 없음 — Gemini 폴백만 사용 가능")
 
     def load_ground_truth(self):
         """Ground Truth 데이터 로드"""

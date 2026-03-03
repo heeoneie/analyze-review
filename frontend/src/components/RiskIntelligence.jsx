@@ -539,7 +539,7 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
       <RiskLevelBanner level={riskLevel} />
 
       {/* 데이터 소스 뱃지 */}
-      {dataSource && (
+      {demoResult && dataSource && (
         <div className="flex items-center gap-2">
           {dataSource === 'youtube' ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-950/50 border border-red-800/60 text-xs font-medium text-red-400">

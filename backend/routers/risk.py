@@ -40,7 +40,7 @@ def create_ontology(
         return generate_ontology(request.model_dump(), db)
     except Exception as e:
         logger.error("온톨로지 생성 실패: %s", e)
-        raise HTTPException(500, f"온톨로지 생성 중 오류: {e}") from e
+        raise HTTPException(500, "온톨로지 생성 중 내부 서버 오류가 발생했습니다.") from e
 
 
 @router.post("/compliance")
@@ -49,7 +49,7 @@ def create_compliance_report(request: RiskAnalysisRequest):
         return generate_compliance_report(request.model_dump())
     except Exception as e:
         logger.error("컴플라이언스 보고서 생성 실패: %s", e)
-        raise HTTPException(500, f"보고서 생성 중 오류: {e}") from e
+        raise HTTPException(500, "보고서 생성 중 내부 서버 오류가 발생했습니다.") from e
 
 
 @router.post("/demo")
@@ -63,7 +63,7 @@ def run_demo_scenario(
         return analyze_demo_scenario(industry, lang, db)
     except Exception as e:
         logger.error("데모 시나리오 분석 실패: %s", e)
-        raise HTTPException(500, f"데모 분석 중 오류: {e}") from e
+        raise HTTPException(500, "데모 분석 중 내부 서버 오류가 발생했습니다.") from e
 
 
 @router.post("/meeting")
@@ -72,14 +72,14 @@ def create_meeting_agenda(request: RiskAnalysisRequest):
         return generate_meeting_agenda(request.model_dump())
     except Exception as e:
         logger.error("회의 안건 생성 실패: %s", e)
-        raise HTTPException(500, f"회의 안건 생성 중 오류: {e}") from e
+        raise HTTPException(500, "회의 안건 생성 중 내부 서버 오류가 발생했습니다.") from e
 
 
 @router.get("/ontology/graph")
 def get_ontology_graph(
     limit: int = Query(500, ge=1, le=5000),
     min_severity: float = Query(0, ge=0, le=10),
-    since: str | None = Query(None, description="ISO datetime filter (e.g. 2026-01-01T00:00:00)"),
+    since: str | None = Query(None, description="ISO datetime filter (e.g. 2026-01-01T00:00:00Z)"),
     db: Session = Depends(get_db),
 ):
     """Retrieve the persisted ontology graph in React Flow-friendly format."""

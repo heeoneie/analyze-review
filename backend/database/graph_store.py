@@ -29,6 +29,13 @@ def persist_ontology(  # pylint: disable=too-many-locals
         logger.warning("persist_ontology skipped: db session not provided")
         return _ZERO_RESULT
 
+    if not isinstance(ontology, dict):
+        logger.warning(
+            "persist_ontology skipped: ontology is not a dict (got %s)",
+            type(ontology).__name__,
+        )
+        return _ZERO_RESULT
+
     raw_nodes = ontology.get("nodes") or []
     raw_edges = ontology.get("links") or ontology.get("edges") or []
 
@@ -45,7 +52,10 @@ def persist_ontology(  # pylint: disable=too-many-locals
         for n in raw_nodes:
             name = (n.get("label") or n.get("name") or "").strip()
             ntype = (n.get("type") or "unknown").strip()
-            severity = float(n.get("severity") or n.get("severity_score") or 0)
+            try:
+                severity = float(n.get("severity") or n.get("severity_score") or 0)
+            except (TypeError, ValueError):
+                severity = 0.0
 
             if not name:
                 continue
@@ -92,7 +102,10 @@ def persist_ontology(  # pylint: disable=too-many-locals
                 or e.get("label")
                 or "related"
             ).strip()
-            weight = float(e.get("weight") or 1.0)
+            try:
+                weight = float(e.get("weight") or 1.0)
+            except (TypeError, ValueError):
+                weight = 1.0
 
             src_id = temp_to_db.get(src_temp)
             tgt_id = temp_to_db.get(tgt_temp)
