@@ -146,6 +146,7 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
   const [selectedExtra, setSelectedExtra] = useState(new Set());
   const [dataSource, setDataSource] = useState(null); // 'youtube' | 'mock'
   const inputRef = useRef(null);
+  const toastTimerRef = useRef(null);
 
   // KPI live data
   const [kpi, setKpi] = useState({ total_scanned_reviews: 0, critical_risks_detected: 0, today_new_ingestions: 0 });
@@ -165,10 +166,21 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
         today_new_ingestions: Number(safeKpi.today_new_ingestions) || 0,
       });
       setTimeline(Array.isArray(tlRes.data) ? tlRes.data : []);
-    } catch { /* silent — dashboard shows 0 */ }
+    } catch {
+      // Reset to zero on fetch failure
+      setKpi({ total_scanned_reviews: 0, critical_risks_detected: 0, today_new_ingestions: 0 });
+      setTimeline([]);
+    }
   }, []);
 
   useEffect(() => { refreshDashboard(); }, [refreshDashboard]);
+
+  // Cleanup toast timer on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   const handleAmazonIngest = async () => {
     if (!amazonUrl.trim() || amazonLoading) return;
@@ -190,7 +202,8 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
       setAmazonToast(t('risk.errGeneric'));
     } finally {
       setAmazonLoading(false);
-      setTimeout(() => setAmazonToast(''), 4000);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setAmazonToast(''), 4000);
     }
   };
 
