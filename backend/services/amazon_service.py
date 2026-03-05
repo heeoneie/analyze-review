@@ -145,18 +145,28 @@ def ingest_amazon_mock(product_url: str, db: Session) -> dict:
         db.add(review)
         reviews_saved += 1
 
-        # Create a Node for high-severity reviews (reuse existing ontology Node table)
+        # Create or update a Node for high-severity reviews (reuse existing ontology Node table)
         if severity >= 8.0:
-            node = Node(
-                name=risk_label or "Unknown Risk",
-                normalized_name=(risk_label or "unknown risk").strip().lower(),
-                type="event",
-                severity_score=severity,
-                source="amazon",
-                created_at=now,
-                last_seen_at=now,
+            normalized = (risk_label or "unknown risk").strip().lower()
+            existing_node = (
+                db.query(Node)
+                .filter(Node.normalized_name == normalized, Node.type == "event")
+                .first()
             )
-            db.add(node)
+            if existing_node:
+                existing_node.severity_score = max(existing_node.severity_score or 0, severity)
+                existing_node.last_seen_at = now
+            else:
+                node = Node(
+                    name=risk_label or "Unknown Risk",
+                    normalized_name=normalized,
+                    type="event",
+                    severity_score=severity,
+                    source="amazon",
+                    created_at=now,
+                    last_seen_at=now,
+                )
+                db.add(node)
             risks_created += 1
 
     db.commit()

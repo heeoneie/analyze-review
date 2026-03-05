@@ -152,13 +152,19 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
   const [amazonUrl, setAmazonUrl] = useState('');
   const [amazonLoading, setAmazonLoading] = useState(false);
   const [amazonToast, setAmazonToast] = useState('');
+  const [amazonToastType, setAmazonToastType] = useState('success');
   const [timeline, setTimeline] = useState([]);
 
   const refreshDashboard = useCallback(async () => {
     try {
       const [kpiRes, tlRes] = await Promise.all([getKpiSummary(), getRiskTimeline()]);
-      setKpi(kpiRes.data);
-      setTimeline(tlRes.data);
+      const safeKpi = kpiRes.data || {};
+      setKpi({
+        total_scanned_reviews: Number(safeKpi.total_scanned_reviews) || 0,
+        critical_risks_detected: Number(safeKpi.critical_risks_detected) || 0,
+        today_new_ingestions: Number(safeKpi.today_new_ingestions) || 0,
+      });
+      setTimeline(Array.isArray(tlRes.data) ? tlRes.data : []);
     } catch { /* silent — dashboard shows 0 */ }
   }, []);
 
@@ -171,10 +177,16 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
     try {
       const res = await ingestAmazon(amazonUrl.trim());
       const d = res.data;
-      setAmazonToast(`${d.reviews_ingested}${t('risk.amazonSuccess').replace('.', '')} ${d.risks_detected}${lang === 'ko' ? '건' : ''}.`);
+      setAmazonToastType('success');
+      if (lang === 'ko') {
+        setAmazonToast(`${d.reviews_ingested}건의 리뷰를 수집하고 ${d.risks_detected}건의 리스크를 탐지했습니다.`);
+      } else {
+        setAmazonToast(`Ingested ${d.reviews_ingested} reviews and detected ${d.risks_detected} risks.`);
+      }
       setAmazonUrl('');
       await refreshDashboard();
     } catch {
+      setAmazonToastType('error');
       setAmazonToast(t('risk.errGeneric'));
     } finally {
       setAmazonLoading(false);
@@ -378,7 +390,7 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
         </div>
         <p className="text-xs text-zinc-500 mt-1">{t('risk.amazonHelper')}</p>
         {amazonToast && (
-          <p className={`mt-2 text-xs font-medium ${amazonToast.includes('fail') || amazonToast.includes('실패') ? 'text-red-400' : 'text-emerald-400'}`}>
+          <p className={`mt-2 text-xs font-medium ${amazonToastType === 'error' ? 'text-red-400' : 'text-emerald-400'}`}>
             {amazonToast}
           </p>
         )}
@@ -390,7 +402,9 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
           <div className="flex items-center gap-2 mb-4">
             <Clock className="text-red-400" size={16} />
             <span className="text-sm font-bold text-white">{t('risk.timelineTitle')}</span>
-            <span className="text-xs text-zinc-600 ml-auto">{timeline.length} detections</span>
+            <span className="text-xs text-zinc-600 ml-auto">
+              {lang === 'ko' ? `${timeline.length}건 탐지` : `${timeline.length} detections`}
+            </span>
           </div>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {timeline.map((item) => {
