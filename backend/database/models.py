@@ -29,6 +29,8 @@ class Node(Base):
     normalized_name: Mapped[str] = mapped_column(String(512), nullable=False)
     type: Mapped[str] = mapped_column(String(64), nullable=False)
     severity_score: Mapped[float] = mapped_column(Float, default=0.0)
+    case_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    estimated_loss_usd: Mapped[int] = mapped_column(Integer, default=0)
     source: Mapped[str | None] = mapped_column(String(256), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(

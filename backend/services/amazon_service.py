@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from backend.database.models import Node, Review
+from backend.services.legal_rag_service import match_precedent
 
 # Simple keyword → risk label mapping
 _HIGH_RISK_KEYWORDS = {
@@ -147,11 +148,23 @@ def ingest_amazon_mock(product_url: str, db: Session) -> dict:
 
         # Create a Node for high-severity reviews (reuse existing ontology Node table)
         if severity >= 8.0:
+            precedent = match_precedent(full_text)
+            # Dynamic Legal Exposure = Avg_Settlement × confidence × (severity / 10)
+            if precedent:
+                dynamic_exposure = int(
+                    precedent["settlement_avg_usd"]
+                    * precedent["confidence_score"]
+                    * (severity / 10.0)
+                )
+            else:
+                dynamic_exposure = 0
             node = Node(
                 name=risk_label or "Unknown Risk",
                 normalized_name=(risk_label or "unknown risk").strip().lower(),
                 type="event",
                 severity_score=severity,
+                case_id=precedent["case_id"] if precedent else None,
+                estimated_loss_usd=dynamic_exposure,
                 source="amazon",
                 created_at=now,
                 last_seen_at=now,

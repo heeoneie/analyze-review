@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from backend.database.database import get_db
@@ -34,10 +34,32 @@ def get_kpi_summary(db: Session = Depends(get_db)):
         or 0
     )
 
+    # Weighted risk score: (sev 8-10)*5 + (sev 4-7)*2 + (sev 1-3)*1
+    weight_expr = case(  # pylint: disable=not-callable
+        (Node.severity_score >= 8.0, 5),
+        (Node.severity_score >= 4.0, 2),
+        else_=1,
+    )
+    overall_risk_score = (
+        db.query(func.sum(weight_expr))  # pylint: disable=not-callable
+        .scalar()
+        or 0
+    )
+
+    # Total legal exposure from matched precedents
+    total_legal_exposure_usd = (
+        db.query(func.sum(Node.estimated_loss_usd))  # pylint: disable=not-callable
+        .filter(Node.estimated_loss_usd > 0)
+        .scalar()
+        or 0
+    )
+
     return {
         "total_scanned_reviews": total_reviews,
         "critical_risks_detected": critical_risks,
         "today_new_ingestions": today_ingestions,
+        "overall_risk_score": overall_risk_score,
+        "total_legal_exposure_usd": total_legal_exposure_usd,
     }
 
 

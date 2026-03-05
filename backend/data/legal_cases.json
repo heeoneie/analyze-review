@@ -1,0 +1,41 @@
+[
+  {
+    "case_id": "PL-2023-CB",
+    "risk_category": "Product Liability",
+    "trigger_keywords": ["burn", "rash", "scar", "hospital", "melt"],
+    "case_title": "Severe Chemical Burn via Unstable Active Ingredients",
+    "historical_settlement": {
+      "min": 1500000,
+      "max": 3000000,
+      "avg": 2250000,
+      "sample_size": 42,
+      "jurisdiction": "US Federal"
+    }
+  },
+  {
+    "case_id": "CA-2022-UA",
+    "risk_category": "Regulatory & Class Action",
+    "trigger_keywords": ["allergic", "reaction", "fda", "recall", "choking"],
+    "case_title": "Class Action for Undeclared Allergens",
+    "historical_settlement": {
+      "min": 5000000,
+      "max": 10000000,
+      "avg": 7500000,
+      "sample_size": 18,
+      "jurisdiction": "US Multi-District"
+    }
+  },
+  {
+    "case_id": "FA-2024-TC",
+    "risk_category": "Consumer Fraud",
+    "trigger_keywords": ["fake", "scam", "lawsuit", "sue", "lie"],
+    "case_title": "False Advertising and Consumer Fraud",
+    "historical_settlement": {
+      "min": 800000,
+      "max": 2000000,
+      "avg": 1400000,
+      "sample_size": 105,
+      "jurisdiction": "California (CLRA)"
+    }
+  }
+]
