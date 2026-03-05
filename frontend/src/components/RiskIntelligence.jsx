@@ -525,10 +525,10 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
               // Determine risk category label from case_id prefix
               const getCaseLabel = (caseId) => {
                 if (!caseId) return null;
-                if (caseId.startsWith('PL-')) return 'Product Liability';
-                if (caseId.startsWith('CA-')) return 'Class Action';
-                if (caseId.startsWith('FA-')) return 'Consumer Fraud';
-                return 'Legal Risk';
+                if (caseId.startsWith('PL-')) return t('risk.caseLabelProductLiability');
+                if (caseId.startsWith('CA-')) return t('risk.caseLabelClassAction');
+                if (caseId.startsWith('FA-')) return t('risk.caseLabelConsumerFraud');
+                return t('risk.caseLabelLegalRisk');
               };
               const caseLabel = getCaseLabel(item.case_id);
 

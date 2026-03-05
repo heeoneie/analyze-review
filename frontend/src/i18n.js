@@ -65,6 +65,8 @@ export const translations = {
       amazonSuccess: '건의 리뷰를 수집하고 건의 리스크를 탐지했습니다.',
       timelineTitle: '리스크 타임라인', timelineEmpty: '아직 탐지된 리스크가 없습니다.',
       severityCritical: 'CRITICAL', severityHigh: 'HIGH', severityMedium: 'MEDIUM',
+      caseLabelProductLiability: '제조물 책임', caseLabelClassAction: '집단 소송',
+      caseLabelConsumerFraud: '소비자 사기', caseLabelLegalRisk: '법적 리스크',
     },
     mock: {
       viralRisk: '역바이럴', high: '높음', medium: '보통', low: '낮음',
@@ -194,6 +196,8 @@ export const translations = {
       amazonSuccess: ' reviews ingested, risks detected.',
       timelineTitle: 'Risk Timeline', timelineEmpty: 'No risks detected yet.',
       severityCritical: 'CRITICAL', severityHigh: 'HIGH', severityMedium: 'MEDIUM',
+      caseLabelProductLiability: 'Product Liability', caseLabelClassAction: 'Class Action',
+      caseLabelConsumerFraud: 'Consumer Fraud', caseLabelLegalRisk: 'Legal Risk',
     },
     mock: {
       viralRisk: 'Viral Risk:', high: 'High', medium: 'Medium', low: 'Low',
