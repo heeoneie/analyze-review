@@ -13,7 +13,7 @@ logger = logging.getLogger("ontoreview.graph_store")
 _ZERO_RESULT = {"nodes_upserted": 0, "edges_upserted": 0}
 
 
-def persist_ontology(  # pylint: disable=too-many-locals
+def persist_ontology(  # pylint: disable=too-many-locals,too-many-statements
     db: Session | None, ontology: dict, source: str = "risk_intelligence",
 ) -> dict:
     """
@@ -50,8 +50,10 @@ def persist_ontology(  # pylint: disable=too-many-locals
         temp_to_db: dict[str, int] = {}
 
         for n in raw_nodes:
-            name = (n.get("label") or n.get("name") or "").strip()
-            ntype = (n.get("type") or "unknown").strip()
+            raw_name = n.get("label") or n.get("name") or ""
+            name = str(raw_name).strip()
+            raw_type = n.get("type") if n.get("type") is not None else "unknown"
+            ntype = str(raw_type).strip() or "unknown"
             try:
                 severity = float(n.get("severity") or n.get("severity_score") or 0)
             except (TypeError, ValueError):
@@ -96,12 +98,13 @@ def persist_ontology(  # pylint: disable=too-many-locals
         for e in raw_edges:
             src_temp = str(e.get("source", ""))
             tgt_temp = str(e.get("target", ""))
-            rel = (
+            rel_raw = (
                 e.get("relation")
                 or e.get("relationship_type")
                 or e.get("label")
                 or "related"
-            ).strip()
+            )
+            rel = str(rel_raw).strip() or "related"
             try:
                 weight = float(e.get("weight") or 1.0)
             except (TypeError, ValueError):

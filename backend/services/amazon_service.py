@@ -131,6 +131,20 @@ def ingest_amazon_mock(product_url: str, db: Session) -> dict:
     now = datetime.now(timezone.utc)
 
     for item in MOCK_REVIEWS:
+        # Check for duplicate review (idempotency)
+        existing_review = (
+            db.query(Review.id)
+            .filter(
+                Review.source == "amazon",
+                Review.product_url == product_url,
+                Review.title == item["title"],
+                Review.body == item["body"],
+            )
+            .first()
+        )
+        if existing_review:
+            continue
+
         full_text = f"{item['title']} {item['body']}"
         severity, risk_label = _classify_severity(full_text)
 

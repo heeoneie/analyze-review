@@ -7,9 +7,12 @@ LLM_PROVIDER=openai  → OpenAI 우선, Gemini 폴백 (배포 환경, 기본값)
 import logging
 import time
 
+# pylint: disable=no-name-in-module
 from google import genai
 from google.genai import types
 from google.genai.errors import ClientError as GeminiClientError
+
+# pylint: enable=no-name-in-module
 from openai import OpenAI
 
 from core import config
@@ -112,6 +115,10 @@ def call_openai_json(
                 break  # 비 429 예외는 바로 OpenAI 폴백
 
         logger.warning("Gemini 재시도 소진, OpenAI 폴백 (last_exc=%s)", last_exc)
+        if client is None:
+            raise RuntimeError(
+                "Gemini 실패 후 OpenAI 폴백 불가: OPENAI_API_KEY 미설정"
+            ) from last_exc
         return _call_openai(client, prompt, system_prompt, model, temperature)
 
     try:

@@ -14,11 +14,11 @@ if not DATABASE_URL:
     _DB_PATH = _DB_DIR / "ontology.db"
     DATABASE_URL = f"sqlite:///{_DB_PATH}"
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    echo=False,
-)
+_engine_kwargs = {"echo": False}
+if DATABASE_URL.startswith("sqlite"):
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 SessionLocal = sessionmaker(  # pylint: disable=invalid-name
     bind=engine, autoflush=False, expire_on_commit=False,

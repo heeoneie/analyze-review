@@ -124,6 +124,10 @@ def _match_via_tf(text: str, cases: list[dict]) -> Optional[PrecedentMatch]:
                 confidence_score=round(confidence, 4),
             )
 
+    # Threshold: require minimum 0.2 confidence to return a match
+    if best is not None and best["confidence_score"] < 0.2:
+        return None
+
     return best
 
 

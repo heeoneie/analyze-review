@@ -38,7 +38,8 @@ def get_kpi_summary(db: Session = Depends(get_db)):
     weight_expr = case(  # pylint: disable=not-callable
         (Node.severity_score >= 8.0, 5),
         (Node.severity_score >= 4.0, 2),
-        else_=1,
+        (Node.severity_score >= 1.0, 1),
+        else_=0,
     )
     overall_risk_score = (
         db.query(func.sum(weight_expr))  # pylint: disable=not-callable
