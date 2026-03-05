@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.analyzer import ReviewAnalyzer
+from core.analyzer import ReviewAnalyzer, classify_with_llm, _safe_fallback, RISK_CATEGORIES
 
 
 @pytest.fixture
@@ -219,3 +219,79 @@ class TestGenerateActionPlan:
             analyzer.generate_action_plan(sample_top_issues, [])
             prompt_arg = mock_call.call_args[0][1]
             assert "No significant emerging issues" in prompt_arg
+
+
+# ── classify_with_llm (new LLM risk classification) ──
+
+
+class TestClassifyWithLlm:
+    def test_safe_fallback_returns_expected_structure(self):
+        result = _safe_fallback()
+        assert result["severity"] == 2.0
+        assert result["risk_category"] == "Safe"
+        assert result["confidence"] == 0.0
+
+    def test_empty_text_returns_safe_fallback(self):
+        result = classify_with_llm("")
+        assert result["risk_category"] == "Safe"
+        assert result["severity"] == 2.0
+
+    def test_whitespace_only_returns_safe_fallback(self):
+        result = classify_with_llm("   ")
+        assert result["risk_category"] == "Safe"
+
+    def test_successful_classification(self):
+        mock_response = json.dumps({
+            "severity": 9,
+            "risk_category": "Product Liability",
+            "confidence": 0.95,
+        })
+        with patch("core.analyzer.get_client", return_value=MagicMock()):
+            with patch("core.analyzer.call_openai_json", return_value=mock_response):
+                result = classify_with_llm("I got a severe rash from this product")
+        assert result["severity"] == 9.0
+        assert result["risk_category"] == "Product Liability"
+        assert result["confidence"] == 0.95
+
+    def test_clamps_severity_to_valid_range(self):
+        mock_response = json.dumps({
+            "severity": 15,  # Out of range
+            "risk_category": "Consumer Fraud",
+            "confidence": 0.8,
+        })
+        with patch("core.analyzer.get_client", return_value=MagicMock()):
+            with patch("core.analyzer.call_openai_json", return_value=mock_response):
+                result = classify_with_llm("This is a fake product")
+        assert result["severity"] == 10.0  # Clamped to max
+
+    def test_invalid_category_defaults_to_safe(self):
+        mock_response = json.dumps({
+            "severity": 5,
+            "risk_category": "Invalid Category",
+            "confidence": 0.5,
+        })
+        with patch("core.analyzer.get_client", return_value=MagicMock()):
+            with patch("core.analyzer.call_openai_json", return_value=mock_response):
+                result = classify_with_llm("Some review text")
+        assert result["risk_category"] == "Safe"
+
+    def test_exception_returns_safe_fallback(self):
+        with patch("core.analyzer.get_client", return_value=MagicMock()):
+            with patch("core.analyzer.call_openai_json", side_effect=Exception("API Error")):
+                result = classify_with_llm("Review text")
+        assert result["risk_category"] == "Safe"
+        assert result["severity"] == 2.0
+        assert result["confidence"] == 0.0
+
+    def test_json_parse_failure_returns_safe_fallback(self):
+        with patch("core.analyzer.get_client", return_value=MagicMock()):
+            with patch("core.analyzer.call_openai_json", return_value="not valid json"):
+                with patch("core.analyzer.extract_json_from_text", return_value=None):
+                    result = classify_with_llm("Review text")
+        assert result["risk_category"] == "Safe"
+
+    def test_risk_categories_constant_has_expected_values(self):
+        assert "Product Liability" in RISK_CATEGORIES
+        assert "Regulatory & Class Action" in RISK_CATEGORIES
+        assert "Consumer Fraud" in RISK_CATEGORIES
+        assert "Safe" in RISK_CATEGORIES

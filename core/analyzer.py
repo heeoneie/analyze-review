@@ -1,13 +1,114 @@
+import logging
 from collections import Counter
+from typing import TypedDict
 
 from core.utils.json_utils import extract_json_from_text
 from core.utils.openai_client import call_openai_json, get_client
 from core.utils.prompt_templates import build_zero_shot_prompt, format_reviews
 
+logger = logging.getLogger(__name__)
+
 SYSTEM_PROMPT_ANALYST = (
     "You are an expert at analyzing e-commerce customer "
     "feedback and identifying patterns."
 )
+
+SYSTEM_PROMPT_RISK_CLASSIFIER = (
+    "You are a legal risk analyst for e-commerce products. "
+    "Your job is to classify customer reviews for potential litigation risk."
+)
+
+# Allowed risk categories (must match legal_cases.json)
+RISK_CATEGORIES = [
+    "Product Liability",
+    "Regulatory & Class Action",
+    "Consumer Fraud",
+    "Safe",
+]
+
+
+class RiskClassification(TypedDict):
+    severity: float  # 1-10
+    risk_category: str
+    confidence: float  # 0.0-1.0
+
+
+def _safe_fallback() -> RiskClassification:
+    """Return a safe fallback when classification fails."""
+    return RiskClassification(
+        severity=2.0,
+        risk_category="Safe",
+        confidence=0.0,
+    )
+
+
+def classify_with_llm(review_text: str) -> RiskClassification:
+    """Classify a single review for legal risk using LLM.
+
+    Returns:
+        RiskClassification with severity (1-10), risk_category, and confidence.
+        On any failure, returns safe fallback to ensure pipeline stability.
+    """
+    if not review_text or not review_text.strip():
+        return _safe_fallback()
+
+    prompt = f"""Analyze the following customer review for potential legal risk.
+
+REVIEW:
+\"\"\"{review_text}\"\"\"
+
+CLASSIFICATION RULES:
+1. Choose EXACTLY ONE risk_category from: {RISK_CATEGORIES}
+2. "Product Liability" = physical harm (burn, rash, injury, hospital visit, scar)
+3. "Regulatory & Class Action" = FDA violations, allergen issues, recall mentions, choking hazard
+4. "Consumer Fraud" = fake product, scam, false advertising, lawsuit threats, lies
+5. "Safe" = general complaints (shipping, taste, price) with NO injury or legal threat
+6. IMPORTANT: Negations like "no rash", "didn't burn" = "Safe" (no actual harm)
+7. severity: 1-3 = Safe, 4-6 = Minor concern, 7-8 = Significant risk, 9-10 = Critical (injury/lawsuit)
+8. confidence: How certain you are (0.0-1.0)
+
+OUTPUT FORMAT (JSON only):
+{{
+  "severity": <number 1-10>,
+  "risk_category": "<one of the allowed categories>",
+  "confidence": <number 0.0-1.0>
+}}
+"""
+
+    try:
+        client = get_client()
+        content = call_openai_json(
+            client,
+            prompt,
+            system_prompt=SYSTEM_PROMPT_RISK_CLASSIFIER,
+        )
+        result = extract_json_from_text(content)
+
+        if result is None:
+            logger.warning("LLM classification returned non-JSON: %s", content[:200])
+            return _safe_fallback()
+
+        # Validate and normalize the response
+        severity = float(result.get("severity", 2.0))
+        severity = max(1.0, min(10.0, severity))  # Clamp to 1-10
+
+        risk_category = result.get("risk_category", "Safe")
+        if risk_category not in RISK_CATEGORIES:
+            logger.warning("Invalid risk_category '%s', defaulting to Safe", risk_category)
+            risk_category = "Safe"
+
+        confidence = float(result.get("confidence", 0.5))
+        confidence = max(0.0, min(1.0, confidence))  # Clamp to 0-1
+
+        return RiskClassification(
+            severity=severity,
+            risk_category=risk_category,
+            confidence=confidence,
+        )
+
+    except Exception as e:  # pylint: disable=broad-except
+        logger.warning("LLM classification failed: %s", e)
+        return _safe_fallback()
 
 SYSTEM_PROMPT_CONSULTANT = (
     "You are an expert business consultant specializing in "

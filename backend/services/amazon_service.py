@@ -2,8 +2,11 @@
 
 Saves reviews to the Review table AND creates high-severity Node entries
 so the KPI dashboard and risk timeline immediately update.
+
+Pipeline: Review → detect_risk_candidate() → classify_with_llm() → match_precedent()
 """
 
+import logging
 import re
 from datetime import datetime, timezone
 
@@ -11,8 +14,18 @@ from sqlalchemy.orm import Session
 
 from backend.database.models import Node, Review
 from backend.services.legal_rag_service import match_precedent
+from core.analyzer import classify_with_llm
 
-# Simple keyword → risk label mapping
+logger = logging.getLogger(__name__)
+
+# Fast keyword filter for risk candidate detection (lightweight pre-filter)
+_RISK_CANDIDATE_KEYWORDS = frozenset([
+    "rash", "burn", "allergy", "allergic", "lawsuit", "recall",
+    "fda", "injury", "hospital", "scar", "toxic", "sue", "choking",
+    "fake", "scam", "lie", "melt", "reaction",
+])
+
+# Simple keyword → risk label mapping (fallback for legacy compatibility)
 _HIGH_RISK_KEYWORDS = {
     "rash": "Skin Irritation / Allergic Reaction",
     "lawsuit": "Legal Threat / Litigation Risk",
@@ -23,6 +36,21 @@ _HIGH_RISK_KEYWORDS = {
     "toxic": "Chemical Safety Concern",
     "recall": "Regulatory Violation (FDA)",
 }
+
+
+def detect_risk_candidate(text: str) -> bool:
+    """Fast keyword filter to identify potential risk reviews.
+
+    Only candidate reviews are sent to the LLM for classification,
+    saving API costs and reducing latency for safe reviews.
+
+    Returns:
+        True if the review contains any risk-related keywords.
+    """
+    if not text:
+        return False
+    lower = text.lower()
+    return any(kw in lower for kw in _RISK_CANDIDATE_KEYWORDS)
 
 MOCK_REVIEWS = [
     {
@@ -116,12 +144,40 @@ MOCK_REVIEWS = [
 
 
 def _classify_severity(text: str) -> tuple[float, str | None]:
-    """Return (severity_score, risk_label) based on keyword matching."""
-    lower = text.lower()
-    for keyword, label in _HIGH_RISK_KEYWORDS.items():
-        if re.search(rf"\b{keyword}\b", lower):
-            return 9.0, label
-    return 2.0, None
+    """Return (severity_score, risk_label) using LLM classification.
+
+    Pipeline:
+    1. detect_risk_candidate() → Fast keyword filter
+    2. classify_with_llm() → LLM-based classification (only for candidates)
+    3. Return severity and risk category
+
+    Stability: Always returns safe fallback on any failure.
+    """
+    # Fast path: skip LLM for non-candidate reviews
+    if not detect_risk_candidate(text):
+        return 2.0, None
+
+    # LLM classification for risk candidates
+    try:
+        classification = classify_with_llm(text)
+        severity = classification["severity"]
+        risk_category = classification["risk_category"]
+
+        # Map risk_category to display label
+        if risk_category == "Safe":
+            return severity, None
+
+        # Use risk_category as the label (matches legal_cases.json categories)
+        return severity, risk_category
+
+    except Exception as e:  # pylint: disable=broad-except
+        # Fallback to simple keyword matching if LLM fails
+        logger.warning("LLM classification failed, using keyword fallback: %s", e)
+        lower = text.lower()
+        for keyword, label in _HIGH_RISK_KEYWORDS.items():
+            if re.search(rf"\b{keyword}\b", lower):
+                return 9.0, label
+        return 2.0, None
 
 
 def ingest_amazon_mock(product_url: str, db: Session) -> dict:  # pylint: disable=too-many-locals
@@ -160,18 +216,23 @@ def ingest_amazon_mock(product_url: str, db: Session) -> dict:  # pylint: disabl
         db.add(review)
         reviews_saved += 1
 
-        # Create or update a Node for high-severity reviews (reuse existing ontology Node table)
-        if severity >= 8.0:
-            precedent = match_precedent(full_text)
-            # Dynamic Legal Exposure = Avg_Settlement × confidence × (severity / 10)
-            if precedent:
-                dynamic_exposure = int(
-                    precedent["settlement_avg_usd"]
-                    * precedent["confidence_score"]
-                    * (severity / 10.0)
-                )
+        # Only process legal RAG for severity >= 4 (skip Safe reviews)
+        if severity < 4.0 or risk_label is None:
+            continue
+
+        # Create or update a Node for medium+ severity reviews
+        if severity >= 4.0:
+            precedent_result = match_precedent(full_text, risk_category=risk_label)
+            # Dynamic Legal Exposure using confidence-weighted expected exposure
+            if precedent_result:
+                primary = precedent_result["primary_match"]
+                expected_exposure = precedent_result["expected_exposure_usd"]
+                # Scale by severity (0-10 normalized to 0-1)
+                dynamic_exposure = int(expected_exposure * (severity / 10.0))
+                case_id = primary["case_id"]
             else:
                 dynamic_exposure = 0
+                case_id = None
 
             normalized = (risk_label or "unknown risk").strip().lower()
             existing_node = (
@@ -183,8 +244,8 @@ def ingest_amazon_mock(product_url: str, db: Session) -> dict:  # pylint: disabl
                 existing_node.severity_score = max(existing_node.severity_score or 0, severity)
                 existing_node.last_seen_at = now
                 # Update precedent info if available
-                if precedent:
-                    existing_node.case_id = precedent["case_id"]
+                if precedent_result:
+                    existing_node.case_id = case_id
                     existing_node.estimated_loss_usd = max(
                         existing_node.estimated_loss_usd or 0, dynamic_exposure
                     )
@@ -194,7 +255,7 @@ def ingest_amazon_mock(product_url: str, db: Session) -> dict:  # pylint: disabl
                     normalized_name=normalized,
                     type="event",
                     severity_score=severity,
-                    case_id=precedent["case_id"] if precedent else None,
+                    case_id=case_id,
                     estimated_loss_usd=dynamic_exposure,
                     source="amazon",
                     created_at=now,
