@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import { Shield, Loader2, Radio, Building2, Zap, Share2, Download, Search, ScanSearch, AlertTriangle, ShoppingCart, Clock } from 'lucide-react';
+import { Shield, Loader2, Radio, Building2, Zap, Share2, Download, Search, ScanSearch, AlertTriangle, ShoppingCart, Clock, DollarSign, TrendingUp, Scale } from 'lucide-react';
 import {
   generateOntology,
   generateComplianceReport,
@@ -128,6 +128,20 @@ function injectBrand(obj, brand) {
   return JSON.parse(JSON.stringify(obj).replace(/OO/g, brand));
 }
 
+// Format USD amount for enterprise display (e.g., $6.64M or $1.2B)
+function formatLegalExposure(amount) {
+  if (amount >= 1_000_000_000) {
+    return `$${(amount / 1_000_000_000).toFixed(2)}B`;
+  }
+  if (amount >= 1_000_000) {
+    return `$${(amount / 1_000_000).toFixed(2)}M`;
+  }
+  if (amount >= 1_000) {
+    return `$${(amount / 1_000).toFixed(1)}K`;
+  }
+  return `$${amount.toLocaleString()}`;
+}
+
 export default function RiskIntelligence({ analysisResult, onNavigatePlaybook }) {
   const { t, lang } = useLang();
   const [demoResult, setDemoResult] = useState(null);
@@ -149,7 +163,13 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
   const toastTimerRef = useRef(null);
 
   // KPI live data
-  const [kpi, setKpi] = useState({ total_scanned_reviews: 0, critical_risks_detected: 0, today_new_ingestions: 0 });
+  const [kpi, setKpi] = useState({
+    total_scanned_reviews: 0,
+    critical_risks_detected: 0,
+    today_new_ingestions: 0,
+    overall_risk_score: 0,
+    total_legal_exposure_usd: 0,
+  });
   const [amazonUrl, setAmazonUrl] = useState('');
   const [amazonLoading, setAmazonLoading] = useState(false);
   const [amazonToast, setAmazonToast] = useState('');
@@ -164,11 +184,19 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
         total_scanned_reviews: Number(safeKpi.total_scanned_reviews) || 0,
         critical_risks_detected: Number(safeKpi.critical_risks_detected) || 0,
         today_new_ingestions: Number(safeKpi.today_new_ingestions) || 0,
+        overall_risk_score: Number(safeKpi.overall_risk_score) || 0,
+        total_legal_exposure_usd: Number(safeKpi.total_legal_exposure_usd) || 0,
       });
       setTimeline(Array.isArray(tlRes.data) ? tlRes.data : []);
     } catch {
       // Reset to zero on fetch failure
-      setKpi({ total_scanned_reviews: 0, critical_risks_detected: 0, today_new_ingestions: 0 });
+      setKpi({
+        total_scanned_reviews: 0,
+        critical_risks_detected: 0,
+        today_new_ingestions: 0,
+        overall_risk_score: 0,
+        total_legal_exposure_usd: 0,
+      });
       setTimeline([]);
     }
   }, []);
@@ -335,42 +363,104 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
     <div className="space-y-6">
 
       {/* ── Live KPI Dashboard (real data from SQLite) ── */}
-      <div className="bg-zinc-900 rounded-2xl border border-zinc-800 px-6 py-4">
-        <div className="flex items-center justify-between mb-3">
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-800 px-6 py-5">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2 flex-shrink-0">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${kpi.critical_risks_detected > 0 ? 'bg-red-400' : 'bg-emerald-400'} opacity-50`} />
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${kpi.critical_risks_detected > 0 ? 'bg-red-400' : 'bg-emerald-400'}`} />
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${kpi.total_legal_exposure_usd > 0 ? 'bg-red-400' : 'bg-emerald-400'} opacity-50`} />
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${kpi.total_legal_exposure_usd > 0 ? 'bg-red-400' : 'bg-emerald-400'}`} />
             </span>
-            <span className={`text-xs font-bold uppercase tracking-widest ${kpi.critical_risks_detected > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{t('risk.live')}</span>
+            <span className={`text-xs font-bold uppercase tracking-widest ${kpi.total_legal_exposure_usd > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{t('risk.live')}</span>
             <span className="text-xs text-zinc-600">{t('risk.last24h')}</span>
           </div>
           <span className="text-xs text-zinc-600">{t('risk.lastScan')}</span>
         </div>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-zinc-800/60 rounded-xl px-4 py-3 border border-zinc-700/60">
-            <p className="text-xl font-bold text-white leading-none">
-              {kpi.total_scanned_reviews.toLocaleString()}
-              {t('risk.count') && <span className="text-xs font-normal text-zinc-400 ml-1">{t('risk.count')}</span>}
+
+        {/* 4-Column Enterprise KPI Layout */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Card A: Legal Exposure (Primary - Alarming) */}
+          <div className={`rounded-xl px-4 py-4 border ${
+            kpi.total_legal_exposure_usd > 0
+              ? 'bg-red-950/50 border-red-800/80'
+              : 'bg-zinc-800/60 border-zinc-700/60'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                kpi.total_legal_exposure_usd > 0 ? 'bg-red-900/60' : 'bg-zinc-700/60'
+              }`}>
+                <Scale className={kpi.total_legal_exposure_usd > 0 ? 'text-red-400' : 'text-zinc-400'} size={14} />
+              </div>
+              <p className="text-[11px] text-zinc-500 font-medium uppercase tracking-wide">{t('risk.kpiLegalExposure')}</p>
+            </div>
+            <p className={`text-2xl font-bold leading-none ${
+              kpi.total_legal_exposure_usd > 0 ? 'text-red-400' : 'text-zinc-400'
+            }`}>
+              {formatLegalExposure(kpi.total_legal_exposure_usd)}
             </p>
-            <p className="text-xs text-zinc-500 mt-1">{t('risk.kpiScanned')}</p>
-          </div>
-          <div className={`rounded-xl px-4 py-3 border ${kpi.critical_risks_detected > 0 ? 'bg-red-950/40 border-red-900/60' : 'bg-emerald-950/40 border-emerald-900/60'}`}>
-            <p className={`text-xl font-bold leading-none ${kpi.critical_risks_detected > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-              {kpi.critical_risks_detected}
-              {t('risk.count') && <span className="text-xs font-normal text-zinc-400 ml-1">{t('risk.count')}</span>}
-            </p>
-            <p className="text-xs text-zinc-500 mt-1">{t('risk.kpiRisks')}</p>
-            {kpi.critical_risks_detected === 0 && (
-              <p className="text-[11px] text-emerald-500 mt-0.5">{t('risk.safeState')}</p>
+            {kpi.total_legal_exposure_usd > 0 && (
+              <p className="text-[10px] text-red-500/80 mt-1.5 leading-tight">{t('risk.legalExposureTooltip')}</p>
             )}
           </div>
-          <div className="bg-zinc-800/60 rounded-xl px-4 py-3 border border-zinc-700/60">
-            <p className="text-xl font-bold text-white leading-none">
-              {kpi.today_new_ingestions.toLocaleString()}
-              {t('risk.count') && <span className="text-xs font-normal text-zinc-400 ml-1">{t('risk.count')}</span>}
+
+          {/* Card B: Overall Risk Score */}
+          <div className={`rounded-xl px-4 py-4 border ${
+            kpi.overall_risk_score >= 10
+              ? 'bg-orange-950/40 border-orange-800/60'
+              : 'bg-zinc-800/60 border-zinc-700/60'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                kpi.overall_risk_score >= 10 ? 'bg-orange-900/60' : 'bg-zinc-700/60'
+              }`}>
+                <TrendingUp className={kpi.overall_risk_score >= 10 ? 'text-orange-400' : 'text-zinc-400'} size={14} />
+              </div>
+              <p className="text-[11px] text-zinc-500 font-medium uppercase tracking-wide">{t('risk.kpiRiskScore')}</p>
+            </div>
+            <p className={`text-2xl font-bold leading-none ${
+              kpi.overall_risk_score >= 10 ? 'text-orange-400' : 'text-white'
+            }`}>
+              {kpi.overall_risk_score.toLocaleString()}
             </p>
-            <p className="text-xs text-zinc-500 mt-1">{t('risk.kpiToday')}</p>
+          </div>
+
+          {/* Card C: Critical Risks */}
+          <div className={`rounded-xl px-4 py-4 border ${
+            kpi.critical_risks_detected > 0
+              ? 'bg-red-950/40 border-red-900/60'
+              : 'bg-emerald-950/30 border-emerald-900/50'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                kpi.critical_risks_detected > 0 ? 'bg-red-900/60' : 'bg-emerald-900/40'
+              }`}>
+                <AlertTriangle className={kpi.critical_risks_detected > 0 ? 'text-red-400' : 'text-emerald-400'} size={14} />
+              </div>
+              <p className="text-[11px] text-zinc-500 font-medium uppercase tracking-wide">{t('risk.kpiRisks')}</p>
+            </div>
+            <p className={`text-2xl font-bold leading-none ${
+              kpi.critical_risks_detected > 0 ? 'text-red-400' : 'text-emerald-400'
+            }`}>
+              {kpi.critical_risks_detected}
+            </p>
+            {kpi.critical_risks_detected === 0 && (
+              <p className="text-[10px] text-emerald-500/80 mt-1.5">{t('risk.safeState')}</p>
+            )}
+          </div>
+
+          {/* Card D: Analyzed Today */}
+          <div className="bg-zinc-800/60 rounded-xl px-4 py-4 border border-zinc-700/60">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-7 h-7 rounded-lg bg-zinc-700/60 flex items-center justify-center">
+                <Clock className="text-zinc-400" size={14} />
+              </div>
+              <p className="text-[11px] text-zinc-500 font-medium uppercase tracking-wide">{t('risk.kpiToday')}</p>
+            </div>
+            <p className="text-2xl font-bold text-white leading-none">
+              {kpi.today_new_ingestions.toLocaleString()}
+            </p>
+            <p className="text-[10px] text-zinc-600 mt-1.5">
+              {t('risk.kpiScanned')}: {kpi.total_scanned_reviews.toLocaleString()}
+            </p>
           </div>
         </div>
       </div>
@@ -419,7 +509,7 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
               {lang === 'ko' ? `${timeline.length}건 탐지` : `${timeline.length} detections`}
             </span>
           </div>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          <div className="space-y-2 max-h-72 overflow-y-auto">
             {timeline.map((item) => {
               const sev = item.severity >= 9 ? 'critical' : item.severity >= 7 ? 'high' : 'medium';
               const colors = {
@@ -432,19 +522,42 @@ export default function RiskIntelligence({ analysisResult, onNavigatePlaybook })
                 high: 'bg-orange-600 text-white',
                 medium: 'bg-amber-600 text-white',
               };
+              // Determine risk category label from case_id prefix
+              const getCaseLabel = (caseId) => {
+                if (!caseId) return null;
+                if (caseId.startsWith('PL-')) return t('risk.caseLabelProductLiability');
+                if (caseId.startsWith('CA-')) return t('risk.caseLabelClassAction');
+                if (caseId.startsWith('FA-')) return t('risk.caseLabelConsumerFraud');
+                return t('risk.caseLabelLegalRisk');
+              };
+              const caseLabel = getCaseLabel(item.case_id);
+
               return (
-                <div key={item.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${colors[sev]}`}>
-                  <AlertTriangle size={16} className="flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{item.name}</p>
-                    {item.detail && <p className="text-xs text-zinc-500 truncate">{item.detail}</p>}
+                <div key={item.id} className={`flex flex-col gap-2 px-4 py-3 rounded-xl border ${colors[sev]}`}>
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle size={16} className="flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{item.name}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${badgeColors[sev]}`}>
+                      {t(`risk.severity${sev.charAt(0).toUpperCase() + sev.slice(1)}`)}
+                    </span>
+                    <span className="text-[11px] text-zinc-600 flex-shrink-0 w-16 text-right">
+                      {item.source}
+                    </span>
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${badgeColors[sev]}`}>
-                    {t(`risk.severity${sev.charAt(0).toUpperCase() + sev.slice(1)}`)}
-                  </span>
-                  <span className="text-[11px] text-zinc-600 flex-shrink-0 w-16 text-right">
-                    {item.source}
-                  </span>
+                  {/* Legal Case Badge Row */}
+                  {item.case_id && (
+                    <div className="flex items-center gap-2 ml-7">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-950/70 border border-indigo-800/60 text-[10px] font-medium text-indigo-300">
+                        <Scale size={10} />
+                        {caseLabel}
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[10px] font-mono text-zinc-400">
+                        {t('risk.matchedPrecedent')}: {item.case_id}
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -84,6 +84,8 @@ def get_risk_timeline(
             "type": r.type,
             "severity": r.severity_score,
             "source": r.source,
+            "case_id": r.case_id,
+            "estimated_loss_usd": r.estimated_loss_usd,
             "detected_at": r.last_seen_at.isoformat() if r.last_seen_at else None,
         }
         for r in rows
