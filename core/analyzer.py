@@ -5,13 +5,13 @@ from core.utils.openai_client import call_openai_json, get_client
 from core.utils.prompt_templates import build_zero_shot_prompt, format_reviews
 
 SYSTEM_PROMPT_ANALYST = (
-    "You are an expert at analyzing e-commerce customer "
-    "feedback and identifying patterns."
+    "당신은 이커머스 고객 피드백을 분석하고 "
+    "패턴을 식별하는 전문가입니다. 반드시 한국어로 응답하세요."
 )
 
 SYSTEM_PROMPT_CONSULTANT = (
-    "You are an expert business consultant specializing in "
-    "e-commerce operations."
+    "당신은 이커머스 운영 전문 비즈니스 컨설턴트입니다. "
+    "반드시 한국어로 응답하세요."
 )
 
 

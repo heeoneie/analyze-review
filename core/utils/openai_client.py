@@ -16,7 +16,7 @@ def get_client():
 def call_openai_json(
     client,
     prompt,
-    system_prompt="You are an expert at analyzing e-commerce customer feedback.",
+    system_prompt="당신은 이커머스 고객 피드백 분석 전문가입니다. 반드시 한국어로 응답하세요.",
     model=None,
     temperature=None,
 ):
