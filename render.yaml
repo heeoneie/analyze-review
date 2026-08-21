@@ -1,0 +1,15 @@
+# Render 블루프린트. 대시보드에서 이 레포를 연결하면 그대로 배포된다.
+services:
+  - type: web
+    name: dorya-reply
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false          # 대시보드에서 직접 입력
+      - key: STORE_NAME
+        value: 도야짬뽕 부천시청점
+      - key: REPLY_LLM_MODEL
+        value: gpt-4.1-mini

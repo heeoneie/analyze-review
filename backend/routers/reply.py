@@ -1,15 +1,29 @@
-"""리뷰 답변 생성 API"""
+"""리뷰 답변 생성 API
+
+/generate, /generate-batch 는 대시보드(ReplyPanel)가 쓰는 기존 경로다.
+/store/* 는 사장님이 리뷰를 붙여넣고 쓰는 단독 화면용이고, 접속 코드로 잠근다.
+"""
 
 import asyncio
 import logging
+import secrets
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel, Field
 
+from core import config
 from core.reply_generator import ReplyGenerator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def require_access_code(x_access_code: str = Header(default="")):
+    """ACCESS_CODE 가 설정돼 있으면 헤더로 같은 코드를 받아야 통과."""
+    if not config.ACCESS_CODE:
+        return
+    if not secrets.compare_digest(x_access_code, config.ACCESS_CODE):
+        raise HTTPException(401, "접속 코드가 맞지 않습니다.")
 
 
 class SingleReplyRequest(BaseModel):
@@ -61,3 +75,59 @@ async def generate_batch_replies(request: BatchReplyRequest):
     except Exception:
         logger.exception("일괄 답변 생성 실패")
         raise HTTPException(500, "일괄 답변 생성 중 오류가 발생했습니다.") from None
+
+
+# ── 사장님용 단독 화면 ──────────────────────────────────────
+
+
+class StoreReplyRequest(BaseModel):
+    review_text: str = Field(default="", max_length=2000)
+    rating: int = Field(ge=1, le=5)
+    menu: str = Field(default="", max_length=500)
+    store_name: str | None = Field(default=None, max_length=100)
+    # "다시 만들기" 시 직전 답변과 겹치지 않게 프론트에서 되돌려 보낸다.
+    avoid_openings: list[str] = Field(default_factory=list, max_length=10)
+    avoid_closings: list[str] = Field(default_factory=list, max_length=10)
+    exclude_angles: list[str] = Field(default_factory=list, max_length=10)
+    exclude_closings: list[str] = Field(default_factory=list, max_length=10)
+
+
+@router.get("/config")
+async def reply_config():
+    """화면이 기본값을 채우는 데 쓰는 설정. 코드 없이도 볼 수 있어야 한다."""
+    return {
+        "store_name": config.STORE_NAME,
+        "model": config.REPLY_LLM_MODEL,
+        "requires_code": bool(config.ACCESS_CODE),
+    }
+
+
+@router.post("/verify", dependencies=[Depends(require_access_code)])
+async def verify_access_code():
+    """접속 코드 확인. 화면 진입 시 한 번 호출한다."""
+    return {"ok": True}
+
+
+@router.post("/store/generate", dependencies=[Depends(require_access_code)])
+async def generate_store_reply(request: StoreReplyRequest):
+    """리뷰 한 건에 대한 답글 생성. 별점에 따라 긍정/부정 경로로 나뉜다."""
+    if not request.review_text.strip() and not request.menu.strip():
+        raise HTTPException(400, "리뷰 내용이나 주문 메뉴 중 하나는 입력해 주세요.")
+
+    generator = ReplyGenerator(store_name=request.store_name)
+    try:
+        result = await asyncio.to_thread(
+            generator.generate,
+            request.review_text,
+            request.rating,
+            request.menu,
+            avoid_openings=request.avoid_openings,
+            avoid_closings=request.avoid_closings,
+            exclude_angles=request.exclude_angles,
+            exclude_closings=request.exclude_closings,
+        )
+    except Exception:
+        logger.exception("답변 생성 실패")
+        raise HTTPException(500, "답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.") from None
+
+    return result

@@ -1,0 +1,6 @@
+# 답글 생성 화면만 배포할 때 필요한 최소 의존성.
+# 분석/크롤링 라우터는 backend/main.py 에서 import 실패 시 자동으로 빠진다.
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+openai>=1.0.0
+python-dotenv>=1.0.0

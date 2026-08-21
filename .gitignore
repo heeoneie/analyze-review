@@ -18,7 +18,8 @@ dist/
 .npm
 
 # Data
-data/
+# 디렉터리 자체를 무시하면 git 이 안으로 들어가지 않아 예외가 먹지 않는다.
+data/*
 *.csv
 *.xlsx
 
@@ -45,3 +46,9 @@ frontend/dist/
 # Skills
 .agents/
 .claude/skills/
+
+# 매장 메뉴 목록은 데이터가 아니라 설정이다. 없으면 답변이 없는 메뉴를 지어낸다.
+!data/store_menu.json
+
+# 터널 자격증명. 유출되면 누구나 이 도메인으로 트래픽을 받을 수 있다.
+cloudflared/*.json
