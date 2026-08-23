@@ -25,10 +25,16 @@ class GuideRequest(BaseModel):
 
 
 def require_access_code(x_access_code: str = Header(default="")):
-    """ACCESS_CODE 가 설정돼 있으면 헤더로 같은 코드를 받아야 통과."""
+    """ACCESS_CODE 가 설정돼 있으면 헤더로 같은 코드를 받아야 통과.
+
+    compare_digest 는 비ASCII 문자열을 그대로 받으면 TypeError 를 낸다.
+    한국어 코드("도야2026")를 넣으면 모든 요청이 500 이 되므로 bytes 로 비교한다.
+    """
     if not config.ACCESS_CODE:
         return
-    if not secrets.compare_digest(x_access_code, config.ACCESS_CODE):
+    if not secrets.compare_digest(
+        x_access_code.encode("utf-8"), config.ACCESS_CODE.encode("utf-8")
+    ):
         raise HTTPException(401, "접속 코드가 맞지 않습니다.")
 
 
@@ -48,7 +54,7 @@ class BatchReplyRequest(BaseModel):
     reviews: list[BatchReplyItem]
 
 
-@router.post("/generate")
+@router.post("/generate", dependencies=[Depends(require_access_code)])
 async def generate_reply(request: SingleReplyRequest):
     """단일 리뷰에 대한 맞춤 답변 생성"""
     try:
@@ -65,7 +71,7 @@ async def generate_reply(request: SingleReplyRequest):
         raise HTTPException(500, "답변 생성 중 오류가 발생했습니다.") from None
 
 
-@router.post("/generate-batch")
+@router.post("/generate-batch", dependencies=[Depends(require_access_code)])
 async def generate_batch_replies(request: BatchReplyRequest):
     """다건 리뷰에 대한 답변 일괄 생성"""
     if len(request.reviews) > 50:

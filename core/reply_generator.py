@@ -387,7 +387,9 @@ class ReplyGenerator:
     ) -> dict:
         """단일 불만 리뷰에 대한 맞춤 답변 생성."""
         prompt = _build_single_prompt(review_text, rating, category, menu)
-        raw = call_openai_json(self.client, prompt, system_prompt=SYSTEM_PROMPT)
+        raw = call_openai_json(
+            self.client, prompt, system_prompt=SYSTEM_PROMPT, model=self.model
+        )
 
         parsed = extract_json_from_text(raw)
         if not parsed or "reply" not in parsed:
@@ -403,7 +405,9 @@ class ReplyGenerator:
         for start in range(0, len(reviews), REPLY_BATCH_SIZE):
             chunk = reviews[start:start + REPLY_BATCH_SIZE]
             prompt = _build_batch_prompt(chunk)
-            raw = call_openai_json(self.client, prompt, system_prompt=SYSTEM_PROMPT)
+            raw = call_openai_json(
+                self.client, prompt, system_prompt=SYSTEM_PROMPT, model=self.model
+            )
 
             parsed = extract_json_from_text(raw)
             if parsed and "replies" in parsed:
@@ -471,6 +475,8 @@ class ReplyGenerator:
 
         violations: list[str] = []
         parsed = None
+        # 재시도가 JSON 파싱에 실패해도 앞서 성공한 답변을 버리지 않는다.
+        best, best_violations = None, []
 
         for attempt in range(MAX_ATTEMPTS):
             prompt = _build_positive_prompt(
@@ -488,6 +494,8 @@ class ReplyGenerator:
                 parsed["reply"], menu, avoid_openings, avoid_closings, avoid_shapes,
                 max_emoji=1 if chosen_emoji else 0,
             )
+            if best is None or len(violations) < len(best_violations):
+                best, best_violations = parsed, violations
             if not violations:
                 break
 
@@ -503,9 +511,10 @@ class ReplyGenerator:
                     exclude=list(set(exclude_closings or []) | {chosen_closing["key"]})
                 )
 
-        if not parsed:
+        if best is None:
             raise RuntimeError("답변 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.")
 
+        parsed, violations = best, best_violations
         reply = parsed["reply"].strip()
         return {
             "reply": reply,
@@ -529,6 +538,7 @@ class ReplyGenerator:
         """불만 리뷰 답글. 배달 맥락으로 짚고 다음 주문 보완을 약속한다."""
         violations: list[str] = []
         parsed = None
+        best, best_violations = None, []
 
         for attempt in range(MAX_ATTEMPTS):
             prompt = _build_single_prompt(review_text, rating, category, menu)
@@ -543,13 +553,16 @@ class ReplyGenerator:
                 parsed["reply"], self.store_name,
                 min_chars=130, max_chars=250, max_emoji=0, negative=True,
             )
+            if best is None or len(violations) < len(best_violations):
+                best, best_violations = parsed, violations
             if not violations:
                 break
             logger.info("부정 답변 재생성 (%d회차): %s", attempt + 1, violations)
 
-        if not parsed:
+        if best is None:
             raise RuntimeError("답변 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.")
 
+        parsed, violations = best, best_violations
         reply = parsed["reply"].strip()
         return {
             "reply": reply,

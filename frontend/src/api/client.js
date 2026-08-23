@@ -49,10 +49,14 @@ export const getPrioritizedReviews = (page = 1, pageSize = 20, level = null) =>
 
 // 답변 생성 API
 export const generateReply = (reviewText, rating, category = null) =>
-  api.post('/reply/generate', { review_text: reviewText, rating, category });
+  api.post(
+    '/reply/generate',
+    { review_text: reviewText, rating, category },
+    withAccessCode(),
+  );
 
 export const generateBatchReplies = (reviews) =>
-  api.post('/reply/generate-batch', { reviews });
+  api.post('/reply/generate-batch', { reviews }, withAccessCode());
 
 // 답변 가이드 API
 export const getReplyGuide = (category) =>
