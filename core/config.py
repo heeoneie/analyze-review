@@ -34,4 +34,13 @@ POSITIVE_EMOJI_POOL = ["🙂", "😊", "🍜", "🥟", "👍", "🔥"]
 # 이 별점 이상이면 긍정 경로
 POSITIVE_RATING_THRESHOLD = 4
 # 공개 URL 남용 방지용 접속 코드. 비워 두면 잠그지 않는다.
+# HTTP 헤더로 실어 보내므로 ASCII 만 쓸 수 있다. 한국어를 넣으면 브라우저가
+# 요청 자체를 못 만들어서, 서버는 멀쩡한데 아무도 못 들어오는 상태가 된다.
+# 조용히 넘기면 원인을 찾기 어려우므로 시작할 때 바로 막는다.
 ACCESS_CODE = os.getenv("ACCESS_CODE", "")
+
+if ACCESS_CODE and not ACCESS_CODE.isascii():
+    raise ValueError(
+        "ACCESS_CODE 에는 ASCII 문자만 쓸 수 있습니다 (영문·숫자·기호). "
+        "HTTP 헤더로 전송되기 때문입니다. 예: doya-1877"
+    )
