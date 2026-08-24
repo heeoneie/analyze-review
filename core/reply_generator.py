@@ -226,15 +226,25 @@ def _menu_block(menu) -> str:
 
 
 def _build_single_prompt(
-    review_text: str, rating: int, category: str | None = None, menu: str | None = None
+    review_text: str, rating: int, category: str | None = None,
+    menu: str | None = None, context: dict | None = None,
 ) -> str:
     """불만 리뷰 한 건에 대한 프롬프트. 배달 음식 맥락."""
     category_line = f"\n이 리뷰의 불만 분류: {category}" if category else ""
+
+    context = context or {}
+    extra = ""
+    if context.get("order_type"):
+        extra += f"\n주문 방식: {context['order_type']}"
+    time_hint = _time_hint(context.get("ordered_at"))
+    if time_hint:
+        extra += f"\n주문 시각: {time_hint}"
+
     return f"""배달앱에 달린 불만 리뷰입니다. 사장님이 직접 다는 답글을 쓰세요.
 
 ## 고객 리뷰 (평점: {rating}점)
 {review_text}
-{category_line}{_menu_block(menu)}
+{category_line}{extra}{_menu_block(menu)}
 
 {BANNED_BLOCK_NEGATIVE}
 {DELIVERY_ISSUES}
@@ -282,7 +292,8 @@ def _build_batch_prompt(reviews: list[dict]) -> str:
 }}"""
 
 
-def _build_positive_prompt(
+# 프롬프트에 들어갈 재료가 많은 것이 이 함수의 일이다. 쪼개면 호출부만 복잡해진다.
+def _build_positive_prompt(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
     review_text, rating, menu_items, angle, closing,
     ordered_at=None, order_type=None,
     avoid_openings=None, avoid_closings=None, avoid_shapes=None,
@@ -419,8 +430,9 @@ class ReplyGenerator:
 
     # ── 검사 ────────────────────────────────────────────────
 
-    def _positive_violations(self, reply, menu, avoid_openings, avoid_closings,
-                             avoid_shapes, max_emoji=1):
+    def _positive_violations(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self, reply, menu, avoid_openings, avoid_closings, avoid_shapes, max_emoji=1,
+    ):
         problems = find_violations(
             reply, self.store_name,
             min_chars=config.POSITIVE_REPLY_MIN_CHARS,
@@ -453,7 +465,8 @@ class ReplyGenerator:
 
     # ── 긍정 리뷰 ────────────────────────────────────────────
 
-    def generate_positive(
+    # 중복 회피 정보(앞서 쓴 문장·골격·이모지·도입/끝맺음)가 함께 다녀야 한다.
+    def generate_positive(  # pylint: disable=too-many-arguments,too-many-locals
         self, review_text, rating=5, menu=None, *,
         ordered_at=None, order_type=None,
         avoid_openings=None, avoid_closings=None, avoid_shapes=None, avoid_emojis=None,
@@ -525,7 +538,7 @@ class ReplyGenerator:
 
     # ── 부정 리뷰 (검사 포함, 새 화면용) ──────────────────────
 
-    def generate_negative(
+    def generate_negative(  # pylint: disable=too-many-arguments
         self, review_text, rating, menu=None, *,
         ordered_at=None, order_type=None, category=None,
     ) -> dict:
@@ -534,8 +547,9 @@ class ReplyGenerator:
         parsed = None
         best, best_violations = None, []
 
+        context = {"ordered_at": ordered_at, "order_type": order_type}
         for attempt in range(MAX_ATTEMPTS):
-            prompt = _build_single_prompt(review_text, rating, category, menu)
+            prompt = _build_single_prompt(review_text, rating, category, menu, context)
             if violations:
                 prompt += "\n\n## 직전 시도가 걸린 규칙 (반드시 고칠 것)\n" + \
                     "\n".join(f"- {v}" for v in violations)

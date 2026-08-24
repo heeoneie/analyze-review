@@ -17,9 +17,9 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core import config  # noqa: E402  pylint: disable=wrong-import-position
-from core.menu_profiles import main_items, parse_menu  # noqa: E402
-from core.reply_generator import ReplyGenerator  # noqa: E402
-from core.reply_text import openings_collide  # noqa: E402
+from core.menu_profiles import main_items, parse_menu  # noqa: E402  pylint: disable=wrong-import-position
+from core.reply_generator import ReplyGenerator  # noqa: E402  pylint: disable=wrong-import-position
+from core.reply_text import openings_collide  # noqa: E402  pylint: disable=wrong-import-position
 
 
 def menu_signature(menu_text):

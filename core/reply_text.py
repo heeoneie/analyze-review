@@ -117,7 +117,8 @@ def openings_collide(a: str, b: str, threshold: float = 0.55) -> bool:
     return len(ba & bb) / len(ba | bb) >= threshold
 
 
-def find_violations(
+# 검사 항목마다 기준이 달라 인자가 많다. 묶으면 호출부에서 오히려 읽기 나빠진다.
+def find_violations(  # pylint: disable=too-many-arguments,too-many-locals
     reply: str,
     store_name: str,
     *,
