@@ -4,6 +4,9 @@ __pycache__/
 *.pyc
 .git/
 .env
+# 터널 자격증명. HOMESERVER.md 절차대로 두면 여기 존재하게 된다.
+# 이미지에 안 넣더라도 빌드 컨텍스트에 올라가면 데몬·캐시·원격 빌더가 읽는다.
+cloudflared/*.json
 frontend/node_modules/
 frontend/dist/
 results/

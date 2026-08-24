@@ -248,8 +248,11 @@ export default function ReplyStudio() {
         {drafts.length > 0 && (
           <section className="space-y-3 rounded-2xl bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold text-slate-700">앞서 만든 답글</h2>
-            {drafts.map((draft, index) => (
-              <div key={index} className="space-y-2 border-t border-slate-100 pt-3 first:border-0 first:pt-0">
+            {drafts.map((draft) => (
+              <div
+                key={draft.reply}
+                className="space-y-2 border-t border-slate-100 pt-3 first:border-0 first:pt-0"
+              >
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-500">
                   {draft.reply}
                 </p>

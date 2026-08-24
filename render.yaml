@@ -9,6 +9,8 @@ services:
     envVars:
       - key: OPENAI_API_KEY
         sync: false          # 대시보드에서 직접 입력
+      - key: ACCESS_CODE
+        sync: false          # 반드시 입력할 것. 비우면 공개 URL 이 무인증이 된다
       - key: STORE_NAME
         value: 도야짬뽕 부천시청점
       - key: REPLY_LLM_MODEL
