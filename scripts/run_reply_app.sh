@@ -28,7 +28,20 @@ echo "API 서버 시작 (포트 $PORT)"
 "$PYTHON" -m uvicorn backend.main:app --host 127.0.0.1 --port "$PORT" &
 UVICORN_PID=$!
 
-sleep 3
+# 고정 시간 대기는 느린 기계에서 터널이 먼저 떠 502 를 내보낸다. 준비될 때까지 본다.
+echo "API 준비 대기 중…"
+for _ in $(seq 1 30); do
+  if curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
+    echo "API 준비됨"
+    break
+  fi
+  sleep 1
+done
+
+if ! curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
+  echo "API 가 30초 안에 뜨지 않았습니다. 터널을 시작하지 않습니다." >&2
+  exit 1
+fi
 
 if [ -f "$TUNNEL_CONFIG" ]; then
   echo "Cloudflare 터널 시작 → https://reply.ontoreview.com"

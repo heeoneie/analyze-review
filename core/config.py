@@ -1,4 +1,6 @@
+import logging
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,7 +18,8 @@ LLM_MODEL = "gpt-4o-mini"
 LLM_TEMPERATURE = 0.3
 
 # ── 리뷰 답변 생성 (외식업 배달앱) ──────────────────────────
-STORE_NAME = os.getenv("STORE_NAME", "도야짬뽕 부천시청점")
+# 실제 매장 이름은 .env 에만 둔다. 공개 레포에 고객사 이름을 기본값으로 박지 않는다.
+STORE_NAME = os.getenv("STORE_NAME", "우리 매장")
 # 답변 생성은 분석과 달리 한국어 문장력이 결과를 좌우한다. 실측 비교에서
 # gpt-4o-mini 는 "~하셨다니 기쁩니다 … 노력하겠습니다" 정형구로 수렴했고,
 # gpt-4.1-mini 는 메뉴별로 다른 문장을 냈다.
@@ -43,4 +46,12 @@ if ACCESS_CODE and not ACCESS_CODE.isascii():
     raise ValueError(
         "ACCESS_CODE 에는 ASCII 문자만 쓸 수 있습니다 (영문·숫자·기호). "
         "HTTP 헤더로 전송되기 때문입니다. 예: doya-1877"
+    )
+
+if not ACCESS_CODE:
+    # 로컬 개발에서는 정상이지만, 공개 URL 에 이 상태로 올라가면 링크를 아는
+    # 누구나 OpenAI 요금을 쓴다. 조용히 지나가면 알아채지 못한다.
+    logging.getLogger(__name__).warning(
+        "ACCESS_CODE 가 비어 있습니다. 답글 생성 API 가 인증 없이 열립니다. "
+        "공개 주소로 배포한다면 반드시 설정하세요."
     )

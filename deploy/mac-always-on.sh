@@ -100,7 +100,7 @@ else
 fi
 
 CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
-  -X POST https://reply.ontoreview.com/api/reply/generate \
+  -X POST https://reply.ontoreview.com/api/reply/store/generate \
   -H 'Content-Type: application/json' \
   -d '{"review_text":"맛있어요","rating":5,"menu":"도야짬뽕"}' 2>/dev/null)
 if [ "$CODE" = "401" ]; then
