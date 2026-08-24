@@ -1,0 +1,9 @@
+# 홈서버 컨테이너 안에서 도는 cloudflared 설정.
+# service 가 localhost 가 아니라 compose 서비스 이름(app)인 점이 맥북 설정과 다르다.
+tunnel: 0c0c0bc8-cb6b-49e2-90a1-8dd47b9773db
+credentials-file: /etc/cloudflared/0c0c0bc8-cb6b-49e2-90a1-8dd47b9773db.json
+
+ingress:
+  - hostname: reply.ontoreview.com
+    service: http://app:8000
+  - service: http_status:404

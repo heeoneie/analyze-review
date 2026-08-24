@@ -1,0 +1,33 @@
+# Fly.io 배포용. 자세한 절차는 deploy/DEPLOY.md 참고.
+#   fly launch --no-deploy --copy-config --name dorya-reply
+#   fly secrets set OPENAI_API_KEY=... ACCESS_CODE=...
+#   fly deploy
+# app 이름은 Fly 전체에서 유일해야 한다. 충돌하면 여기와 --name 을 같이 바꾼다.
+app = "dorya-reply"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8000"
+  STORE_NAME = "도야짬뽕 부천시청점"
+  REPLY_LLM_MODEL = "gpt-4.1-mini"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "10s"
+  method = "GET"
+  path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
