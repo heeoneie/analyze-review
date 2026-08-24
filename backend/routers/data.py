@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.database.database import get_db
-from backend.services import progress
 from backend.services.amazon_service import ingest_amazon_mock
 from backend.services.crawler_service import (
     crawl_reviews,
@@ -168,7 +167,6 @@ def use_sample_data():
 @router.post("/crawl")
 async def crawl_product_reviews(request: CrawlRequest):
     """상품 URL에서 리뷰 크롤링"""
-    progress.reset()
     try:
         platform, result = await crawl_reviews(
             request.url, request.max_pages
