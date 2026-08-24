@@ -4,6 +4,7 @@
 링크를 아는 사람이 OpenAI 요금을 그대로 쓴다. 리뷰에서 실제로 뚫려 있었다.
 """
 
+import importlib
 from unittest.mock import patch
 
 import pytest
@@ -52,7 +53,7 @@ class TestAccessGate:
         res = locked.post("/api/reply/verify", headers={"X-Access-Code": "test-code"})
         assert res.status_code == 200
 
-    def test_ascii_symbols_work(self, locked):
+    def test_ascii_symbols_work(self):
         # 기호가 섞여도 정상 동작해야 한다
         with patch.object(reply.config, "ACCESS_CODE", "doya-1877!#"):
             client = build_client()
@@ -101,15 +102,11 @@ class TestAccessCodeValidation:
     """비ASCII 코드는 헤더로 전송조차 안 되므로 시작 시점에 막는다."""
 
     def test_rejects_non_ascii_at_startup(self, monkeypatch):
-        import importlib
-
         monkeypatch.setenv("ACCESS_CODE", "도야2026")
         with pytest.raises(ValueError, match="ASCII"):
             importlib.reload(reply.config)
 
     def test_accepts_ascii(self, monkeypatch):
-        import importlib
-
         monkeypatch.setenv("ACCESS_CODE", "doya-1877")
         importlib.reload(reply.config)
         assert reply.config.ACCESS_CODE == "doya-1877"

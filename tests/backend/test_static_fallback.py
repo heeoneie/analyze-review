@@ -6,6 +6,11 @@
 
 import os
 
+import pytest
+from fastapi import HTTPException
+
+from backend.main import serve_frontend
+
 
 def _inside(dist, path):
     """backend.main.serve_frontend 의 경계 판정과 같은 로직."""
@@ -29,14 +34,8 @@ class TestPathBoundary:
 
 
 class TestApiNotSwallowed:
-    def test_api_paths_are_excluded(self):
-        from backend.main import serve_frontend
-        from fastapi import HTTPException
-
-        for path in ("api", "api/data/reviews", "api/nope"):
-            try:
-                serve_frontend(path)
-            except HTTPException as exc:
-                assert exc.status_code == 404
-            else:
-                raise AssertionError(f"{path} 가 404 를 내지 않았다")
+    @pytest.mark.parametrize("path", ["api", "api/data/reviews", "api/nope"])
+    def test_api_paths_are_excluded(self, path):
+        with pytest.raises(HTTPException) as exc:
+            serve_frontend(path)
+        assert exc.value.status_code == 404

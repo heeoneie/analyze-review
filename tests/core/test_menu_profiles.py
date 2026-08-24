@@ -37,8 +37,8 @@ class TestParseMenu:
         assert len(parse_menu("탕수육 | 탕수육")) == 1
 
     def test_empty_input(self):
-        assert parse_menu("") == []
-        assert parse_menu(None) == []
+        assert not parse_menu("")
+        assert not parse_menu(None)
 
 
 class TestMainItems:
@@ -71,17 +71,17 @@ class TestUnorderedMentions:
 
     def test_allows_suggestion_context(self):
         found = unordered_mentions("다음에는 군만두도 드셔 보세요.", "짬뽕+미니탕수육")
-        assert found == []
+        assert not found
 
     def test_ordered_dish_is_fine(self):
-        assert unordered_mentions("탕수육 튀김옷이 바삭했습니다.", "탕수육") == []
+        assert not unordered_mentions("탕수육 튀김옷이 바삭했습니다.", "탕수육")
 
     def test_service_item_counts_as_ordered(self):
         # 리뷰 이벤트로 받은 군만두도 손님이 실제로 받은 것이다
         found = unordered_mentions(
             "군만두 바삭했지요.", "탕수육 | 군만두3P 찜과ZI뷰항상감사드립니다"
         )
-        assert found == []
+        assert not found
 
     def test_no_menu_means_no_check(self):
-        assert unordered_mentions("군만두 좋았죠.", "") == []
+        assert not unordered_mentions("군만두 좋았죠.", "")
