@@ -17,6 +17,7 @@ from backend.services.crawler_service import (
     save_reviews_to_csv,
 )
 from backend.services.priority_service import score_and_sort
+from backend.services.rating import parse_rating
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -27,6 +28,30 @@ uploaded_files = {}
 analysis_settings = {"rating_threshold": 3}
 
 PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
+
+
+def _validate_ratings_column(df: pd.DataFrame) -> None:
+    """Ratings 컬럼이 숫자 별점으로 읽히는지 업로드 시점에 확인한다.
+
+    한 행도 숫자로 읽히지 않으면(예: ``Ratings = "5 out of 5"``) 업로드를
+    거부한다. 그러지 않으면 업로드는 성공하고 조회 시점에야 빈 결과나
+    엉뚱한 기본 별점으로 드러난다.
+    """
+    values = df["Ratings"].tolist()
+    if not values:
+        return
+    if any(parse_rating(v) is not None for v in values):
+        return
+
+    sample = next(
+        (repr(v) for v in values if str(v).strip()),
+        "(빈 값)",
+    )
+    raise HTTPException(
+        400,
+        "'Ratings' 컬럼에서 숫자 별점을 읽을 수 없습니다. "
+        f"1~5 사이의 숫자여야 합니다. (예시 값: {sample})",
+    )
 
 
 class AmazonRequest(BaseModel):
@@ -86,6 +111,12 @@ async def upload_csv(file: UploadFile = File(...)):
             columns={"review_text": "Reviews", "rating": "Ratings"}
         )
         df[["Ratings", "Reviews"]].to_csv(tmp_path, index=False)
+
+    try:
+        _validate_ratings_column(df)
+    except HTTPException:
+        os.unlink(tmp_path)
+        raise
 
     uploaded_files["current"] = tmp_path
 
@@ -254,12 +285,10 @@ def get_prioritized_reviews(
     df = pd.read_csv(csv_path).fillna("")
     threshold = analysis_settings["rating_threshold"]
 
-    # 부정 리뷰만 필터링
+    # 부정 리뷰만 필터링 (별점 파싱은 parse_rating 한 곳으로)
     def _is_negative(x):
-        try:
-            return int(float(x)) <= threshold
-        except (ValueError, TypeError):
-            return False
+        rating = parse_rating(x)
+        return rating is not None and rating <= threshold
 
     negative_df = df[df["Ratings"].apply(_is_negative)]
     reviews = negative_df.to_dict(orient="records")
