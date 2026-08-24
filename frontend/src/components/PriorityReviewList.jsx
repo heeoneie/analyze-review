@@ -29,6 +29,14 @@ const FILTER_OPTIONS = [
   { value: 'low', label: '낮음' },
 ];
 
+// 행 상태를 배열 인덱스로 잡으면 페이지/필터가 바뀌어도 같은 인덱스가
+// 살아남아 엉뚱한 리뷰에 이전 답변이 붙는다. 내용 기반 키를 쓴다.
+function reviewKey(review, idx) {
+  const rating = review?.Ratings ?? '';
+  const text = String(review?.Reviews ?? '').slice(0, 120);
+  return `${rating}|${text}|${idx}`;
+}
+
 function PriorityBadge({ level }) {
   const config = LEVEL_CONFIG[level] || LEVEL_CONFIG.low;
   return (
@@ -67,12 +75,15 @@ export default function PriorityReviewList({ uploadInfo }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filterLevel, setFilterLevel] = useState(null);
-  const [expandedIdx, setExpandedIdx] = useState(null);
-  const [replyIdx, setReplyIdx] = useState(null);
+  const [expandedKey, setExpandedKey] = useState(null);
+  const [replyKey, setReplyKey] = useState(null);
 
   const fetchReviews = useCallback(async (p, level) => {
     setIsLoading(true);
     setError(null);
+    // 목록이 갈아끼워지므로 이전 행의 펼침/답변 상태는 버린다
+    setExpandedKey(null);
+    setReplyKey(null);
     try {
       const { data } = await getPrioritizedReviews(p, PAGE_SIZE, level);
       setReviews(data.reviews);
@@ -96,19 +107,25 @@ export default function PriorityReviewList({ uploadInfo }) {
   const handleFilterChange = (level) => {
     setFilterLevel(level);
     setPage(1);
+    setExpandedKey(null);
+    setReplyKey(null);
   };
 
-  const renderStars = (rating) => (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <Star
-          key={star}
-          size={14}
-          className={star <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}
-        />
-      ))}
-    </div>
-  );
+  const renderStars = (rating) => {
+    // 별점은 CSV 에서 "3.0" 같은 문자열로 올 수 있다
+    const value = Number(rating);
+    return (
+      <div className="flex gap-0.5">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            size={14}
+            className={star <= value ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}
+          />
+        ))}
+      </div>
+    );
+  };
 
   if (!uploadInfo) return null;
 
@@ -154,17 +171,19 @@ export default function PriorityReviewList({ uploadInfo }) {
           <div className="space-y-3">
             {reviews.map((review, idx) => {
               const priority = review.priority || {};
-              const isExpanded = expandedIdx === idx;
+              const key = reviewKey(review, idx);
+              const isExpanded = expandedKey === key;
               return (
                 <div
-                  key={`${page}-${idx}`}
+                  key={key}
                   className="border border-gray-100 rounded-xl p-4 hover:bg-gray-50 transition-colors cursor-pointer"
                   onClick={() => {
                     if (isExpanded) {
-                      setExpandedIdx(null);
-                      setReplyIdx(null);
+                      setExpandedKey(null);
+                      setReplyKey(null);
                     } else {
-                      setExpandedIdx(idx);
+                      setExpandedKey(key);
+                      setReplyKey(null);
                     }
                   }}
                 >
@@ -186,17 +205,21 @@ export default function PriorityReviewList({ uploadInfo }) {
                   {isExpanded && priority.factors && (
                     <ScoreBreakdown factors={priority.factors} />
                   )}
-                  {isExpanded && replyIdx !== idx && (
+                  {isExpanded && replyKey !== key && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); setReplyIdx(idx); }}
+                      onClick={(e) => { e.stopPropagation(); setReplyKey(key); }}
                       className="mt-3 text-sm text-blue-500 hover:text-blue-700 font-medium transition-colors"
                     >
                       답변 작성하기 →
                     </button>
                   )}
-                  {isExpanded && replyIdx === idx && (
+                  {isExpanded && replyKey === key && (
                     <div onClick={(e) => e.stopPropagation()}>
-                      <ReplyPanel review={review} onClose={() => setReplyIdx(null)} />
+                      <ReplyPanel
+                        key={key}
+                        review={review}
+                        onClose={() => setReplyKey(null)}
+                      />
                     </div>
                   )}
                 </div>
