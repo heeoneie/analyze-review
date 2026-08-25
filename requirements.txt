@@ -6,6 +6,15 @@ python-dotenv>=1.0.0,<2.0.0
 kagglehub>=0.2.0,<1.0.0
 requests>=2.31.0,<3.0.0
 
+# Backend (FastAPI)
+fastapi>=0.115.0,<1.0.0
+uvicorn>=0.30.0,<1.0.0
+python-multipart>=0.0.9,<1.0.0  # UploadFile (CSV 업로드)
+
+# Crawling
+curl_cffi>=0.7.0,<1.0.0   # Coupang (Chrome TLS impersonation)
+firecrawl>=1.0.0,<5.0.0   # Naver (JS 렌더링 페이지)
+
 # Database (Ontology Persistence)
 sqlalchemy>=2.0.0,<3.0.0
 

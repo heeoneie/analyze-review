@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta
 
+import pytest
+
 from backend.services.priority_service import (
     _keyword_score,
     _length_score,
@@ -121,6 +123,17 @@ class TestComputePriority:
         result = compute_priority({})
         assert "priority" in result
         assert result["priority"]["score"] >= 0
+
+    def test_string_rating_from_csv(self):
+        """이슈 #34: pandas 가 object 로 읽은 '1.0' 도 1점으로 처리"""
+        result = compute_priority({"Ratings": "1.0", "Reviews": "불량"})
+        assert result["priority"]["factors"]["rating"] == 40
+
+    @pytest.mark.parametrize("rating", ["", "5 out of 5", None, "N/A"])
+    def test_unparseable_rating_falls_back(self, rating):
+        """이슈 #34: 숫자로 못 읽는 별점에서 ValueError 로 터지지 않는다"""
+        result = compute_priority({"Ratings": rating, "Reviews": "x"})
+        assert result["priority"]["factors"]["rating"] == 10  # 기본 3점
 
 
 # ── score_and_sort 테스트 ────────────────────────────────────

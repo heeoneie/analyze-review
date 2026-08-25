@@ -6,6 +6,8 @@ LLM 호출 없이 로컬에서 별점/키워드/길이/최신성 기준으로
 
 from datetime import datetime, timedelta, timezone
 
+from backend.services.rating import DEFAULT_RATING, parse_rating
+
 # 심각 키워드 (환불/결함/파손 등)
 _KEYWORDS_HIGH = [
     "환불", "사기", "고장", "불량", "파손", "위험", "가짜",
@@ -94,10 +96,7 @@ def compute_priority(review: dict) -> dict:
                                "keyword": int, "recency": int}}
     """
     text = str(review.get("Reviews", ""))
-    try:
-        rating = int(float(review.get("Ratings", 3)))
-    except (ValueError, TypeError):
-        rating = 3
+    rating = parse_rating(review.get("Ratings"), DEFAULT_RATING)
     created_at = review.get("created_at")
 
     factors = {
