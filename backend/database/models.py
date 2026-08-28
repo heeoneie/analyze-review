@@ -143,7 +143,11 @@ class Store(Base):
     owner_user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False,
     )
-    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    # 유일 제약이 이관을 원자적으로 1회로 만든다. 없으면 동시 요청 둘이
+    # 모두 "아직 없음" 을 보고 같은 매장을 두 번 만든다.
+    # 한 사장님이 여러 매장을 갖거나 상호가 겹치는 날에는 (owner, name)
+    # 복합 유일로 바꿔야 한다. 지금은 매장을 만드는 경로가 이관 하나뿐이다.
+    name: Mapped[str] = mapped_column(String(256), nullable=False, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     owner: Mapped["User"] = relationship("User", back_populates="stores")

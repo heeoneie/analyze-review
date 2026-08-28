@@ -29,6 +29,13 @@ def upgrade_database() -> None:
     config = Config(str(ALEMBIC_INI))
 
     with engine.begin() as connection:
+        # 워커가 여럿이면 같은 SQLite 파일에 동시에 upgrade 를 시도할 수 있다.
+        # 기본값은 즉시 "database is locked" 로 실패해서 기동이 깨진다.
+        # 먼저 잡은 쪽이 끝날 때까지 기다리게 한다 — 마이그레이션은 짧고,
+        # 뒤에 온 쪽은 이미 head 라 SQL 을 한 줄도 내보내지 않는다.
+        if connection.dialect.name == "sqlite":
+            connection.exec_driver_sql("PRAGMA busy_timeout = 30000")
+
         # 이미 열린 커넥션을 넘겨 env.py 가 엔진을 새로 만들지 않게 한다.
         # SQLite 파일을 두 커넥션이 동시에 잡으면 잠금으로 막힌다.
         config.attributes["connection"] = connection

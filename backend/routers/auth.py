@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.database.database import get_db
@@ -157,7 +158,13 @@ def claim_store(
 
     store = Store(owner_user_id=user.id, name=config.STORE_NAME)
     db.add(store)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # 위 조회와 여기 사이에 다른 요청이 먼저 이관했다. 유일 제약이
+        # 잡아 준다 — 조회만으로는 동시 요청 둘이 모두 통과한다.
+        db.rollback()
+        raise HTTPException(409, "이미 다른 계정에 연결된 매장입니다.") from None
     db.refresh(store)
     logger.info("매장 이관 완료: store_id=%s user_id=%s", store.id, user.id)
     return {"store": {"id": store.id, "name": store.name}}

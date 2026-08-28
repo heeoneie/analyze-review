@@ -156,7 +156,56 @@ class TestSanitizeReviewBody:
 
     def test_rating_like_numbers_survive(self):
         # 별점·금액이 [번호] 로 바뀌면 안 된다.
-        assert "12000" in reply_history.sanitize_review_body("12000원인데 만족합니다")
+        assert "12000" in reply_history.sanitize("12000원인데 만족합니다")
+
+    @pytest.mark.parametrize("raw,gone", [
+        ("02-123-4567 로 전화 주세요", "02-123-4567"),
+        ("031-123-4567 입니다", "031-123-4567"),
+        ("0212345678 로 연락", "0212345678"),
+    ])
+    def test_landline_numbers_removed(self, raw, gone):
+        """유선전화는 _LONG_DIGITS(9자리 연속)로 안 잡힌다. 따로 지워야 한다."""
+        assert gone not in reply_history.sanitize(raw)
+
+
+class TestRepliesAreSanitizedToo:
+    """정화 정책은 리뷰 본문만이 아니라 답글에도 걸려야 한다.
+
+    사장님이 답글에 가게 번호를 적거나 손님이 남긴 번호를 옮겨 적는 일이
+    흔하다. 한쪽만 지우면 정책이 반쪽이다.
+    """
+
+    @pytest.fixture(name="store")
+    def fixture_store(self, db_session):
+        user = User(kakao_id="1")
+        db_session.add(user)
+        db_session.commit()
+        store = Store(owner_user_id=user.id, name="테스트 매장")
+        db_session.add(store)
+        db_session.commit()
+        return store
+
+    def test_generated_reply_is_sanitized(self, db_session, store):
+        sample = reply_history.record_generated(
+            db_session, store_id=store.id, review_body="맛있어요", rating=5,
+            menu="짬뽕", generated_reply="02-123-4567 로 연락 주세요",
+        )
+        assert "02-123-4567" not in sample.generated_reply
+
+    def test_final_reply_is_sanitized(self, db_session, store):
+        sample = reply_history.record_generated(
+            db_session, store_id=store.id, review_body="맛있어요", rating=5,
+            menu="짬뽕", generated_reply="감사합니다",
+        )
+        reply_history.finalize(db_session, sample, "010-1234-5678 로 주세요")
+        assert "010-1234-5678" not in sample.final_reply
+
+    def test_onboarding_reply_is_sanitized(self, db_session, store):
+        sample = reply_history.record_onboarding(
+            db_session, store_id=store.id, review_body="맛있어요", rating=5,
+            owner_reply="문의는 hong@example.com 으로",
+        )
+        assert "hong@example.com" not in sample.final_reply
 
 
 class TestReplyHistory:

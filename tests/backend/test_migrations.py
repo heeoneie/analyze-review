@@ -155,9 +155,66 @@ class TestRevisionChain:
         script = ScriptDirectory.from_config(Config(str(ALEMBIC_INI)))
         assert len(script.get_heads()) == 1
 
-    def test_every_revision_downgrades(self, db_url):
-        """되돌릴 수 없는 마이그레이션은 사고 났을 때 손쓸 방법이 없다."""
+    def test_revisions_above_baseline_downgrade(self, db_url):
+        """baseline 위 리비전은 왕복할 수 있어야 한다.
+
+        baseline 자체는 되돌리지 않는다 (TestBaselineDowngradeIsRefused 참고).
+        """
         cfg = _config(db_url)
         command.upgrade(cfg, "head")
-        command.downgrade(cfg, "base")
+        command.downgrade(cfg, "d0effa13eb85")
         command.upgrade(cfg, "head")
+
+
+class TestBaselineDowngradeIsRefused:
+    """baseline downgrade 가 기존 DB 를 날리던 버그의 회귀 테스트.
+
+    upgrade() 는 create_all 로 이미 만들어진 테이블을 건너뛴다. 그런데 예전
+    downgrade() 는 그 테이블까지 drop 해서, 기존 DB 에서 upgrade 후
+    downgrade 하면 이 리비전과 무관한 nodes·reviews·edges 가 사라졌다.
+    """
+
+    def test_downgrade_to_base_is_refused(self, db_url):
+        cfg = _config(db_url)
+        command.upgrade(cfg, "head")
+        with pytest.raises(NotImplementedError):
+            command.downgrade(cfg, "base")
+
+    def test_legacy_data_survives_downgrade_attempt(self, db_url):
+        engine = sa.create_engine(db_url)
+        Base.metadata.create_all(engine)          # 옛 create_all DB
+        with Session(engine) as s:
+            s.add(Review(source="coupang", rating=5, body="소중한 데이터"))
+            s.commit()
+
+        cfg = _config(db_url)
+        command.upgrade(cfg, "head")
+        with pytest.raises(NotImplementedError):
+            command.downgrade(cfg, "base")
+
+        with Session(sa.create_engine(db_url)) as s:
+            assert [r.body for r in s.query(Review).all()] == ["소중한 데이터"]
+
+
+class TestStoreNameIsUnique:
+    """이관을 원자적으로 1회로 만드는 제약."""
+
+    def test_duplicate_store_name_rejected(self, db_url):
+        command.upgrade(_config(db_url), "head")
+        engine = sa.create_engine(db_url)
+        with engine.begin() as conn:
+            conn.execute(sa.text(
+                "INSERT INTO users (id, kakao_id, created_at, last_login_at) "
+                "VALUES (1,'a','2026-01-01','2026-01-01'), "
+                "(2,'b','2026-01-01','2026-01-01')"
+            ))
+            conn.execute(sa.text(
+                "INSERT INTO stores (owner_user_id, name, created_at) "
+                "VALUES (1,'도야짬뽕','2026-01-01')"
+            ))
+        with engine.begin() as conn:
+            with pytest.raises(sa.exc.IntegrityError):
+                conn.execute(sa.text(
+                    "INSERT INTO stores (owner_user_id, name, created_at) "
+                    "VALUES (2,'도야짬뽕','2026-01-01')"
+                ))

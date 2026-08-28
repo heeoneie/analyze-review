@@ -92,7 +92,8 @@ def upgrade() -> None:
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(['owner_user_id'], ['users.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id')
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('name')
         )
     if 'reply_samples' not in existing:
         op.create_table('reply_samples',
@@ -115,10 +116,19 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # 자식 테이블부터. 반대로 지우면 FK 참조가 남아 실패한다.
-    op.drop_table('reply_samples')
-    op.drop_table('stores')
-    op.drop_table('edges')
-    op.drop_table('users')
-    op.drop_table('reviews')
-    op.drop_table('nodes')
+    """되돌리지 않는다.
+
+    upgrade() 는 create_all 로 이미 만들어진 테이블을 건너뛴다. 그래서 이
+    리비전이 만들지 않은 테이블(기존 DB 의 nodes·reviews·edges)이 존재할 수
+    있는데, 예전 downgrade 는 그것까지 무조건 drop 했다. 기존 DB 에서
+    `upgrade head` 후 `downgrade base` 를 돌리면 이 리비전과 무관한 데이터가
+    통째로 사라졌다.
+
+    baseline 을 되돌린다는 건 스키마 전체를 버린다는 뜻이라 자동으로 할 일이
+    아니다. 정말 필요하면 DB 파일을 지우는 편이 의도가 분명하다.
+    """
+    raise NotImplementedError(
+        "baseline 리비전은 되돌릴 수 없습니다. "
+        "이 리비전이 만들지 않은 기존 테이블까지 지우게 되기 때문입니다. "
+        "스키마를 비우려면 DB 파일을 직접 삭제하세요."
+    )

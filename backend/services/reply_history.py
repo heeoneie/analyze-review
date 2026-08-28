@@ -23,20 +23,36 @@ from backend.database.models import ReplySample
 logger = logging.getLogger(__name__)
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
-# 010-1234-5678, 01012345678, 010 1234 5678 를 모두 잡는다.
-_PHONE = re.compile(r"01[016-9][-.\s]?\d{3,4}[-.\s]?\d{4}")
+# 휴대폰: 010-1234-5678, 01012345678, 010 1234 5678
+_MOBILE = re.compile(r"01[016-9][-.\s]?\d{3,4}[-.\s]?\d{4}")
+# 유선: 02-123-4567, 031-123-4567, 0212345678. 지역번호는 02 또는 0NN 이다.
+# 구분자가 있는 형태는 _LONG_DIGITS(9자리 이상 연속)로는 안 잡힌다.
+_LANDLINE = re.compile(r"\b0(?:2|[3-6][1-5])[-.\s]?\d{3,4}[-.\s]?\d{4}\b")
 # 주문번호처럼 보이는 긴 숫자열. 별점·금액과 겹치지 않게 9자리 이상만.
 _LONG_DIGITS = re.compile(r"\b\d{9,}\b")
 
 
-def sanitize_review_body(text: str) -> str:
-    """저장 전에 리뷰 본문에서 연락처류를 지운다."""
+def sanitize(text: str) -> str:
+    """저장 전에 연락처류를 지운다.
+
+    리뷰 본문만이 아니라 **답글에도 똑같이 적용한다.** 사장님이 답글에
+    "010-0000-0000 으로 연락 주세요" 처럼 쓰는 일이 흔하고, 손님이 남긴
+    번호를 답글에 옮겨 적는 경우도 있다. 한쪽만 지우면 정책이 반쪽이다.
+
+    휴대폰보다 유선전화를 먼저 지운다. 순서를 바꾸면 겹치는 자리에서
+    한쪽이 남는다.
+    """
     if not text:
         return ""
     text = _EMAIL.sub("[이메일]", text)
-    text = _PHONE.sub("[연락처]", text)
+    text = _LANDLINE.sub("[연락처]", text)
+    text = _MOBILE.sub("[연락처]", text)
     text = _LONG_DIGITS.sub("[번호]", text)
     return text.strip()
+
+
+# 예전 이름. 리뷰 본문 전용이 아니게 되면서 sanitize 로 바꿨다.
+sanitize_review_body = sanitize
 
 
 # 인자가 여섯 개지만 전부 키워드 전용이고 각각 다른 컬럼을 가리킨다.
@@ -54,10 +70,10 @@ def record_generated(  # pylint: disable=too-many-arguments
     sample = ReplySample(
         store_id=store_id,
         origin="generated",
-        review_body=sanitize_review_body(review_body),
+        review_body=sanitize(review_body),
         rating=rating,
         menu=(menu or "").strip() or None,
-        generated_reply=generated_reply,
+        generated_reply=sanitize(generated_reply),
     )
     db.add(sample)
     db.commit()
@@ -71,7 +87,7 @@ def finalize(db: Session, sample: ReplySample, final_reply: str) -> ReplySample:
     생성본과 다르면 `edited` 로 표시한다. 고쳐 쓴 답글은 사장님이 무엇을
     바꾸고 싶어 하는지 알려주므로 말투 학습에서 특히 값지다.
     """
-    final = final_reply.strip()
+    final = sanitize(final_reply)
     sample.final_reply = final
     sample.was_edited = (final != (sample.generated_reply or "").strip())
     sample.origin = "edited" if sample.was_edited else "generated"
@@ -98,10 +114,10 @@ def record_onboarding(
     sample = ReplySample(
         store_id=store_id,
         origin="onboarding",
-        review_body=sanitize_review_body(review_body),
+        review_body=sanitize(review_body),
         rating=rating,
         generated_reply=None,
-        final_reply=owner_reply.strip(),
+        final_reply=sanitize(owner_reply),
         was_edited=False,
         finalized_at=now,
     )
