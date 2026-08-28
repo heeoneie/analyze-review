@@ -7,17 +7,45 @@ LLM_PROVIDER=openai  → OpenAI 우선, Gemini 폴백 (배포 환경, 기본값)
 import logging
 import time
 
-# pylint: disable=no-name-in-module
-from google import genai
-from google.genai import types
-from google.genai.errors import ClientError as GeminiClientError
-
-# pylint: enable=no-name-in-module
 from openai import OpenAI
 
 from core import config
 
 logger = logging.getLogger(__name__)
+
+
+class _GeminiUnavailable(Exception):
+    """google-genai 미설치 시 except 절이 참조할 자리표시자."""
+
+
+def _load_genai():
+    """google-genai 를 지연 임포트한다.
+
+    Gemini 는 폴백 프로바이더일 뿐인데 최상위에서 임포트하고 있었다.
+    그래서 답글 생성기만 띄우는 슬림 이미지(requirements-web.txt 에는
+    google-genai 가 없다)가 부팅 단계에서 ModuleNotFoundError 로 죽었다.
+    """
+    try:
+        # pylint: disable=no-name-in-module,import-outside-toplevel
+        from google import genai
+        from google.genai import types
+
+        return genai, types
+    except ImportError as exc:
+        raise RuntimeError(
+            "google-genai 가 설치돼 있지 않아 Gemini 폴백을 쓸 수 없습니다."
+        ) from exc
+
+
+def _gemini_client_error():
+    """except 절이 쓸 Gemini ClientError. 미설치면 절대 안 잡히는 클래스를 준다."""
+    try:
+        # pylint: disable=no-name-in-module,import-outside-toplevel
+        from google.genai.errors import ClientError
+
+        return ClientError
+    except ImportError:
+        return _GeminiUnavailable
 
 # Gemini 429 재시도 설정
 _GEMINI_RETRY_DELAYS = [10, 30]  # 1차: 10초 대기, 2차: 30초 대기 후 OpenAI 폴백
@@ -43,6 +71,7 @@ def _get_gemini_client():
     if _gemini_client is None:
         if not config.GOOGLE_API_KEY:
             raise RuntimeError("GOOGLE_API_KEY가 설정되지 않았습니다.")
+        genai, _ = _load_genai()
         _gemini_client = genai.Client(api_key=config.GOOGLE_API_KEY)
     return _gemini_client
 
@@ -66,6 +95,7 @@ def _call_openai(client, prompt, system_prompt, model, temperature):
 def _call_gemini(prompt, system_prompt, temperature):
     """Gemini API 호출"""
     fallback = _get_gemini_client()
+    _, types = _load_genai()
     response = fallback.models.generate_content(
         model=config.FALLBACK_LLM_MODEL,
         contents=prompt,
@@ -105,7 +135,7 @@ def call_openai_json(
                 time.sleep(delay)
             try:
                 return _call_gemini(prompt, system_prompt, temperature)
-            except GeminiClientError as e:
+            except _gemini_client_error() as e:
                 if getattr(e, "status_code", None) == 429:
                     last_exc = e
                     continue  # 재시도

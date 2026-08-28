@@ -1,7 +1,10 @@
+import importlib
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+import core.utils.openai_client as openai_client_module
 from core.utils.openai_client import call_openai_json
 
 
@@ -91,3 +94,56 @@ class TestFallbackToGemini:
 
         assert result == '{"ok": true}'
         mock_gemini.assert_not_called()
+
+
+class _BlockGoogle:
+    """google 패키지가 설치돼 있지 않은 것처럼 만드는 import 훅."""
+
+    # path/target 은 MetaPathFinder 규약상 받아야 하는 인자다.
+    def find_spec(self, fullname, path=None, target=None):  # pylint: disable=unused-argument
+        if fullname == "google" or fullname.startswith("google."):
+            raise ImportError(f"No module named {fullname!r}")
+        # None 을 돌려주면 다음 finder 로 넘어간다.
+
+
+@pytest.fixture(name="no_google")
+def fixture_no_google():
+    """google-genai 가 없는 슬림 배포 이미지를 흉내낸다."""
+    blocker = _BlockGoogle()
+    saved = {
+        name: mod
+        for name, mod in sys.modules.items()
+        if name == "google" or name.startswith("google.")
+    }
+    for name in saved:
+        del sys.modules[name]
+    sys.meta_path.insert(0, blocker)
+    try:
+        yield
+    finally:
+        sys.meta_path.remove(blocker)
+        sys.modules.update(saved)
+        importlib.reload(openai_client_module)
+
+
+class TestSlimContainerImport:
+    """google-genai 가 빠진 배포 이미지에서도 모듈이 임포트돼야 한다.
+
+    Gemini 는 폴백 프로바이더일 뿐인데 최상위에서 임포트하고 있었다.
+    requirements-web.txt 로 만드는 답글 생성기 이미지에는 google-genai 가
+    없어서, 컨테이너가 부팅 단계에서 ModuleNotFoundError 로 죽고
+    공개 URL 이 502 를 냈다.
+    """
+
+    def test_module_imports_without_google_genai(self, no_google):  # pylint: disable=unused-argument
+        """부팅 경로: google 이 없어도 임포트가 성공해야 한다."""
+        reloaded = importlib.reload(openai_client_module)
+        assert callable(reloaded.call_openai_json)
+
+    def test_gemini_path_fails_with_clear_error(self, no_google):  # pylint: disable=unused-argument
+        """실제로 Gemini 를 쓰려 할 때만, 알아볼 수 있는 에러로 실패한다."""
+        reloaded = importlib.reload(openai_client_module)
+        with patch.object(reloaded, "config") as mock_config:
+            mock_config.GOOGLE_API_KEY = "dummy-key"
+            with pytest.raises(RuntimeError, match="google-genai"):
+                reloaded._get_gemini_client()  # pylint: disable=protected-access
