@@ -15,8 +15,9 @@ if PROJECT_ROOT not in sys.path:
 
 # 계정·답글 이력은 DB 를 쓰므로 requirements-web.txt 에 sqlalchemy 가 들어갔다.
 # 더 이상 선택 의존성이 아니다.
-from backend.database.database import engine  # pylint: disable=wrong-import-position
-from backend.database.models import Base  # pylint: disable=wrong-import-position
+from backend.database.migrate import (  # pylint: disable=wrong-import-position
+    upgrade_database,
+)
 from backend.routers import auth, reply  # pylint: disable=wrong-import-position
 
 # 답글 화면만 배포할 때는 분석·크롤링 의존성(pandas, curl_cffi 등)을 설치하지 않는다.
@@ -48,8 +49,9 @@ except ImportError:  # pragma: no cover - 배포 구성에 따라 달라짐
 
 app = FastAPI(title="Review Analysis Dashboard API", version="1.0.0")
 
-# SQLite 테이블 생성 (이미 있으면 no-op)
-Base.metadata.create_all(bind=engine)
+# 스키마를 최신 리비전까지 올린다. create_all 과 달리 이미 있는 테이블에
+# 생긴 변경(컬럼 추가, 제약 추가)도 따라간다. 최신이면 no-op 이다.
+upgrade_database()
 
 # 배포 시에는 백엔드가 빌드된 프론트엔드를 같이 서빙하므로 동일 출처가 된다.
 # 개발 중 vite dev 서버만 예외로 열어 둔다.

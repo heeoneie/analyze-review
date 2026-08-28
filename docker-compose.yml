@@ -13,6 +13,13 @@ services:
     env_file: .env
     environment:
       PORT: "8000"
+      # 계정과 답글 이력이 여기 쌓인다. 아래 named volume 위라서
+      # `docker compose up --build` 로 이미지를 새로 구워도 남는다.
+      DATABASE_URL: "sqlite:////app/var/app.db"
+    volumes:
+      # 볼륨이 없으면 재배포 때마다 사장님 답글 이력이 통째로 사라진다.
+      # 말투 학습의 재료가 영영 안 모인다.
+      - appdata:/app/var
     expose:
       - "8000"
     healthcheck:
@@ -32,3 +39,6 @@ services:
     depends_on:
       app:
         condition: service_healthy
+
+volumes:
+  appdata:

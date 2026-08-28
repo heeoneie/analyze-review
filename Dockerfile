@@ -15,8 +15,16 @@ RUN pip install --no-cache-dir -r requirements-web.txt
 
 COPY backend/ ./backend/
 COPY core/ ./core/
+# 기동 시 alembic upgrade head 를 돌리므로 마이그레이션 스크립트가 있어야 한다.
+COPY alembic.ini ./alembic.ini
+COPY migrations/ ./migrations/
 COPY data/store_menu.json ./data/store_menu.json
 COPY --from=frontend /app/frontend/dist ./frontend/dist
+
+# DB 는 /app/data 가 아니라 여기에 둔다. /app/data 에 볼륨을 걸면 이미지에
+# 들어 있는 store_menu.json 이 볼륨 초기 복사본으로 굳어서, 메뉴를 고쳐도
+# 옛 파일이 계속 쓰인다. 쓰기 대상만 따로 떼어 놓는다.
+RUN mkdir -p /app/var
 
 # 루트로 돌릴 이유가 없다. 컨테이너가 뚫렸을 때 피해 범위를 줄인다.
 RUN useradd --create-home --uid 10001 app && chown -R app:app /app
