@@ -3,12 +3,14 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -105,3 +107,97 @@ class Review(Base):
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow,
     )
+
+
+class User(Base):
+    """카카오 로그인으로 만들어지는 사장님 계정.
+
+    비밀번호를 받지 않는다. 카카오가 인증을 대신하므로 우리가 보관할
+    자격증명 자체가 없다.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # 카카오가 주는 회원번호. 문자열로 둔다 — 자릿수가 늘어도 안전하다.
+    kakao_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    # 표시용. 카카오 프로필이 바뀌면 로그인할 때 같이 갱신된다.
+    nickname: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    last_login_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
+    )
+
+    stores: Mapped[list["Store"]] = relationship(
+        "Store", back_populates="owner", cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class Store(Base):
+    """사장님이 운영하는 매장. 답글 말투 학습의 단위다."""
+
+    __tablename__ = "stores"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    owner: Mapped["User"] = relationship("User", back_populates="stores")
+    samples: Mapped[list["ReplySample"]] = relationship(
+        "ReplySample", back_populates="store", cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class ReplySample(Base):
+    """리뷰 한 건과 그에 달린 답글. 말투 학습의 재료다.
+
+    한 테이블로 세 가지를 담는다 (`origin` 으로 구분):
+      onboarding : 가입 때 사장님이 직접 써 넣은 답글. 생성본이 없다.
+      generated  : 우리가 만든 답글을 사장님이 그대로 게시.
+      edited     : 우리가 만든 답글을 사장님이 고쳐서 게시.
+
+    few-shot 예시 풀은 `final_reply` 가 있는 행만 쓴다. 생성만 하고
+    게시하지 않은 답글은 사장님이 채택했다는 근거가 없어서 학습에 넣으면
+    안 된다.
+
+    손님 닉네임은 컬럼 자체를 두지 않는다. 저장할 자리가 없으면 실수로도
+    들어가지 않는다.
+    """
+
+    __tablename__ = "reply_samples"
+    __table_args__ = (
+        CheckConstraint("rating BETWEEN 1 AND 5", name="ck_reply_samples_rating_1_5"),
+        CheckConstraint(
+            "origin IN ('onboarding', 'generated', 'edited')",
+            name="ck_reply_samples_origin",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    store_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=False,
+    )
+    origin: Mapped[str] = mapped_column(String(16), nullable=False)
+
+    review_body: Mapped[str] = mapped_column(Text, nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    menu: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+    # 우리가 만든 답글. onboarding 행은 비어 있다.
+    generated_reply: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 사장님이 실제로 게시한 답글. 게시 전에는 비어 있다.
+    final_reply: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 생성본을 사장님이 고쳤는지. 고친 답글은 말투 학습에 특히 값지다.
+    was_edited: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    finalized_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+
+    store: Mapped["Store"] = relationship("Store", back_populates="samples")

@@ -11,7 +11,12 @@ import secrets
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
+from backend.database.database import get_db
+from backend.database.models import ReplySample, Store
+from backend.dependencies import store_or_access_code
+from backend.services import reply_history
 from core import config
 from core.reply_generator import ReplyGenerator
 from core.reply_guide import get_guide, list_guides
@@ -137,9 +142,18 @@ async def verify_access_code():
     return {"ok": True}
 
 
-@router.post("/store/generate", dependencies=[Depends(require_access_code)])
-async def generate_store_reply(request: StoreReplyRequest):
-    """리뷰 한 건에 대한 답글 생성. 별점에 따라 긍정/부정 경로로 나뉜다."""
+@router.post("/store/generate")
+async def generate_store_reply(
+    request: StoreReplyRequest,
+    store: Store | None = Depends(store_or_access_code),
+    db: Session = Depends(get_db),
+):
+    """리뷰 한 건에 대한 답글 생성. 별점에 따라 긍정/부정 경로로 나뉜다.
+
+    매장이 연결돼 있으면 생성 결과를 남기고 `sample_id` 를 함께 돌려준다.
+    사장님이 실제로 게시하면 프론트가 그 id 로 /store/finalize 를 부른다.
+    게시하지 않은 답글은 채택 근거가 없으므로 말투 학습에 쓰지 않는다.
+    """
     if not request.review_text.strip() and not request.menu.strip():
         raise HTTPException(400, "리뷰 내용이나 주문 메뉴 중 하나는 입력해 주세요.")
 
@@ -159,4 +173,38 @@ async def generate_store_reply(request: StoreReplyRequest):
         logger.exception("답변 생성 실패")
         raise HTTPException(500, "답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.") from None
 
+    if store is not None:
+        sample = reply_history.record_generated(
+            db, store_id=store.id,
+            review_body=request.review_text, rating=request.rating,
+            menu=request.menu, generated_reply=result.get("reply", ""),
+        )
+        result = {**result, "sample_id": sample.id}
+
     return result
+
+
+class FinalizeRequest(BaseModel):
+    sample_id: int
+    # 사장님이 실제로 게시한 문장. 생성본을 고쳤다면 고친 그대로.
+    final_reply: str = Field(min_length=1, max_length=4000)
+
+
+@router.post("/store/finalize")
+def finalize_store_reply(
+    body: FinalizeRequest,
+    store: Store | None = Depends(store_or_access_code),
+    db: Session = Depends(get_db),
+):
+    """사장님이 게시한 답글을 확정 기록한다. 말투 학습은 이 행만 쓴다."""
+    if store is None:
+        # 접속코드 경로에는 매장이 없어 남길 곳이 없다. 화면은 그대로 동작한다.
+        return {"recorded": False}
+
+    sample = db.get(ReplySample, body.sample_id)
+    # 남의 매장 표본을 고치지 못하게 소유권을 확인한다.
+    if sample is None or sample.store_id != store.id:
+        raise HTTPException(404, "기록을 찾을 수 없습니다.")
+
+    reply_history.finalize(db, sample, body.final_reply)
+    return {"recorded": True, "was_edited": sample.was_edited}

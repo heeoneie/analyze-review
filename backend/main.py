@@ -13,7 +13,11 @@ PROJECT_ROOT = str(Path(__file__).resolve().parents[1])
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from backend.routers import reply  # pylint: disable=wrong-import-position
+# 계정·답글 이력은 DB 를 쓰므로 requirements-web.txt 에 sqlalchemy 가 들어갔다.
+# 더 이상 선택 의존성이 아니다.
+from backend.database.database import engine  # pylint: disable=wrong-import-position
+from backend.database.models import Base  # pylint: disable=wrong-import-position
+from backend.routers import auth, reply  # pylint: disable=wrong-import-position
 
 # 답글 화면만 배포할 때는 분석·크롤링 의존성(pandas, curl_cffi 등)을 설치하지 않는다.
 try:
@@ -30,10 +34,6 @@ except ImportError:  # pragma: no cover - 배포 구성에 따라 달라짐
 
 # 리스크 인텔리전스 계열도 같은 이유로 선택 의존성이다 (sqlalchemy, sklearn 등).
 try:
-    from backend.database.database import (
-        engine,  # pylint: disable=wrong-import-position
-    )
-    from backend.database.models import Base  # pylint: disable=wrong-import-position
     from backend.routers import (  # pylint: disable=wrong-import-position
         evaluate,
         kpi,
@@ -41,7 +41,6 @@ try:
         youtube,
     )
 except ImportError:  # pragma: no cover - 배포 구성에 따라 달라짐
-    engine = Base = None
     evaluate = kpi = risk = youtube = None
     logging.getLogger(__name__).warning(
         "리스크 인텔리전스 라우터를 불러오지 못해 비활성화합니다.", exc_info=True
@@ -50,8 +49,7 @@ except ImportError:  # pragma: no cover - 배포 구성에 따라 달라짐
 app = FastAPI(title="Review Analysis Dashboard API", version="1.0.0")
 
 # SQLite 테이블 생성 (이미 있으면 no-op)
-if Base is not None and engine is not None:
-    Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 # 배포 시에는 백엔드가 빌드된 프론트엔드를 같이 서빙하므로 동일 출처가 된다.
 # 개발 중 vite dev 서버만 예외로 열어 둔다.
@@ -69,6 +67,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(reply.router, prefix="/api/reply", tags=["reply"])
 
 if data and analysis:

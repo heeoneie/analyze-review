@@ -67,3 +67,26 @@ if not ACCESS_CODE:
         "ACCESS_CODE 가 비어 있습니다. 답글 생성 API 가 인증 없이 열립니다. "
         "공개 주소로 배포한다면 반드시 설정하세요."
     )
+
+# ── 계정 (카카오 로그인) ────────────────────────────────────
+# developers.kakao.com 에서 앱을 만들고 받은 값. 없으면 로그인 라우터가
+# 503 을 내고, 기존 ACCESS_CODE 경로는 그대로 동작한다. 이렇게 해 두면
+# 카카오 앱 심사를 기다리는 동안에도 서비스가 멈추지 않는다.
+KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY", "")
+KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI", "")
+
+# 세션 쿠키 서명 키. 바뀌면 로그인된 사람이 전부 로그아웃된다.
+SESSION_SECRET = os.getenv("SESSION_SECRET", "")
+
+# 세션 유지 기간. 사장님이 하루에 몇 번 여는 패턴이라 짧으면 불편하다.
+SESSION_MAX_AGE_DAYS = int(os.getenv("SESSION_MAX_AGE_DAYS", "30"))
+
+KAKAO_LOGIN_ENABLED = bool(KAKAO_REST_API_KEY and KAKAO_REDIRECT_URI and SESSION_SECRET)
+
+if KAKAO_REST_API_KEY and not SESSION_SECRET:
+    # 키만 있고 서명 비밀이 없으면 세션을 못 만든다. 조용히 로그인만 안 되는
+    # 상태가 되므로 시작할 때 알린다.
+    logging.getLogger(__name__).warning(
+        "KAKAO_REST_API_KEY 는 있는데 SESSION_SECRET 이 없어 로그인을 켤 수 없습니다. "
+        "python -c \"import secrets;print(secrets.token_urlsafe(32))\" 로 만들어 넣으세요."
+    )
