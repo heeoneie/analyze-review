@@ -1,5 +1,9 @@
 [MASTER]
 jobs = 0
+# alembic 이 만들어 주는 파일들. revision/down_revision 같은 이름과 파일명
+# 규칙이 alembic 쪽에 고정돼 있고, op·context 는 런타임에 붙는 멤버라
+# 정적 분석이 전부 no-member 로 본다. 우리가 고칠 수 있는 게 아니다.
+ignore-paths = migrations/.*
 
 [MESSAGES CONTROL]
 disable =

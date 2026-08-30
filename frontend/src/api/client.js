@@ -6,6 +6,9 @@ const defaultBaseURL = import.meta.env.DEV ? 'http://localhost:8000/api' : '/api
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || defaultBaseURL,
   timeout: 180000, // 크롤링 시간 고려하여 3분
+  // 세션 쿠키. 배포는 동일 출처라 없어도 되지만, vite dev 서버(5173)에서
+  // 백엔드(8000)를 부를 때는 이게 없으면 로그인이 유지되지 않는다.
+  withCredentials: true,
 });
 
 // 사장님용 단독 화면의 접속 코드. 이 브라우저에만 저장한다.
@@ -101,3 +104,15 @@ export const verifyAccessCode = (code) =>
   api.post('/reply/verify', {}, withAccessCode(code));
 export const generateStoreReply = (payload) =>
   api.post('/reply/store/generate', payload, withAccessCode());
+
+// 계정 API
+export const getAuthConfig = () => api.get('/auth/config');
+export const getMe = () => api.get('/auth/me');
+export const logout = () => api.post('/auth/logout');
+export const claimStore = (accessCode) =>
+  api.post('/auth/claim-store', { access_code: accessCode });
+
+// 사장님이 실제로 게시한 답글을 기록한다. 말투 학습은 이 기록만 쓴다.
+export const finalizeStoreReply = (sampleId, finalReply) =>
+  api.post('/reply/store/finalize', { sample_id: sampleId, final_reply: finalReply },
+    withAccessCode());

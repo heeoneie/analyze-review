@@ -5,8 +5,12 @@ import {
   generateStoreReply,
   getAccessCode,
   getReplyConfig,
+  getAuthConfig,
+  getMe,
+  finalizeStoreReply,
 } from '../api/client';
 import AccessGate from './AccessGate';
+import LoginGate from './LoginGate';
 
 const RATINGS = [5, 4, 3, 2, 1];
 
@@ -37,7 +41,7 @@ function StarPicker({ value, onChange }) {
   );
 }
 
-function CopyButton({ text }) {
+function CopyButton({ text, sampleId }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef(null);
 
@@ -60,6 +64,13 @@ function CopyButton({ text }) {
       }
       setCopied(true);
       timer.current = setTimeout(() => setCopied(false), 2000);
+
+      // 복사했다는 건 사장님이 이 답글을 쓰기로 했다는 뜻이다. 그 시점의
+      // 문장을 그대로 남긴다 — 고쳐 썼다면 고친 채로 저장된다.
+      // 기록에 실패해도 복사는 이미 됐으므로 화면에는 영향을 주지 않는다.
+      if (sampleId) {
+        finalizeStoreReply(sampleId, text).catch(() => {});
+      }
     } catch {
       setCopied(false);
     }
@@ -84,18 +95,45 @@ export default function ReplyStudio() {
   const [rating, setRating] = useState(5);
   const [menu, setMenu] = useState('');
   const [result, setResult] = useState(null);
+  // 생성본과 별개로 둔다. 사장님이 고친 문장이 복사·기록 대상이다.
+  const [editedReply, setEditedReply] = useState('');
   const [drafts, setDrafts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    getReplyConfig()
-      .then(({ data }) => {
+    // 계정 체계가 켜져 있으면 로그인 경로, 아직이면 기존 접속코드 경로를 탄다.
+    // 서버 설정 하나로 갈리므로 사장님 화면이 어느 쪽으로든 끊기지 않는다.
+    (async () => {
+      let kakaoEnabled = false;
+      try {
+        const { data } = await getAuthConfig();
+        kakaoEnabled = data.kakao_login_enabled;
+      } catch {
+        kakaoEnabled = false;
+      }
+
+      if (kakaoEnabled) {
+        try {
+          const { data } = await getMe();
+          if (!data.authenticated) setGate({ status: 'login', authenticated: false });
+          else if (!data.store) setGate({ status: 'login', authenticated: true });
+          else setGate({ status: 'open', required: false });
+        } catch {
+          setGate({ status: 'login', authenticated: false });
+        }
+        return;
+      }
+
+      try {
+        const { data } = await getReplyConfig();
         const locked = data.requires_code && !getAccessCode();
         setGate({ status: locked ? 'locked' : 'open', required: data.requires_code });
-      })
-      // 설정을 못 읽어도 화면은 띄운다. 코드가 틀리면 생성할 때 걸린다.
-      .catch(() => setGate({ status: 'open', required: false }));
+      } catch {
+        // 설정을 못 읽어도 화면은 띄운다. 코드가 틀리면 생성할 때 걸린다.
+        setGate({ status: 'open', required: false });
+      }
+    })();
   }, []);
 
   const canSubmit = (reviewText.trim() || menu.trim()) && !isLoading;
@@ -117,6 +155,7 @@ export default function ReplyStudio() {
       });
       if (previous) setDrafts((prev) => [previous, ...prev].slice(0, 5));
       setResult(data);
+      setEditedReply(data.reply || '');
     } catch (err) {
       if (err.response?.status === 401) {
         clearAccessCode();
@@ -137,6 +176,14 @@ export default function ReplyStudio() {
   };
 
   if (gate.status === 'checking') return <div className="min-h-screen bg-slate-50" />;
+  if (gate.status === 'login') {
+    return (
+      <LoginGate
+        authenticated={gate.authenticated}
+        onClaimed={() => setGate({ status: 'open', required: false })}
+      />
+    );
+  }
   if (gate.status === 'locked') {
     return <AccessGate onUnlock={() => setGate({ status: 'open', required: true })} />;
   }
@@ -213,16 +260,23 @@ export default function ReplyStudio() {
           <section className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-700">만들어진 답글</h2>
-              <span className="text-xs text-slate-400">{result.reply.length}자</span>
+              <span className="text-xs text-slate-400">{editedReply.length}자</span>
             </div>
 
-            <p className="whitespace-pre-wrap rounded-xl bg-slate-50 px-4 py-4 text-base leading-relaxed text-slate-900">
-              {result.reply}
-            </p>
+            {/* 그대로 써도 되고 고쳐 써도 된다. 고친 답글은 다음 답글이
+                사장님 말투에 가까워지는 재료가 된다. */}
+            <textarea
+              value={editedReply}
+              onChange={(e) => setEditedReply(e.target.value)}
+              rows={6}
+              className="w-full resize-y whitespace-pre-wrap rounded-xl bg-slate-50 px-4 py-4
+                         text-base leading-relaxed text-slate-900 outline-none
+                         focus:bg-white focus:ring-1 focus:ring-slate-300"
+            />
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <div className="sm:flex-1">
-                <CopyButton text={result.reply} />
+                <CopyButton text={editedReply} sampleId={result.sample_id} />
               </div>
               <button
                 type="button"
