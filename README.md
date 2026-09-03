@@ -128,7 +128,7 @@ uvicorn backend.main:app --reload
 cd frontend && npm run dev
 ```
 
-배포 방법은 [`deploy/DEPLOY.md`](deploy/DEPLOY.md), 답글 생성기 상세는 [`REPLY_GENERATOR.md`](REPLY_GENERATOR.md)를 참고하세요.
+배포 방법은 [`deploy/HOMESERVER.md`](deploy/HOMESERVER.md), 답글 생성기 상세는 [`REPLY_GENERATOR.md`](REPLY_GENERATOR.md)를 참고하세요.
 
 ---
 
