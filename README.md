@@ -39,37 +39,6 @@
 
 ---
 
-## 확장 — 리스크 인텔리전스 (B2B)
-
-셀러용 분석을 미국 시장에 진출하는 브랜드 쪽으로 확장한 갈래입니다. "리뷰에 문제가 있다"에서 멈추지 않고 **금액과 근거**까지 내놓는 것이 목표였습니다.
-
-### 미국 판례 매칭 + 법적 노출 금액 산출
-
-리뷰에서 탐지한 리스크를 미국 판례와 매칭해 예상 손실액을 추정합니다.
-
-- OpenAI `text-embedding-3-small` 코사인 유사도로 판례 매칭
-- 임베딩을 쓸 수 없으면 가중 TF 키워드 스코어링으로 폴백
-- 리스크 카테고리별 가중 심각도로 `overall_risk_score` 산출
-- 매칭된 판례의 합의금 통계로 `total_legal_exposure_usd` 계산
-
-> ⚠️ `backend/data/legal_cases.json` 은 **판례 3건짜리 시드 데이터**입니다. 파이프라인 검증용이고 실제 법률 자문으로 쓸 수 없습니다.
-
-### 온톨로지 그래프
-
-리뷰 → 이슈 → 리스크 → 판례의 연결을 `@xyflow/react` 인터랙티브 그래프로 보여줍니다. SQLite(SQLAlchemy)에 영속화해 재분석 없이 다시 열 수 있습니다.
-
-### 멀티에이전트 대응 플레이북
-
-탐지된 리스크마다 LLM이 3가지 시나리오의 대응 전략을 생성합니다. 컴플라이언스 보고서와 회의 안건도 같은 데이터에서 뽑습니다.
-
-### 수집 채널 확장
-
-YouTube Data API v3 로 리스크 트리거 키워드를 검색해 댓글에서 리스크를 탐지합니다. Amazon 은 **mock 수집**이라 데모용 데이터가 들어갑니다 — 수집된 리뷰는 판례 매칭을 거쳐 KPI 대시보드와 리스크 타임라인에 바로 반영됩니다.
-
-화면은 한국어·영어를 지원합니다 (`frontend/src/i18n.js`).
-
----
-
 ## 2단계 — 실제 매장 도입 (진행 중)
 
 셀러용으로 만든 것을 실제 중식 배달 매장에 도입해 보는 단계입니다. 여기서 문제가 처음 예상과 다르다는 것이 드러났습니다.
@@ -104,30 +73,25 @@ YouTube Data API v3 로 리스크 트리거 키워드를 검색해 댓글에서 
 │ React + Vite  │     │             FastAPI              │
 │               │     │                                  │
 │ ReplyStudio   ├────►│  /reply     답글 생성·검증·가이드 │
-│ AccessGate    │     │  /analysis  분석 실행             │
-│ App(대시보드) │     │  /data      업로드·크롤·조회      │
-│  #dashboard   │     │  /risk      온톨로지·플레이북     │
-│               │     │  /kpi       지표·리스크 타임라인  │
-│               │     │  /youtube   댓글 리스크 탐지      │
-│               │     │  /evaluate  모델 품질 평가        │
+│ LoginGate     │     │  /auth      카카오 로그인·매장    │
+│ AccessGate    │     │  /data      업로드·크롤·조회      │
+│               │     │  /analysis  분석 실행             │
 └───────────────┘     └───────┬──────────────────────────┘
                               │
         ┌─────────────────────┴──────────────────────┐
         │                                            │
 ┌───────▼──────────────────┐        ┌────────────────▼─────────┐
 │  core/                   │        │  backend/services/       │
-│   analyzer.py            │        │   legal_rag_service.py   │
-│   reply_generator.py     │        │   risk_service.py        │
-│   menu_profiles.py       │        │   playbook_service.py    │
-│   data_loader.py         │        │   priority_service.py    │
-└──────────────────────────┘        │   crawler_service.py     │
-                                    │   amazon_service.py      │
-                                    │   youtube_service.py     │
+│   analyzer.py            │        │   crawler_service.py     │
+│   reply_generator.py     │        │   priority_service.py    │
+│   menu_profiles.py       │        │   analysis_service.py    │
+│   data_loader.py         │        │   auth_service.py        │
+└──────────────────────────┘        │   reply_history.py       │
                                     └────────────┬─────────────┘
                                                  │
                                     ┌────────────▼─────────────┐
                                     │  SQLite (SQLAlchemy)     │
-                                    │   온톨로지 그래프 영속화 │
+                                    │   계정·매장·답글 이력    │
                                     └──────────────────────────┘
 ```
 
@@ -138,12 +102,12 @@ YouTube Data API v3 로 리스크 트리거 키워드를 검색해 댓글에서 
 | 영역 | 사용 기술 |
 |---|---|
 | 백엔드 | Python, FastAPI, SQLAlchemy (SQLite) |
-| 프론트엔드 | React, Vite, Tailwind, @xyflow/react, Recharts |
-| LLM | OpenAI (GPT-4o-mini / GPT-4.1-mini), text-embedding-3-small |
+| 프론트엔드 | React, Vite, Tailwind, Recharts |
+| LLM | OpenAI (GPT-4o-mini / GPT-4.1-mini) |
 | 배포 | Docker, Fly.io, Render, Cloudflare Tunnel, 맥 홈서버(launchd) |
 | 품질 | pytest, vitest, pylint, pre-commit, GitHub Actions, CodeRabbit |
 
-Python 약 11,300줄 / JavaScript 약 5,100줄, 테스트 파일 24개.
+Python 약 7,100줄 / JavaScript 약 2,200줄, 테스트 파일 26개.
 
 ---
 
@@ -164,21 +128,7 @@ uvicorn backend.main:app --reload
 cd frontend && npm run dev
 ```
 
-배포 방법은 [`deploy/DEPLOY.md`](deploy/DEPLOY.md), 답글 생성기 상세는 [`REPLY_GENERATOR.md`](REPLY_GENERATOR.md)를 참고하세요.
-
----
-
-## 실험 코드
-
-`core/experiments/` 에 분석 정확도를 끌어올리기 위한 코드가 들어 있습니다.
-
-- 멀티 에이전트 분석기 (`multi_agent_analyzer.py`)
-- RAG 기반 분류 (`rag_system.py`)
-- 프롬프트 엔지니어링 비교 (`prompt_engineering.py`)
-- 파인튜닝 데이터 준비 및 평가 (`prepare_training_data.py`, `evaluate_finetuned.py`)
-- 에러 분석 (`error_analysis.py`)
-
-> ⚠️ 평가 데이터셋 라벨링이 완료되지 않아 **정확도는 아직 측정 전**입니다. 코드는 작성돼 있으나 수치로 검증된 개선폭은 없습니다.
+배포 방법은 [`deploy/HOMESERVER.md`](deploy/HOMESERVER.md), 답글 생성기 상세는 [`REPLY_GENERATOR.md`](REPLY_GENERATOR.md)를 참고하세요.
 
 ---
 
@@ -186,11 +136,8 @@ cd frontend && npm run dev
 
 - 답글 생성기는 실제 매장 대상으로 운영 중이며, 접속 코드로 보호됩니다.
 - 부정 리뷰 알림은 아직 구현되지 않았습니다.
-- 분석 파이프라인은 동작하지만 정확도가 정량 검증되지 않았습니다.
 - 회원 관리·결제 기능은 없습니다.
 - 크롤링은 쿠팡 DOM 구조에 의존하므로 페이지 개편 시 깨질 수 있습니다.
-- 판례 데이터가 3건뿐이라 법적 노출 금액은 파이프라인 시연 수준입니다. 법률 자문이 아닙니다.
-- Amazon 수집은 mock 입니다. 실제 상품 페이지를 읽지 않습니다.
 
 ---
 

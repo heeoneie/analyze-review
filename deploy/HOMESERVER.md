@@ -70,7 +70,6 @@ CPU 종류(arm64/x86)는 신경 쓰지 않아도 된다. **홈서버에서 직�
 # 홈서버에서
 git clone https://github.com/heeoneie/analyze-review.git
 cd analyze-review
-git checkout feat/restaurant-reply-generator
 ```
 
 맥북에서 홈서버로 복사 (`<홈서버>` 는 실제 주소로):
@@ -113,7 +112,7 @@ launchctl unload ~/Library/LaunchAgents/com.dorya.reply-*.plist 2>/dev/null
 
 ```bash
 curl -s https://reply.ontoreview.com/api/reply/config
-# {"store_name":"도야짬뽕 부천시청점","model":"gpt-4.1-mini","requires_code":true}
+# {"store_name":"<STORE_NAME>","model":"gpt-4.1-mini","requires_code":true}
 
 curl -s -o /dev/null -w "%{http_code}\n" \
      -X POST https://reply.ontoreview.com/api/reply/generate \

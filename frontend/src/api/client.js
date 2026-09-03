@@ -27,9 +27,7 @@ export const uploadCSV = (file) => {
   return api.post('/data/upload', formData);
 };
 
-export const fetchSampleData = () => api.get('/data/sample');
 export const runAnalysis = () => api.post('/analysis/run');
-export const getExperimentResults = () => api.get('/analysis/experiment-results');
 
 // 크롤링 API
 export const crawlReviews = (url, maxPages = 50) =>
@@ -67,37 +65,6 @@ export const getReplyGuide = (category) =>
 
 export const getAllGuides = () => api.get('/reply/guides');
 
-// 리스크 인텔리전스 API
-export const generateOntology = (analysisData) => api.post('/risk/ontology', analysisData);
-export const generateComplianceReport = (analysisData) => api.post('/risk/compliance', analysisData);
-export const generateMeetingAgenda = (analysisData) => api.post('/risk/meeting', analysisData);
-export const runDemoScenario = (industry = 'ecommerce', lang = 'ko') =>
-  api.post('/risk/demo', null, { params: { industry, lang } });
-
-// 플레이북 API
-export const generatePlaybook = (body, config = {}) =>
-  api.post('/risk/playbook/generate', body, config);
-
-// KPI & Amazon pipeline
-export const getKpiSummary = () => api.get('/kpi/summary');
-export const getRiskTimeline = (limit = 20) =>
-  api.get('/kpi/timeline', { params: { limit } });
-export const ingestAmazon = (url) => api.post('/data/amazon', { url });
-
-// AI 모델 평가 API
-export const getEvaluationMetrics = () => api.get('/evaluate/metrics');
-export const getDatasetInfo = () => api.get('/evaluate/dataset/info');
-
-// YouTube 실데이터 분석 API
-export const analyzeYouTube = (query, brand, options = {}) =>
-  api.post('/youtube/analyze', {
-    query,
-    brand,
-    industry: options.industry || 'ecommerce',
-    lang: options.lang || 'ko',
-    max_videos: options.maxVideos || 3,
-    max_comments_per_video: options.maxComments || 15,
-  });
 // 사장님용 단독 답글 화면 API
 export const getReplyConfig = () => api.get('/reply/config');
 export const verifyAccessCode = (code) =>

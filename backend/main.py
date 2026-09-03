@@ -33,20 +33,6 @@ except ImportError:  # pragma: no cover - 배포 구성에 따라 달라짐
         "분석·데이터 라우터를 불러오지 못해 비활성화합니다.", exc_info=True
     )
 
-# 리스크 인텔리전스 계열도 같은 이유로 선택 의존성이다 (sqlalchemy, sklearn 등).
-try:
-    from backend.routers import (  # pylint: disable=wrong-import-position
-        evaluate,
-        kpi,
-        risk,
-        youtube,
-    )
-except ImportError:  # pragma: no cover - 배포 구성에 따라 달라짐
-    evaluate = kpi = risk = youtube = None
-    logging.getLogger(__name__).warning(
-        "리스크 인텔리전스 라우터를 불러오지 못해 비활성화합니다.", exc_info=True
-    )
-
 app = FastAPI(title="Review Analysis Dashboard API", version="1.0.0")
 
 # 스키마를 최신 리비전까지 올린다. create_all 과 달리 이미 있는 테이블에
@@ -75,13 +61,6 @@ app.include_router(reply.router, prefix="/api/reply", tags=["reply"])
 if data and analysis:
     app.include_router(data.router, prefix="/api/data", tags=["data"])
     app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
-
-if risk and evaluate and youtube and kpi:
-    app.include_router(risk.router, prefix="/api/risk", tags=["risk"])
-    app.include_router(evaluate.router, prefix="/api/evaluate", tags=["evaluate"])
-    app.include_router(youtube.router, prefix="/api/youtube", tags=["youtube"])
-    app.include_router(kpi.router, prefix="/api/kpi", tags=["kpi"])
-
 
 @app.get("/api/health")
 def health_check():

@@ -1,32 +1,12 @@
-import { StrictMode, useEffect, useState } from 'react'
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import '@xyflow/react/dist/style.css'
 import './index.css'
-import App from './App.jsx'
 import ReplyStudio from './pages/ReplyStudio.jsx'
-import { LangProvider } from './contexts/LangContext.jsx'
 
 // 사장님이 쓰는 화면은 답글 만들기 하나다.
-// 기존 리뷰 분석 대시보드는 #dashboard 로 남겨 둔다.
-function Root() {
-  const [isDashboard, setIsDashboard] = useState(
-    () => window.location.hash === '#dashboard',
-  )
-
-  useEffect(() => {
-    // 모듈 로드 시점에 한 번만 읽으면 해시를 바꿔도 화면이 안 바뀐다.
-    const onHashChange = () => setIsDashboard(window.location.hash === '#dashboard')
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
-  }, [])
-
-  return isDashboard ? <App /> : <ReplyStudio />
-}
-
+// 수집한 리뷰를 보는 대시보드는 별도 작업으로 다시 붙인다.
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <LangProvider>
-      <Root />
-    </LangProvider>
+    <ReplyStudio />
   </StrictMode>,
 )
