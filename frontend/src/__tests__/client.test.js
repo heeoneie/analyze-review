@@ -29,22 +29,10 @@ describe('API Client', () => {
     expect(mockApi.post).toHaveBeenCalledWith('/data/upload', expect.any(FormData));
   });
 
-  it('fetchSampleData calls GET /data/sample', async () => {
-    const { fetchSampleData } = await import('../api/client.js');
-    await fetchSampleData();
-    expect(mockApi.get).toHaveBeenCalledWith('/data/sample');
-  });
-
   it('runAnalysis calls POST /analysis/run', async () => {
     const { runAnalysis } = await import('../api/client.js');
     await runAnalysis();
     expect(mockApi.post).toHaveBeenCalledWith('/analysis/run');
-  });
-
-  it('getExperimentResults calls GET', async () => {
-    const { getExperimentResults } = await import('../api/client.js');
-    await getExperimentResults();
-    expect(mockApi.get).toHaveBeenCalledWith('/analysis/experiment-results');
   });
 
   it('crawlReviews sends url and max_pages', async () => {

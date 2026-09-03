@@ -5,12 +5,9 @@ from enum import Enum
 from pathlib import Path
 
 import pandas as pd
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
-from backend.database.database import get_db
-from backend.services.amazon_service import ingest_amazon_mock
 from backend.services.crawler_service import (
     crawl_reviews,
     save_reviews_to_csv,
@@ -51,10 +48,6 @@ def _validate_ratings_column(df: pd.DataFrame) -> None:
         "'Ratings' 컬럼에서 숫자 별점을 읽을 수 없습니다. "
         f"1~5 사이의 숫자여야 합니다. (예시 값: {sample})",
     )
-
-
-class AmazonRequest(BaseModel):
-    url: str
 
 
 class CrawlRequest(BaseModel):
@@ -124,43 +117,6 @@ async def upload_csv(file: UploadFile = File(...)):
         "filename": file.filename,
         "total_rows": len(df),
         "preview": preview,
-    }
-
-
-@router.get("/sample")
-def use_sample_data():
-    sample_path = os.path.join(
-        PROJECT_ROOT, "core", "experiments", "evaluation_dataset.csv"
-    )
-
-    if not os.path.exists(sample_path):
-        raise HTTPException(404, "샘플 데이터를 찾을 수 없습니다.")
-
-    # 컬럼명 변환하여 임시 파일로 저장
-    try:
-        df = pd.read_csv(sample_path)
-    except Exception as exc:
-        logger.exception("샘플 데이터 파싱 실패")
-        raise HTTPException(
-            500, "샘플 데이터를 파싱할 수 없습니다."
-        ) from exc
-
-    df = df.rename(
-        columns={"review_text": "Reviews", "rating": "Ratings"}
-    )
-
-    with tempfile.NamedTemporaryFile(
-        delete=False, suffix=".csv", mode="w"
-    ) as tmp:
-        tmp_path = tmp.name
-
-    df[["Ratings", "Reviews"]].to_csv(tmp_path, index=False)
-
-    uploaded_files["current"] = tmp_path
-
-    return {
-        "filename": "evaluation_dataset.csv (sample)",
-        "total_rows": len(df),
     }
 
 
@@ -309,20 +265,3 @@ def get_prioritized_reviews(
         "page_size": page_size,
         "total_pages": (total + page_size - 1) // page_size,
     }
-
-
-@router.post("/amazon")
-def ingest_amazon_reviews(
-    request: AmazonRequest,
-    db: Session = Depends(get_db),
-):
-    """Ingest Amazon reviews (mock for MVP) and persist to SQLite."""
-    if not request.url.strip():
-        raise HTTPException(400, "Amazon product URL is required.")
-    try:
-        return ingest_amazon_mock(request.url.strip(), db)
-    except Exception:
-        logger.exception("Amazon ingestion failed")
-        raise HTTPException(
-            500, "Amazon review ingestion failed."
-        ) from None
