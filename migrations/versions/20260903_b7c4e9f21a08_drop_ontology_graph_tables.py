@@ -9,7 +9,18 @@ drop_table 이 딸려 들어온다.
 ⚠️ upgrade 는 두 테이블의 **데이터를 지운다.** 되돌릴 수 없다.
    담긴 것은 리뷰에서 뽑아낸 리스크 온톨로지 산출물이고, 이제 이
    저장소에는 그것을 읽을 코드도 다시 만들 코드도 없다.
-   배포 전에 DB 파일을 복사해 둘 것 (SQLite 라 파일 하나면 된다).
+
+   배포 전에 백업할 것. 돌고 있는 DB 는 `cp` 로 뜨지 않는다 — 쓰기가
+   진행 중이면 반쪽짜리 파일이 나오고, 나중에 WAL 을 켜면 커밋된 내용이
+   -wal 파일에 남아 아예 빠진다. sqlite 온라인 백업 API 를 쓴다:
+
+       docker compose exec app python -c "import sqlite3; \
+         src=sqlite3.connect('/app/var/app.db'); \
+         dst=sqlite3.connect('/app/var/app.db.bak'); \
+         src.backup(dst); src.close(); dst.close()"
+       docker compose cp app:/app/var/app.db.bak ./app.db.bak
+
+   경로는 docker-compose.yml 의 DATABASE_URL 기준이다 (/app/var/app.db).
 
 ⚠️ downgrade 는 **빈 테이블만 복원한다.** 스키마는 돌아오지만 행은
    돌아오지 않는다. 백업 파일이 유일한 복구 수단이다.
