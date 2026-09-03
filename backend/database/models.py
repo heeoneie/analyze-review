@@ -1,4 +1,12 @@
-"""SQLAlchemy 2.0 models for the persistent ontology graph."""
+"""SQLAlchemy 2.0 models — 수집한 리뷰, 사장님 계정, 답글 이력."""
+
+# pylint 이 `Mapped[int]` 같은 정상 표기를 unsubscriptable-object 로 본다.
+# SQLAlchemy 2.0 의 Mapped 는 Generic 이라 첨자 표기가 맞고, 실제로 모델은
+# 정상 동작한다 (마이그레이션 드리프트 검사와 전체 테스트가 이를 고정한다).
+# astroid 4.0.4 가 이 모듈에서만 Mapped 추론에 실패한다 — Node/Edge 모델을
+# 지우자 나타났고, 클래스 순서나 __table_args__ 위치와는 무관했다.
+# 오탐을 이 파일 안으로만 가둔다. 다른 모듈의 진짜 첨자 오류는 계속 잡힌다.
+# pylint: disable=unsubscriptable-object
 
 from datetime import datetime, timezone
 
@@ -11,7 +19,6 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -22,70 +29,6 @@ def _utcnow() -> datetime:
 
 class Base(DeclarativeBase):
     pass
-
-
-class Node(Base):
-    __tablename__ = "nodes"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(512), nullable=False)
-    normalized_name: Mapped[str] = mapped_column(String(512), nullable=False)
-    type: Mapped[str] = mapped_column(String(64), nullable=False)
-    severity_score: Mapped[float] = mapped_column(Float, default=0.0)
-    case_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    estimated_loss_usd: Mapped[int] = mapped_column(Integer, default=0)
-    source: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
-    )
-
-    outgoing_edges: Mapped[list["Edge"]] = relationship(
-        "Edge", foreign_keys="Edge.source_node_id", back_populates="source_node",
-        cascade="all, delete-orphan", passive_deletes=True,
-    )
-    incoming_edges: Mapped[list["Edge"]] = relationship(
-        "Edge", foreign_keys="Edge.target_node_id", back_populates="target_node",
-        cascade="all, delete-orphan", passive_deletes=True,
-    )
-
-    __table_args__ = (
-        UniqueConstraint("normalized_name", "type", name="uq_node_norm_name_type"),
-        CheckConstraint("estimated_loss_usd >= 0", name="ck_node_estimated_loss_nonneg"),
-    )
-
-
-class Edge(Base):
-    __tablename__ = "edges"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    source_node_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False,
-    )
-    target_node_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False,
-    )
-    relationship_type: Mapped[str] = mapped_column(String(128), nullable=False)
-    weight: Mapped[float] = mapped_column(Float, default=1.0)
-    source: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
-    )
-
-    source_node: Mapped["Node"] = relationship(
-        "Node", foreign_keys=[source_node_id], back_populates="outgoing_edges",
-    )
-    target_node: Mapped["Node"] = relationship(
-        "Node", foreign_keys=[target_node_id], back_populates="incoming_edges",
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "source_node_id", "target_node_id", "relationship_type",
-            name="uq_edge_src_tgt_rel",
-        ),
-    )
 
 
 class Review(Base):

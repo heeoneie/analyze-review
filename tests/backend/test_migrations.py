@@ -22,7 +22,7 @@ from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy.orm import Session
 
-from backend.database.models import Base, Node, Review
+from backend.database.models import Base, Review
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = PROJECT_ROOT / "alembic.ini"
@@ -43,7 +43,14 @@ class TestFreshDatabase:
     def test_upgrade_creates_every_table(self, db_url):
         command.upgrade(_config(db_url), "head")
         tables = set(sa.inspect(sa.create_engine(db_url)).get_table_names())
-        assert {"users", "stores", "reply_samples", "nodes", "edges", "reviews"} <= tables
+        assert {"users", "stores", "reply_samples", "reviews"} <= tables
+
+    def test_ontology_tables_are_gone(self, db_url):
+        """b7c4e9f21a08 이 nodes·edges 를 지운다. 베이스라인이 만든 뒤 지운다."""
+        command.upgrade(_config(db_url), "head")
+        tables = set(sa.inspect(sa.create_engine(db_url)).get_table_names())
+        assert "nodes" not in tables
+        assert "edges" not in tables
 
     def test_upgrade_is_idempotent(self, db_url):
         """이미 head 면 두 번 돌려도 아무 일도 없어야 한다. 기동 때마다 돈다."""
@@ -85,9 +92,7 @@ class TestLegacyDatabase:
         with Session(engine) as s:
             s.add_all([
                 Review(source="coupang", rating=5, body="맛있어요"),
-                Review(source="naver", rating=2, body="배송이 늦었어요"),
-                Node(name="배송지연", normalized_name="배송지연",
-                     type="issue", estimated_loss_usd=5000),
+                Review(source="naver", rating=2, body="배송이 늦었어요", severity=0.8),
             ])
             s.commit()
 
@@ -96,7 +101,9 @@ class TestLegacyDatabase:
         with Session(engine) as s:
             bodies = {r.body for r in s.query(Review).all()}
             assert bodies == {"맛있어요", "배송이 늦었어요"}
-            assert s.query(Node).one().estimated_loss_usd == 5000
+            # 옮겨진 테이블에 컬럼 값이 그대로 남아야 한다.
+            naver = s.query(Review).filter_by(source="naver").one()
+            assert naver.severity == 0.8
 
 
 class TestConstraintsAreEnforced:
@@ -108,7 +115,6 @@ class TestConstraintsAreEnforced:
         return sa.create_engine(db_url)
 
     @pytest.mark.parametrize("table,names", [
-        ("nodes", {"ck_node_estimated_loss_nonneg"}),
         ("reviews", {"ck_reviews_rating_1_5"}),
         ("reply_samples", {"ck_reply_samples_rating_1_5", "ck_reply_samples_origin"}),
     ])
@@ -126,16 +132,6 @@ class TestConstraintsAreEnforced:
                 conn.execute(sa.text(
                     "INSERT INTO reviews (source,rating,body,severity,ingested_at) "
                     "VALUES ('x',9,'b',0,'2026-01-01')"
-                ))
-
-    def test_negative_loss_rejected(self, engine):
-        with engine.begin() as conn:
-            with pytest.raises(sa.exc.IntegrityError):
-                conn.execute(sa.text(
-                    "INSERT INTO nodes "
-                    "(name,normalized_name,type,severity_score,estimated_loss_usd,"
-                    "created_at,last_seen_at) "
-                    "VALUES ('n','n','t',0,-1,'2026-01-01','2026-01-01')"
                 ))
 
     def test_unknown_origin_rejected(self, engine):
