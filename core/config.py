@@ -7,8 +7,6 @@ load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-# YouTube Data API v3: YOUTUBE_API_KEY 없으면 GOOGLE_API_KEY로 폴백
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY") or os.getenv("GOOGLE_API_KEY")
 DATA_PATH = "data"
 
 # Analysis parameters
