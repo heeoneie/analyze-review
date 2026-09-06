@@ -188,8 +188,12 @@ class TestBaselineDowngradeIsRefused:
         with pytest.raises(NotImplementedError):
             command.downgrade(cfg, "base")
 
-        with Session(sa.create_engine(db_url)) as s:
-            assert [r.body for r in s.query(Review).all()] == ["소중한 데이터"]
+        # 원시 SQL 로 읽는다. downgrade 가 baseline 직전까지 내려가 스키마가
+        # 모델보다 옛것이라(store_id 없음) ORM 매핑으로는 조회할 수 없다.
+        # 여기서 확인할 것은 매핑이 아니라 행이 살아남았는지다.
+        with sa.create_engine(db_url).connect() as conn:
+            bodies = [r[0] for r in conn.execute(sa.text("SELECT body FROM reviews"))]
+        assert bodies == ["소중한 데이터"]
 
 
 class TestStoreNameIsUnique:

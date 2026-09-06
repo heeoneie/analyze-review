@@ -9,7 +9,7 @@ import {
   FileText,
   Search,
 } from 'lucide-react';
-import { getPrioritizedReviews } from '../api/client';
+import { listPrioritizedReviews } from '../api/client';
 import ReplyPanel from './ReplyPanel';
 
 const PAGE_SIZE = 10;
@@ -67,7 +67,7 @@ function ScoreBreakdown({ factors }) {
   );
 }
 
-export default function PriorityReviewList({ uploadInfo }) {
+export default function PriorityReviewList({ refreshKey = 0, onUnauthorized }) {
   const [reviews, setReviews] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -85,24 +85,28 @@ export default function PriorityReviewList({ uploadInfo }) {
     setExpandedKey(null);
     setReplyKey(null);
     try {
-      const { data } = await getPrioritizedReviews(p, PAGE_SIZE, level);
+      const { data } = await listPrioritizedReviews(p, PAGE_SIZE, level);
       setReviews(data.reviews);
       setTotalPages(data.total_pages);
       setTotal(data.total);
       setPage(p);
     } catch (err) {
-      console.error('우선순위 리뷰 로딩 실패:', err);
-      setError('리뷰를 불러오는 데 실패했습니다.');
+      // 401 이면 오류 문구로 끝내면 안 된다. 사장님이 다시 들어올 길이
+      // 없어진다. 게이트를 되돌려 로그인·코드 화면을 띄운다.
+      if (err.response?.status === 401) {
+        onUnauthorized?.();
+      } else {
+        console.error('우선순위 리뷰 로딩 실패:', err);
+        setError('리뷰를 불러오는 데 실패했습니다.');
+      }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [onUnauthorized]);
 
   useEffect(() => {
-    if (uploadInfo) {
-      fetchReviews(1, filterLevel);
-    }
-  }, [uploadInfo, fetchReviews, filterLevel]);
+    fetchReviews(1, filterLevel);
+  }, [refreshKey, fetchReviews, filterLevel]);
 
   const handleFilterChange = (level) => {
     setFilterLevel(level);
@@ -127,7 +131,6 @@ export default function PriorityReviewList({ uploadInfo }) {
     );
   };
 
-  if (!uploadInfo) return null;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">

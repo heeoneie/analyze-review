@@ -32,7 +32,15 @@ class Base(DeclarativeBase):
 
 
 class Review(Base):
-    """Ingested review from any source (Amazon, Coupang, CSV, etc.)."""
+    """수집한 손님 리뷰 한 건.
+
+    매장별로 갈라 둔다. 리뷰는 손님의 개인정보를 담을 수 있고, 우리는
+    사장님의 수탁자로서 매장 사이에 데이터를 섞으면 안 된다 (CLAUDE.md
+    참고). 조회는 반드시 store_id 로 거른다.
+
+    store_id 가 NULL 인 행은 카카오 로그인을 켜기 전 접속코드로 들어온
+    이행기 데이터다. 그때는 접속코드가 하나뿐이라 매장도 하나다.
+    """
 
     __tablename__ = "reviews"
     __table_args__ = (
@@ -40,6 +48,10 @@ class Review(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    store_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("stores.id", ondelete="CASCADE"),
+        nullable=True, index=True,
+    )
     source: Mapped[str] = mapped_column(String(64), nullable=False)
     product_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     rating: Mapped[int] = mapped_column(Integer, nullable=False)

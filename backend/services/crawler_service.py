@@ -7,7 +7,6 @@ import tempfile
 import time
 from urllib.parse import urlparse
 
-import pandas as pd
 from curl_cffi import requests as cffi_requests
 from dotenv import load_dotenv
 
@@ -352,7 +351,13 @@ async def crawl_reviews(
 
 
 def save_reviews_to_csv(reviews: list[dict]) -> str:
-    """리뷰를 CSV 파일로 저장"""
+    """리뷰를 CSV 파일로 저장.
+
+    pandas 를 여기서만 쓴다. 최상단에서 임포트하면 pandas 가 없는 슬림
+    배포 이미지가 이 모듈을 통째로 불러오지 못해 크롤링까지 죽는다.
+    """
+    import pandas as pd  # pylint: disable=import-outside-toplevel
+
     df = pd.DataFrame(reviews)
     with tempfile.NamedTemporaryFile(
         delete=False, suffix=".csv"

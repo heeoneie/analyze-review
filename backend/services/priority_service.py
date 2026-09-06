@@ -5,6 +5,7 @@ LLM 호출 없이 로컬에서 별점/키워드/길이/최신성 기준으로
 """
 
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 
 from backend.services.rating import DEFAULT_RATING, parse_rating
 
@@ -70,6 +71,15 @@ def _recency_score(created_at: str | None) -> int:
     if diff <= timedelta(days=7):
         return 5
     return 2
+
+
+class PriorityLevel(str, Enum):
+    """`_score_to_level` 이 내놓는 값. 라우터의 쿼리 파라미터로도 쓴다."""
+
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
 
 
 def _score_to_level(score: int) -> str:

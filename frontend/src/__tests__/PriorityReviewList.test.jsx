@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import PriorityReviewList from '../components/PriorityReviewList';
-import { getPrioritizedReviews, generateReply } from '../api/client';
+import { listPrioritizedReviews, generateReply } from '../api/client';
 
 vi.mock('../api/client', () => ({
-  getPrioritizedReviews: vi.fn(),
+  listPrioritizedReviews: vi.fn(),
   generateReply: vi.fn(),
 }));
 
@@ -29,21 +29,24 @@ const pageOf = (reviews, totalPages = 2) => ({
   },
 });
 
-const uploadInfo = { filename: 'a.csv' };
-
 describe('PriorityReviewList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renders nothing without uploadInfo', () => {
-    const { container } = render(<PriorityReviewList uploadInfo={null} />);
-    expect(container.firstChild).toBeNull();
+  // 예전에는 업로드 전이면 아무것도 그리지 않았다. 이제 리뷰가 DB 에 있어
+  // 화면에 들어오는 즉시 읽는다. 빈 매장이면 빈 목록을 보여 준다.
+  it('fetches on mount without waiting for an upload', async () => {
+    listPrioritizedReviews.mockResolvedValue(pageOf([], 0));
+
+    render(<PriorityReviewList />);
+
+    await waitFor(() => expect(listPrioritizedReviews).toHaveBeenCalled());
   });
 
   // 이슈 #35: 페이지를 넘기면 펼침/답변 상태가 따라오면 안 된다
   it('resets expanded and reply state when the page changes', async () => {
-    getPrioritizedReviews
+    listPrioritizedReviews
       .mockResolvedValueOnce(pageOf([makeReview('첫 페이지 리뷰입니다')]))
       .mockResolvedValueOnce(pageOf([makeReview('두 번째 페이지 리뷰입니다')]));
     generateReply.mockResolvedValue({
@@ -54,7 +57,7 @@ describe('PriorityReviewList', () => {
       },
     });
 
-    render(<PriorityReviewList uploadInfo={uploadInfo} />);
+    render(<PriorityReviewList />);
     fireEvent.click(await screen.findByText('첫 페이지 리뷰입니다'));
     fireEvent.click(screen.getByText('답변 작성하기 →'));
     fireEvent.click(screen.getByText('AI 맞춤 답변 생성'));
@@ -72,11 +75,11 @@ describe('PriorityReviewList', () => {
 
   // 이슈 #35: 필터를 바꿔도 같은 문제가 생기면 안 된다
   it('resets expanded and reply state when the filter changes', async () => {
-    getPrioritizedReviews
+    listPrioritizedReviews
       .mockResolvedValueOnce(pageOf([makeReview('전체 목록 리뷰')], 1))
       .mockResolvedValueOnce(pageOf([makeReview('긴급 목록 리뷰')], 1));
 
-    render(<PriorityReviewList uploadInfo={uploadInfo} />);
+    render(<PriorityReviewList />);
     fireEvent.click(await screen.findByText('전체 목록 리뷰'));
     expect(screen.getByText('답변 작성하기 →')).toBeInTheDocument();
 
@@ -87,11 +90,11 @@ describe('PriorityReviewList', () => {
   });
 
   it('renders stars from a string rating', async () => {
-    getPrioritizedReviews.mockResolvedValue(
+    listPrioritizedReviews.mockResolvedValue(
       pageOf([makeReview('문자열 별점 리뷰', { Ratings: '1.0' })], 1),
     );
 
-    const { container } = render(<PriorityReviewList uploadInfo={uploadInfo} />);
+    const { container } = render(<PriorityReviewList />);
     await screen.findByText('문자열 별점 리뷰');
     await waitFor(() => {
       expect(container.querySelectorAll('.fill-yellow-400')).toHaveLength(1);
