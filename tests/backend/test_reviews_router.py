@@ -174,6 +174,19 @@ class TestListing:
         assert body["rating_average"] == pytest.approx(3.67, abs=0.01)
         assert body["last_collected_at"] is not None
 
+    def test_timestamps_carry_a_utc_offset(self, client, db_session, store):
+        """오프셋이 없으면 브라우저가 현지 시각으로 읽어 9시간 어긋난다.
+
+        SQLite 가 tz 를 보존하지 않아 읽을 때 naive 로 돌아오는 탓이다.
+        """
+        _add_review(db_session, store.id, 5, "좋아요")
+
+        listed = client.get("/api/reviews").json()["reviews"][0]
+        summary = client.get("/api/reviews/summary").json()
+
+        assert listed["created_at"].endswith("+00:00")
+        assert summary["last_collected_at"].endswith("+00:00")
+
     def test_summary_on_empty_store_does_not_divide_by_zero(self, client, store):  # pylint: disable=unused-argument
         body = client.get("/api/reviews/summary").json()
 
@@ -190,7 +203,7 @@ class TestPersist:
         return _make_store(db_session, "5555", "가게")
 
     def test_saves_valid_reviews(self, db_session, store):
-        saved = reviews_router._persist(  # pylint: disable=protected-access
+        saved, _ = reviews_router._persist(  # pylint: disable=protected-access
             db_session, store, "coupang", "https://example.com/1",
             [{"Ratings": 5, "Reviews": "맛있어요"}, {"Ratings": 2, "Reviews": "짜요"}],
         )
@@ -200,7 +213,7 @@ class TestPersist:
 
     def test_skips_rows_that_would_violate_the_check_constraint(self, db_session, store):
         """별점이 범위를 벗어난 한 건 때문에 멀쩡한 리뷰까지 잃으면 안 된다."""
-        saved = reviews_router._persist(  # pylint: disable=protected-access
+        saved, _ = reviews_router._persist(  # pylint: disable=protected-access
             db_session, store, "coupang", "https://example.com/1",
             [
                 {"Ratings": 9, "Reviews": "별점이 이상함"},
@@ -214,7 +227,7 @@ class TestPersist:
 
     def test_skips_empty_bodies(self, db_session, store):
         """별점만 남긴 리뷰가 많다. 답글을 달 대상이 아니라 저장하지 않는다."""
-        saved = reviews_router._persist(  # pylint: disable=protected-access
+        saved, _ = reviews_router._persist(  # pylint: disable=protected-access
             db_session, store, "coupang", "https://example.com/1",
             [{"Ratings": 5, "Reviews": "  "}, {"Ratings": 5, "Reviews": None}],
         )
@@ -222,7 +235,7 @@ class TestPersist:
         assert saved == 0
 
     def test_skips_unparsable_rating(self, db_session, store):
-        saved = reviews_router._persist(  # pylint: disable=protected-access
+        saved, _ = reviews_router._persist(  # pylint: disable=protected-access
             db_session, store, "coupang", "https://example.com/1",
             [{"Ratings": "다섯개", "Reviews": "본문은 있음"}],
         )
@@ -327,3 +340,64 @@ class TestCollectEndpoint:
         assert response.status_code == 502
         # 내부 예외 문구가 그대로 새어 나가면 안 된다.
         assert "연결 끊김" not in response.json()["detail"]
+
+    def test_recollecting_the_same_product_does_not_duplicate(self, db_session, store):
+        """사장님은 새 리뷰를 보려고 같은 상품을 다시 수집한다.
+
+        막지 않으면 누를 때마다 목록이 두 배가 된다.
+        """
+        url = "https://www.coupang.com/vp/products/1"
+        payload = [{"Ratings": 5, "Reviews": "맛있어요"}, {"Ratings": 1, "Reviews": "짜요"}]
+
+        first, _ = reviews_router._persist(  # pylint: disable=protected-access
+            db_session, store, "coupang", url, payload)
+        second, skipped = reviews_router._persist(  # pylint: disable=protected-access
+            db_session, store, "coupang", url, payload)
+
+        assert (first, second, skipped) == (2, 0, 2)
+        assert db_session.query(Review).count() == 2
+
+    def test_recollecting_picks_up_new_reviews(self, db_session, store):
+        """이미 있는 것은 넘어가고 새로 달린 것만 담는다."""
+        url = "https://www.coupang.com/vp/products/1"
+        reviews_router._persist(  # pylint: disable=protected-access
+            db_session, store, "coupang", url, [{"Ratings": 5, "Reviews": "맛있어요"}])
+
+        saved, skipped = reviews_router._persist(  # pylint: disable=protected-access
+            db_session, store, "coupang", url,
+            [{"Ratings": 5, "Reviews": "맛있어요"}, {"Ratings": 3, "Reviews": "새로 달린 리뷰"}])
+
+        assert (saved, skipped) == (1, 1)
+        assert db_session.query(Review).count() == 2
+
+    def test_duplicates_inside_one_batch_are_collapsed(self, db_session, store):
+        saved, skipped = reviews_router._persist(  # pylint: disable=protected-access
+            db_session, store, "coupang", "https://example.com/1",
+            [{"Ratings": 5, "Reviews": "같은 글"}, {"Ratings": 5, "Reviews": "같은 글"}])
+
+        assert (saved, skipped) == (1, 1)
+
+    def test_other_stores_reviews_do_not_block_collection(self, db_session, store):
+        """중복 검사도 매장 안에서만 본다. 남의 매장 글 때문에 건너뛰면 안 된다."""
+        other = _make_store(db_session, "8888", "다른 가게")
+        url = "https://www.coupang.com/vp/products/1"
+        reviews_router._persist(  # pylint: disable=protected-access
+            db_session, other, "coupang", url, [{"Ratings": 5, "Reviews": "맛있어요"}])
+
+        saved, skipped = reviews_router._persist(  # pylint: disable=protected-access
+            db_session, store, "coupang", url, [{"Ratings": 5, "Reviews": "맛있어요"}])
+
+        assert (saved, skipped) == (1, 0)
+
+    def test_different_product_is_collected_separately(self, db_session, store):
+        """상품이 다르면 글이 같아도 각각 담는다."""
+        reviews_router._persist(  # pylint: disable=protected-access
+            db_session, store, "coupang", "https://www.coupang.com/vp/products/1",
+            [{"Ratings": 5, "Reviews": "맛있어요"}])
+
+        saved, _ = reviews_router._persist(  # pylint: disable=protected-access
+            db_session, store, "coupang", "https://www.coupang.com/vp/products/2",
+            [{"Ratings": 5, "Reviews": "맛있어요"}])
+
+        assert saved == 1
+        assert db_session.query(Review).count() == 2

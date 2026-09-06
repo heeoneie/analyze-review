@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Copy, Check, RefreshCw, Loader2, ListChecks } from 'lucide-react';
-import {
-  clearAccessCode,
-  generateStoreReply,
-  finalizeStoreReply,
-} from '../api/client';
+import { generateStoreReply, finalizeStoreReply } from '../api/client';
 import useAccessGate from '../hooks/useAccessGate';
 import AccessGate from './AccessGate';
 import LoginGate from './LoginGate';
@@ -121,7 +117,6 @@ export default function ReplyStudio() {
       setEditedReply(data.reply || '');
     } catch (err) {
       if (err.response?.status === 401) {
-        clearAccessCode();
         lockGate();
         return;
       }

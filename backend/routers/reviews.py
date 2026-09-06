@@ -13,6 +13,7 @@ pandas 를 최상단에서 임포트해서, 슬림 이미지(requirements-web.tx
 """
 
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -63,6 +64,23 @@ def _mine(store: Store | None):
     return Review.store_id.is_(None) if sid is None else Review.store_id == sid
 
 
+def _utc_iso(value: datetime | None) -> str | None:
+    """시각을 UTC 오프셋이 붙은 문자열로 만든다.
+
+    컬럼은 DateTime(timezone=True) 지만 SQLite 는 오프셋을 보존하지 않아
+    읽을 때 naive 로 돌아온다. 그대로 isoformat 하면 "…T07:17:54" 가 되고,
+    브라우저의 `new Date()` 는 오프셋 없는 값을 **현지 시각**으로 읽는다.
+    한국이면 9시간 어긋나서 방금 모은 리뷰가 "9시간 전" 으로 표시된다.
+
+    쓸 때 항상 UTC(`_utcnow`) 라서 naive 면 UTC 로 붙여 주면 된다.
+    """
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.isoformat()
+
+
 def _to_row(review: Review) -> dict:
     """프론트가 쓰는 모양으로 변환.
 
@@ -76,7 +94,7 @@ def _to_row(review: Review) -> dict:
         "title": review.title or "",
         "source": review.source,
         "product_url": review.product_url or "",
-        "created_at": review.ingested_at.isoformat() if review.ingested_at else None,
+        "created_at": _utc_iso(review.ingested_at),
     }
 
 
@@ -122,25 +140,49 @@ async def collect_reviews(
             502, "리뷰를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요."
         ) from None
 
-    saved = _persist(db, store, platform, request.url.strip(), result.get("reviews", []))
+    saved, skipped = _persist(
+        db, store, platform, request.url.strip(), result.get("reviews", []),
+    )
 
     return {
         "platform": platform,
         "saved": saved,
+        "skipped": skipped,
         "total_count": result.get("total_count", 0),
         "rating_average": result.get("rating_average", 0.0),
     }
 
 
+def _existing_keys(db: Session, store: Store | None, url: str) -> set[tuple[int, str]]:
+    """이 매장이 이 상품에서 이미 담아 둔 (별점, 본문) 짝."""
+    stmt = (
+        select(Review.rating, Review.body)
+        .where(_mine(store))
+        .where(Review.product_url == url[:1024])
+    )
+    return set(db.execute(stmt).all())
+
+
 def _persist(
     db: Session, store: Store | None, platform: str, url: str, reviews: list[dict],
-) -> int:
-    """수집 결과를 Review 행으로 남기고 저장한 건수를 돌려준다.
+) -> tuple[int, int]:
+    """수집 결과를 Review 행으로 남기고 (담은 수, 건너뛴 수) 를 돌려준다.
 
     별점이 1~5 를 벗어나거나 본문이 빈 항목은 건너뛴다. CHECK 제약에
     걸려 트랜잭션 전체가 깨지면 멀쩡한 리뷰까지 통째로 버려진다.
+
+    이미 담은 리뷰도 건너뛴다. 사장님은 새 리뷰를 보려고 같은 상품을
+    다시 수집한다. 막지 않으면 누를 때마다 목록이 두 배가 된다.
+
+    무엇이 "같은 리뷰"인지는 (별점, 본문) 으로 본다. 수집기가 리뷰
+    식별자도 작성자도 날짜도 주지 않아서 이것 말고 쓸 게 없다. 손님
+    둘이 똑같이 "맛있어요" 5점을 남겼다면 한 건으로 합쳐진다 — 매번
+    전부를 두 배로 늘리는 것보다는 이쪽이 낫다.
     """
+    seen = _existing_keys(db, store, url)
     rows = []
+    skipped = 0
+
     for item in reviews:
         body = str(item.get("Reviews") or "").strip()
         if not body:
@@ -152,19 +194,28 @@ def _persist(
         if not 1 <= rating <= 5:
             continue
 
+        body = body[:MAX_BODY_CHARS]
+        key = (rating, body)
+        # 같은 수집 안에 똑같은 항목이 두 번 올 수도 있다. seen 에 바로
+        # 넣어 두면 DB 를 다시 읽지 않고 그것까지 걸러진다.
+        if key in seen:
+            skipped += 1
+            continue
+        seen.add(key)
+
         rows.append(Review(
             store_id=_store_id(store),
             source=platform,
             product_url=url[:1024],
             rating=rating,
             title=(str(item.get("title") or "").strip() or None),
-            body=body[:MAX_BODY_CHARS],
+            body=body,
         ))
 
     if rows:
         db.add_all(rows)
         db.commit()
-    return len(rows)
+    return len(rows), skipped
 
 
 @router.get("")
@@ -244,5 +295,5 @@ def summary(
         "negative": negative,
         "negative_rate": round(negative / total, 3) if total else 0.0,
         "rating_average": round(float(average), 2) if average is not None else 0.0,
-        "last_collected_at": latest.isoformat() if latest else None,
+        "last_collected_at": _utc_iso(latest),
     }

@@ -39,7 +39,7 @@ function SummaryCard({ icon: Icon, label, value, tone = 'text-slate-900' }) {
   );
 }
 
-function CollectForm({ onCollected }) {
+function CollectForm({ onCollected, onUnauthorized }) {
   const [url, setUrl] = useState('');
   const [isCollecting, setIsCollecting] = useState(false);
   const [error, setError] = useState(null);
@@ -69,6 +69,10 @@ function CollectForm({ onCollected }) {
       setUrl('');
       onCollected();
     } catch (err) {
+      if (err.response?.status === 401) {
+        onUnauthorized?.();
+        return;
+      }
       setError(
         err.response?.data?.detail
         || '리뷰를 가져오지 못했습니다. 주소를 확인하고 다시 시도해 주세요.',
@@ -121,7 +125,8 @@ function CollectForm({ onCollected }) {
         <p className="mt-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           {done.saved > 0
             ? `${done.saved}개를 새로 담았습니다.`
-            : '새로 담을 리뷰가 없었습니다. 본문 없이 별점만 남긴 리뷰는 담지 않습니다.'}
+            : '새로 담은 리뷰가 없습니다.'}
+          {done.skipped > 0 && ` 이미 담아 둔 ${done.skipped}개는 넘어갔습니다.`}
         </p>
       )}
 
@@ -133,7 +138,7 @@ function CollectForm({ onCollected }) {
 }
 
 export default function Dashboard() {
-  const { gate, open: openGate } = useAccessGate();
+  const { gate, open: openGate, lock: lockGate } = useAccessGate();
   // 수집이 끝나면 올린다. 아래 목록들이 이 값을 보고 다시 읽는다.
   const [refreshKey, setRefreshKey] = useState(0);
   const [summary, setSummary] = useState(null);
@@ -142,11 +147,12 @@ export default function Dashboard() {
     try {
       const { data } = await getReviewSummary();
       setSummary(data);
-    } catch {
-      // 요약은 없어도 목록은 보인다. 화면을 막지 않는다.
+    } catch (err) {
+      if (err.response?.status === 401) lockGate();
+      // 그 밖의 이유라면 요약만 접는다. 목록은 계속 보인다.
       setSummary(null);
     }
-  }, []);
+  }, [lockGate]);
 
   useEffect(() => {
     if (gate.status === 'open') loadSummary();
@@ -184,7 +190,10 @@ export default function Dashboard() {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-5 px-5 py-6">
-        <CollectForm onCollected={() => setRefreshKey((k) => k + 1)} />
+        <CollectForm
+          onCollected={() => setRefreshKey((k) => k + 1)}
+          onUnauthorized={lockGate}
+        />
 
         {summary && summary.total > 0 && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -204,8 +213,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        <PriorityReviewList refreshKey={refreshKey} />
-        <ReviewList refreshKey={refreshKey} />
+        <PriorityReviewList refreshKey={refreshKey} onUnauthorized={lockGate} />
+        <ReviewList refreshKey={refreshKey} onUnauthorized={lockGate} />
       </main>
     </div>
   );

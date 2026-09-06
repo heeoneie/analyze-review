@@ -67,7 +67,7 @@ function ScoreBreakdown({ factors }) {
   );
 }
 
-export default function PriorityReviewList({ refreshKey = 0 }) {
+export default function PriorityReviewList({ refreshKey = 0, onUnauthorized }) {
   const [reviews, setReviews] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -91,12 +91,18 @@ export default function PriorityReviewList({ refreshKey = 0 }) {
       setTotal(data.total);
       setPage(p);
     } catch (err) {
-      console.error('우선순위 리뷰 로딩 실패:', err);
-      setError('리뷰를 불러오는 데 실패했습니다.');
+      // 401 이면 오류 문구로 끝내면 안 된다. 사장님이 다시 들어올 길이
+      // 없어진다. 게이트를 되돌려 로그인·코드 화면을 띄운다.
+      if (err.response?.status === 401) {
+        onUnauthorized?.();
+      } else {
+        console.error('우선순위 리뷰 로딩 실패:', err);
+        setError('리뷰를 불러오는 데 실패했습니다.');
+      }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [onUnauthorized]);
 
   useEffect(() => {
     fetchReviews(1, filterLevel);
