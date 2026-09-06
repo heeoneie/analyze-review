@@ -1,7 +1,6 @@
 import logging
 import os
 import tempfile
-from enum import Enum
 from pathlib import Path
 
 import pandas as pd
@@ -12,7 +11,7 @@ from backend.services.crawler_service import (
     crawl_reviews,
     save_reviews_to_csv,
 )
-from backend.services.priority_service import score_and_sort
+from backend.services.priority_service import PriorityLevel, score_and_sort
 from backend.services.rating import parse_rating
 
 logger = logging.getLogger(__name__)
@@ -213,13 +212,6 @@ def get_reviews(
         "page_size": page_size,
         "total_pages": (total + page_size - 1) // page_size,
     }
-
-
-class PriorityLevel(str, Enum):
-    CRITICAL = "critical"
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
 
 
 @router.get("/reviews/prioritized")

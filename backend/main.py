@@ -18,7 +18,11 @@ if PROJECT_ROOT not in sys.path:
 from backend.database.migrate import (  # pylint: disable=wrong-import-position
     upgrade_database,
 )
-from backend.routers import auth, reply  # pylint: disable=wrong-import-position
+from backend.routers import (  # pylint: disable=wrong-import-position
+    auth,
+    reply,
+    reviews,
+)
 
 # 답글 화면만 배포할 때는 분석·크롤링 의존성(pandas, curl_cffi 등)을 설치하지 않는다.
 try:
@@ -57,6 +61,7 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(reply.router, prefix="/api/reply", tags=["reply"])
+app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
 
 if data and analysis:
     app.include_router(data.router, prefix="/api/data", tags=["data"])

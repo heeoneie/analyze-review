@@ -9,7 +9,7 @@ import {
   FileText,
   Search,
 } from 'lucide-react';
-import { getPrioritizedReviews } from '../api/client';
+import { listPrioritizedReviews } from '../api/client';
 import ReplyPanel from './ReplyPanel';
 
 const PAGE_SIZE = 10;
@@ -67,7 +67,7 @@ function ScoreBreakdown({ factors }) {
   );
 }
 
-export default function PriorityReviewList({ uploadInfo }) {
+export default function PriorityReviewList({ refreshKey = 0 }) {
   const [reviews, setReviews] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -85,7 +85,7 @@ export default function PriorityReviewList({ uploadInfo }) {
     setExpandedKey(null);
     setReplyKey(null);
     try {
-      const { data } = await getPrioritizedReviews(p, PAGE_SIZE, level);
+      const { data } = await listPrioritizedReviews(p, PAGE_SIZE, level);
       setReviews(data.reviews);
       setTotalPages(data.total_pages);
       setTotal(data.total);
@@ -99,10 +99,8 @@ export default function PriorityReviewList({ uploadInfo }) {
   }, []);
 
   useEffect(() => {
-    if (uploadInfo) {
-      fetchReviews(1, filterLevel);
-    }
-  }, [uploadInfo, fetchReviews, filterLevel]);
+    fetchReviews(1, filterLevel);
+  }, [refreshKey, fetchReviews, filterLevel]);
 
   const handleFilterChange = (level) => {
     setFilterLevel(level);
@@ -127,7 +125,6 @@ export default function PriorityReviewList({ uploadInfo }) {
     );
   };
 
-  if (!uploadInfo) return null;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">

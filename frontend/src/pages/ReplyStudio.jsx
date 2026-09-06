@@ -1,14 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Copy, Check, RefreshCw, Loader2 } from 'lucide-react';
+import { Copy, Check, RefreshCw, Loader2, ListChecks } from 'lucide-react';
 import {
   clearAccessCode,
   generateStoreReply,
-  getAccessCode,
-  getReplyConfig,
-  getAuthConfig,
-  getMe,
   finalizeStoreReply,
 } from '../api/client';
+import useAccessGate from '../hooks/useAccessGate';
 import AccessGate from './AccessGate';
 import LoginGate from './LoginGate';
 
@@ -90,7 +87,7 @@ function CopyButton({ text, sampleId }) {
 }
 
 export default function ReplyStudio() {
-  const [gate, setGate] = useState({ status: 'checking', required: false });
+  const { gate, open: openGate, lock: lockGate } = useAccessGate();
   const [reviewText, setReviewText] = useState('');
   const [rating, setRating] = useState(5);
   const [menu, setMenu] = useState('');
@@ -101,40 +98,6 @@ export default function ReplyStudio() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    // 계정 체계가 켜져 있으면 로그인 경로, 아직이면 기존 접속코드 경로를 탄다.
-    // 서버 설정 하나로 갈리므로 사장님 화면이 어느 쪽으로든 끊기지 않는다.
-    (async () => {
-      let kakaoEnabled = false;
-      try {
-        const { data } = await getAuthConfig();
-        kakaoEnabled = data.kakao_login_enabled;
-      } catch {
-        kakaoEnabled = false;
-      }
-
-      if (kakaoEnabled) {
-        try {
-          const { data } = await getMe();
-          if (!data.authenticated) setGate({ status: 'login', authenticated: false });
-          else if (!data.store) setGate({ status: 'login', authenticated: true });
-          else setGate({ status: 'open', required: false });
-        } catch {
-          setGate({ status: 'login', authenticated: false });
-        }
-        return;
-      }
-
-      try {
-        const { data } = await getReplyConfig();
-        const locked = data.requires_code && !getAccessCode();
-        setGate({ status: locked ? 'locked' : 'open', required: data.requires_code });
-      } catch {
-        // 설정을 못 읽어도 화면은 띄운다. 코드가 틀리면 생성할 때 걸린다.
-        setGate({ status: 'open', required: false });
-      }
-    })();
-  }, []);
 
   const canSubmit = (reviewText.trim() || menu.trim()) && !isLoading;
 
@@ -159,7 +122,7 @@ export default function ReplyStudio() {
     } catch (err) {
       if (err.response?.status === 401) {
         clearAccessCode();
-        setGate({ status: 'locked', required: true });
+        lockGate();
         return;
       }
       setError(err.response?.data?.detail || '답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.');
@@ -180,22 +143,32 @@ export default function ReplyStudio() {
     return (
       <LoginGate
         authenticated={gate.authenticated}
-        onClaimed={() => setGate({ status: 'open', required: false })}
+        onClaimed={() => openGate(false)}
       />
     );
   }
   if (gate.status === 'locked') {
-    return <AccessGate onUnlock={() => setGate({ status: 'open', required: true })} />;
+    return <AccessGate onUnlock={() => openGate(true)} />;
   }
 
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-2xl px-5 py-5">
-          <h1 className="text-xl font-bold text-slate-900">리뷰 답글 만들기</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            리뷰를 붙여넣고 별점과 시킨 메뉴를 넣으면, 그 주문에 맞는 답글을 만들어 드립니다.
-          </p>
+        <div className="mx-auto flex max-w-2xl items-start justify-between gap-4 px-5 py-5">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">리뷰 답글 만들기</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              리뷰를 붙여넣고 별점과 시킨 메뉴를 넣으면, 그 주문에 맞는 답글을 만들어 드립니다.
+            </p>
+          </div>
+          <a
+            href="#dashboard"
+            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200
+                       px-3 py-2 text-sm font-medium text-slate-600 hover:border-slate-300"
+          >
+            <ListChecks size={15} />
+            모아 둔 리뷰
+          </a>
         </div>
       </header>
 

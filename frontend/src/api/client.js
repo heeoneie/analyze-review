@@ -79,6 +79,22 @@ export const logout = () => api.post('/auth/logout');
 export const claimStore = (accessCode) =>
   api.post('/auth/claim-store', { access_code: accessCode });
 
+// 수집한 리뷰 (DB 저장, 매장별로 갈림)
+export const collectReviews = (url, maxPages = 10) =>
+  api.post('/reviews/collect', { url, max_pages: maxPages }, withAccessCode());
+
+export const listReviews = (page = 1, pageSize = 10) =>
+  api.get('/reviews', { params: { page, page_size: pageSize }, ...withAccessCode() });
+
+export const listPrioritizedReviews = (page = 1, pageSize = 10, level = null) =>
+  api.get('/reviews/prioritized', {
+    params: { page, page_size: pageSize, ...(level ? { level } : {}) },
+    ...withAccessCode(),
+  });
+
+export const getReviewSummary = () =>
+  api.get('/reviews/summary', withAccessCode());
+
 // 사장님이 실제로 게시한 답글을 기록한다. 말투 학습은 이 기록만 쓴다.
 export const finalizeStoreReply = (sampleId, finalReply) =>
   api.post('/reply/store/finalize', { sample_id: sampleId, final_reply: finalReply },

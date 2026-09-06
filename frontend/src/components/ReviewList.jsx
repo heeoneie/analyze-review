@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MessageSquare, Star, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getReviews } from '../api/client';
+import { listReviews } from '../api/client';
 
-export default function ReviewList({ uploadInfo }) {
+export default function ReviewList({ refreshKey = 0 }) {
   const [reviews, setReviews] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -12,7 +12,7 @@ export default function ReviewList({ uploadInfo }) {
   const fetchReviews = useCallback(async (p) => {
     setIsLoading(true);
     try {
-      const { data } = await getReviews(p, 10);
+      const { data } = await listReviews(p, 10);
       setReviews(data.reviews);
       setTotalPages(data.total_pages);
       setTotal(data.total);
@@ -24,11 +24,11 @@ export default function ReviewList({ uploadInfo }) {
     }
   }, []);
 
+  // 화면에 들어오면 바로 읽는다. 리뷰는 DB 에 있으므로 업로드나 수집을
+  // 기다릴 필요가 없다. 수집이 끝나면 refreshKey 가 바뀌어 다시 읽는다.
   useEffect(() => {
-    if (uploadInfo) {
-      fetchReviews(1);
-    }
-  }, [uploadInfo, fetchReviews]);
+    fetchReviews(1);
+  }, [refreshKey, fetchReviews]);
 
   const renderStars = (rating) => {
     return (
@@ -43,8 +43,6 @@ export default function ReviewList({ uploadInfo }) {
       </div>
     );
   };
-
-  if (!uploadInfo) return null;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
