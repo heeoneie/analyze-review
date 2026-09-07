@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { Copy, Check, RefreshCw, Loader2, ListChecks } from 'lucide-react';
-import { generateStoreReply, finalizeStoreReply } from '../api/client';
+import {
+  generateStoreReply, finalizeStoreReply, getStyleStatus,
+} from '../api/client';
 import useAccessGate from '../hooks/useAccessGate';
 import AccessGate from './AccessGate';
 import LoginGate from './LoginGate';
+import StyleOnboarding from './StyleOnboarding';
+
+// 온보딩을 한 번 거친 사장님에게 열 때마다 다시 묻지 않는다. 건너뛴 경우와
+// 표본을 넣은 경우를 함께 표시한다. 기준에 못 미치게 넣었더라도 다시 묻지
+// 않는다 — 그러면 화면을 벗어날 길이 없다. 모자란 만큼은 답글을 게시하면서
+// 자연히 쌓인다.
+const ONBOARDED_KEY = 'style-onboarding-done';
 
 const RATINGS = [5, 4, 3, 2, 1];
 
@@ -39,6 +48,7 @@ function CopyButton({ text, sampleId }) {
   const timer = useRef(null);
 
   useEffect(() => () => clearTimeout(timer.current), []);
+
 
   const copy = async () => {
     try {
@@ -84,6 +94,26 @@ function CopyButton({ text, sampleId }) {
 
 export default function ReplyStudio() {
   const { gate, open: openGate, lock: lockGate } = useAccessGate();
+  // null = 아직 모름. 게이트를 통과한 뒤에만 확인한다.
+  const [styleStatus, setStyleStatus] = useState(null);
+  const [onboarded, setOnboarded] = useState(
+    () => localStorage.getItem(ONBOARDED_KEY) === '1',
+  );
+
+  // 말투 표본이 없으면 온보딩을 먼저 띄운다. 표본 없이는 아무리 답글을
+  // 만들어도 사장님 말투가 나오지 않는다.
+  useEffect(() => {
+    if (gate.status !== 'open') return;
+    (async () => {
+      try {
+        const { data } = await getStyleStatus();
+        setStyleStatus(data);
+      } catch {
+        // 못 읽어도 답글 화면은 띄운다. 온보딩은 부가 기능이다.
+        setStyleStatus({ store: false, learning: true });
+      }
+    })();
+  }, [gate.status]);
   const [reviewText, setReviewText] = useState('');
   const [rating, setRating] = useState(5);
   const [menu, setMenu] = useState('');
@@ -144,6 +174,37 @@ export default function ReplyStudio() {
   }
   if (gate.status === 'locked') {
     return <AccessGate onUnlock={() => openGate(true)} />;
+  }
+
+  // 매장이 붙어 있고, 배울 표본이 아직 모자라고, 나중에 하겠다고 하지도
+  // 않았다면 먼저 물어본다. 접속코드 경로(store=false)에는 담을 곳이 없다.
+  const finishOnboarding = async () => {
+    localStorage.setItem(ONBOARDED_KEY, '1');
+    setOnboarded(true);
+    try {
+      const { data } = await getStyleStatus();
+      setStyleStatus(data);
+    } catch {
+      // 상태를 못 읽어도 답글 화면으로 보낸다. 표본은 이미 저장됐다.
+    }
+  };
+
+  const needsOnboarding = styleStatus
+    && styleStatus.store
+    && !styleStatus.learning
+    && !onboarded;
+
+  if (needsOnboarding) {
+    return (
+      <StyleOnboarding
+        needed={styleStatus.needed}
+        onDone={finishOnboarding}
+        onSkip={() => {
+          localStorage.setItem(ONBOARDED_KEY, '1');
+          setOnboarded(true);
+        }}
+      />
+    );
   }
 
   return (

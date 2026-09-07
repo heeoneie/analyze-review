@@ -72,6 +72,12 @@ export const verifyAccessCode = (code) =>
 export const generateStoreReply = (payload) =>
   api.post('/reply/store/generate', payload, withAccessCode());
 
+// 말투 학습 표본 (온보딩)
+export const getStyleStatus = () => api.get('/reply/style/status', withAccessCode());
+
+export const addStyleSamples = (samples) =>
+  api.post('/reply/style/onboarding', { samples }, withAccessCode());
+
 // 계정 API
 export const getAuthConfig = () => api.get('/auth/config');
 export const getMe = () => api.get('/auth/me');

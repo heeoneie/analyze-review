@@ -138,3 +138,82 @@ class TestGeneratorReceivesStyle:
 
         assert captured["style"] is not None
         assert len(captured["style"].examples) == 2
+
+
+class TestOnboarding:
+    """말투 학습의 콜드스타트를 메우는 경로."""
+
+    @pytest.fixture(name="logged_in_store")
+    def fixture_logged_in_store(self, client, make_store, monkeypatch):
+        monkeypatch.setattr(config, "KAKAO_LOGIN_ENABLED", False)
+        monkeypatch.setattr(config, "ACCESS_CODE", "")
+        store = make_store()
+        client.app.dependency_overrides[store_or_access_code] = lambda: store
+        yield store
+        client.app.dependency_overrides.pop(store_or_access_code, None)
+
+    def test_new_store_is_not_learning_yet(self, client, logged_in_store):  # pylint: disable=unused-argument
+        body = client.get("/api/reply/style/status").json()
+
+        assert body == {
+            "store": True, "positive": 0, "negative": 0,
+            "learning": False, "needed": 2,
+        }
+
+    def test_samples_are_saved_and_counted(self, client, logged_in_store):  # pylint: disable=unused-argument
+        response = client.post("/api/reply/style/onboarding", json={"samples": [
+            {"review_text": "맛있어요", "rating": 5, "reply": "감사합니다 고객님 또 오세요"},
+            {"review_text": "좋아요", "rating": 5, "reply": "감사합니다 고객님 좋은 하루 되세요"},
+        ]})
+
+        assert response.json() == {"saved": 2}
+        status = client.get("/api/reply/style/status").json()
+        assert status["positive"] == 2
+        assert status["learning"] is True
+
+    def test_one_sample_is_not_enough_to_learn(self, client, logged_in_store):  # pylint: disable=unused-argument
+        client.post("/api/reply/style/onboarding", json={"samples": [
+            {"review_text": "맛있어요", "rating": 5, "reply": "감사합니다"},
+        ]})
+
+        assert client.get("/api/reply/style/status").json()["learning"] is False
+
+    def test_onboarding_samples_feed_generation(self, client, db_session, logged_in_store):
+        """담은 표본이 곧바로 말투 프로필이 되어야 한다."""
+        client.post("/api/reply/style/onboarding", json={"samples": [
+            {"review_text": "맛있어요", "rating": 5, "reply": "감사합니다 고객님 또 오세요"},
+            {"review_text": "좋아요", "rating": 5, "reply": "감사합니다 고객님 좋은 하루 되세요"},
+        ]})
+
+        style = reply_router._style_for(db_session, logged_in_store, 5)  # pylint: disable=protected-access
+
+        assert style is not None
+        assert style.common_opening == "감사합니다 고객님"
+
+    def test_contact_details_are_scrubbed(self, client, db_session, logged_in_store):  # pylint: disable=unused-argument
+        """사장님이 답글에 연락처를 적는 일이 흔하다. 저장 전에 지운다."""
+        client.post("/api/reply/style/onboarding", json={"samples": [
+            {"review_text": "연락 주세요", "rating": 3,
+             "reply": "010-1234-5678 로 연락 주세요"},
+        ]})
+
+        saved = db_session.query(ReplySample).one()
+        assert "1234-5678" not in saved.final_reply
+        assert "[연락처]" in saved.final_reply
+
+    def test_empty_submission_is_rejected(self, client, logged_in_store):  # pylint: disable=unused-argument
+        assert client.post(
+            "/api/reply/style/onboarding", json={"samples": []},
+        ).status_code == 422
+
+    def test_access_code_path_has_nowhere_to_store(self, client, monkeypatch):
+        """매장이 없으면 담을 곳이 없다. 화면은 온보딩을 띄우지 않는다."""
+        monkeypatch.setattr(config, "KAKAO_LOGIN_ENABLED", False)
+        monkeypatch.setattr(config, "ACCESS_CODE", "")
+
+        status = client.get("/api/reply/style/status").json()
+
+        assert status["store"] is False
+        assert client.post("/api/reply/style/onboarding", json={"samples": [
+            {"review_text": "맛있어요", "rating": 5, "reply": "감사합니다"},
+        ]}).status_code == 409
