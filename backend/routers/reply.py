@@ -157,15 +157,16 @@ def _style_for(db: Session, store: Store | None, rating: int):
         # 접속코드 경로에는 매장이 없어 표본을 고를 기준이 없다.
         return None
 
-    positive = rating >= config.POSITIVE_RATING_THRESHOLD
     samples = [
         {
             "review": row.review_body,
             "rating": row.rating,
             "reply": row.final_reply or "",
         }
-        for row in reply_history.style_examples(db, store.id, limit=STYLE_POOL_SIZE)
-        if (row.rating >= config.POSITIVE_RATING_THRESHOLD) == positive
+        for row in reply_history.style_examples(
+            db, store.id, limit=STYLE_POOL_SIZE,
+            positive=rating >= config.POSITIVE_RATING_THRESHOLD,
+        )
     ]
     profile = reply_style.build_profile(samples)
     return profile or None

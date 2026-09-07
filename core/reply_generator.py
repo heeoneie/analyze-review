@@ -354,6 +354,7 @@ def _build_positive_prompt(  # pylint: disable=too-many-arguments,too-many-posit
     ordered_at=None, order_type=None,
     avoid_openings=None, avoid_closings=None, avoid_shapes=None,
     emoji=None, violations=None, style=None,
+    min_chars=None, max_chars=None,
 ):
     """좋은 리뷰에 대한 프롬프트. 도입·끝맺음 방식이 매번 다르다."""
     time_hint = _time_hint(ordered_at)
@@ -390,6 +391,12 @@ def _build_positive_prompt(  # pylint: disable=too-many-arguments,too-many-posit
     )
 
     style_block = reply_style.prompt_block(style) if style else ""
+
+    # 검사기가 쓰는 값과 프롬프트가 말하는 값이 달라서는 안 된다. 프롬프트가
+    # "100자 이상" 이라고 하는데 검사기는 20자를 통과시키면, 모델은 계속
+    # 100자짜리를 쓰고 사장님의 짧은 말투는 영영 안 나온다.
+    low = min_chars if min_chars is not None else config.POSITIVE_REPLY_MIN_CHARS
+    high = max_chars if max_chars is not None else config.POSITIVE_REPLY_MAX_CHARS
 
     # 사장님이 늘 같은 인사말로 시작한다면, 매번 도입 방식을 바꾸라는 지시와
     # 부딪힌다. 습관이 확인된 매장에서는 사장님 인사말이 이긴다.
@@ -447,7 +454,7 @@ def _build_positive_prompt(  # pylint: disable=too-many-arguments,too-many-posit
 8. 손님을 향한 문장이 최소 한 번은 들어가야 한다. 메뉴 설명만 늘어놓으면 안내문이지 답글이 아니다.
    단, 감정 보고나 감사 인사가 아니라 손님이 쓴 내용을 받는 방식으로 쓴다.
 9. {emoji_rule}
-10. 공백 포함 {config.POSITIVE_REPLY_MIN_CHARS}자 이상 {config.POSITIVE_REPLY_MAX_CHARS}자 이하.
+10. 공백 포함 {low}자 이상 {high}자 이하.
 11. 배달 주문이다. 매장으로 오라는 인사가 아니라, 다음에 또 시키고 싶게 만드는 것이 목적이다.
 12. 사장님이 직접 쓴 것처럼 담백한 존댓말. 과장된 미사여구와 나열식 감탄 금지.
 13. 이 답글은 같은 매장의 다른 답글 수백 개 옆에 나란히 붙는다. 문장 골격이 남들과
@@ -587,7 +594,7 @@ class ReplyGenerator:
                 ordered_at=ordered_at, order_type=order_type,
                 avoid_openings=avoid_openings, avoid_closings=avoid_closings,
                 avoid_shapes=avoid_shapes, emoji=chosen_emoji, violations=violations,
-                style=style,
+                style=style, min_chars=min_chars, max_chars=max_chars,
             )
             parsed = self._call(prompt, POSITIVE_SYSTEM_PROMPT,
                                 config.REPLY_POSITIVE_TEMPERATURE)

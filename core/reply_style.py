@@ -32,8 +32,9 @@ MAX_EXAMPLES_IN_PROMPT = 6
 # 인사말 습관으로 인정할 최소 비율. 절반을 넘게 같은 말로 시작하면 습관이다.
 OPENING_HABIT_RATIO = 0.5
 
-# 인사말로 볼 앞머리 어절 수. "죄송합니다 고객님" 처럼 두 어절이 흔하다.
-OPENING_WORDS = 2
+# 인사말로 볼 앞머리 어절 수. "죄송합니다 고객님" 처럼 두 어절이 흔하지만
+# "감사합니다" 한 어절로 끝내는 사장님도 있다. 둘 다 세고 긴 쪽을 고른다.
+OPENING_WORD_COUNTS = (2, 1)
 
 
 @dataclass(frozen=True)
@@ -61,18 +62,22 @@ def _common_opening(replies: list[str]) -> str | None:
     예시만 보여 주면 모델이 사장님 인사말을 자주 흘린다. 습관이 분명하면
     따로 뽑아서 "이렇게 시작하라" 고 못박는 편이 확실하다.
     """
-    heads = []
-    for reply in replies:
-        words = reply.strip().split()
-        if len(words) >= OPENING_WORDS:
-            heads.append(" ".join(words[:OPENING_WORDS]))
-
-    if not heads:
+    if not replies:
         return None
 
-    top = max(set(heads), key=heads.count)
-    if heads.count(top) / len(replies) > OPENING_HABIT_RATIO:
-        return top
+    # 긴 접두사부터 본다. "감사합니다 고객님" 이 습관이면 "감사합니다" 보다
+    # 그쪽이 더 많은 것을 알려 준다.
+    for size in OPENING_WORD_COUNTS:
+        heads = [
+            " ".join(words[:size])
+            for words in (r.strip().split() for r in replies)
+            if len(words) >= size
+        ]
+        if not heads:
+            continue
+        top = max(set(heads), key=heads.count)
+        if heads.count(top) / len(replies) > OPENING_HABIT_RATIO:
+            return top
     return None
 
 

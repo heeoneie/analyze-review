@@ -120,7 +120,22 @@ class TestCommonOpening:
 
         assert '"감사합니다 고객님" 로 시작한다' in block
 
-    def test_one_word_replies_do_not_crash(self):
+    def test_one_word_habit_is_picked_up(self):
+        """한 어절로 끝내는 사장님도 있다."""
+        profile = build_profile([_sample("감사합니다"), _sample("감사합니다")])
+
+        assert profile.common_opening == "감사합니다"
+
+    def test_longer_prefix_wins_when_both_are_habits(self):
+        """'감사합니다' 도 습관이지만 '감사합니다 고객님' 이 더 많은 것을 알려 준다."""
+        profile = build_profile([
+            _sample("감사합니다 고객님 또 오세요"),
+            _sample("감사합니다 고객님 좋은 하루 되세요"),
+        ])
+
+        assert profile.common_opening == "감사합니다 고객님"
+
+    def test_different_one_word_openings_are_not_a_habit(self):
         profile = build_profile([_sample("감사합니다"), _sample("고맙습니다")])
 
         assert profile.common_opening is None

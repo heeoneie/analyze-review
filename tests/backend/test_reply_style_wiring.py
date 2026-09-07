@@ -89,6 +89,24 @@ class TestStyleForStore:
         assert reply_router._style_for(db_session, store, 5) is None  # pylint: disable=protected-access
 
 
+class TestSentimentFilterHappensBeforeTheLimit:
+    """개수를 먼저 자르고 성향으로 나누면 한쪽이 굶는다."""
+
+    def test_many_positive_samples_do_not_starve_the_negative_path(
+        self, db_session, make_store,
+    ):
+        store = make_store()
+        for i in range(40):
+            _posted(db_session, store, 5, f"감사합니다 고객님 {i}번째 답글입니다")
+        _posted(db_session, store, 1, "죄송합니다 고객님 다시는 이런 일 없게 하겠습니다")
+        _posted(db_session, store, 2, "죄송합니다 고객님 바로 확인해보겠습니다")
+
+        style = reply_router._style_for(db_session, store, 2)  # pylint: disable=protected-access
+
+        assert style is not None
+        assert len(style.examples) == 2
+
+
 class TestGeneratorReceivesStyle:
     """생성기까지 실제로 도달하는지. LLM 은 부르지 않는다."""
 
