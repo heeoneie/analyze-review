@@ -8,7 +8,7 @@
 
 import pytest
 
-from backend.database.models import Review, Store, User
+from backend.database.models import Review, User
 from backend.routers import reviews as reviews_router
 from backend.services import auth_service
 from core import config
@@ -19,16 +19,6 @@ def fixture_kakao_on(monkeypatch):
     """카카오 로그인이 켜진 구성. 매장 단위로 갈리는 경로다."""
     monkeypatch.setattr(config, "SESSION_SECRET", "test-secret-key-do-not-use")
     monkeypatch.setattr(config, "KAKAO_LOGIN_ENABLED", True)
-
-
-def _make_store(db_session, kakao_id: str, name: str) -> Store:
-    user = User(kakao_id=kakao_id)
-    db_session.add(user)
-    db_session.commit()
-    store = Store(owner_user_id=user.id, name=name)
-    db_session.add(store)
-    db_session.commit()
-    return store
 
 
 def _login(client, store, db_session):
@@ -45,9 +35,9 @@ class TestStoreIsolation:
     """다른 사장님의 리뷰가 절대 보이면 안 된다."""
 
     @pytest.fixture(name="two_stores")
-    def fixture_two_stores(self, db_session, kakao_on):  # pylint: disable=unused-argument
-        a = _make_store(db_session, "1111", "가게A")
-        b = _make_store(db_session, "2222", "가게B")
+    def fixture_two_stores(self, db_session, kakao_on, make_store):  # pylint: disable=unused-argument
+        a = make_store("1111", "가게A")
+        b = make_store("2222", "가게B")
         _add_review(db_session, a.id, 5, "가게A 의 리뷰")
         _add_review(db_session, b.id, 5, "가게B 의 리뷰")
         _add_review(db_session, None, 5, "접속코드 시절 리뷰")
@@ -99,9 +89,9 @@ class TestAccessCodePath:
         monkeypatch.setattr(config, "KAKAO_LOGIN_ENABLED", False)
         monkeypatch.setattr(config, "ACCESS_CODE", "")
 
-    def test_list_reads_null_bucket(self, client, db_session, access_code_only):  # pylint: disable=unused-argument
+    def test_list_reads_null_bucket(self, client, db_session, access_code_only, make_store):  # pylint: disable=unused-argument
         _add_review(db_session, None, 4, "이행기 리뷰")
-        store = _make_store(db_session, "3333", "가게C")
+        store = make_store("3333", "가게C")
         _add_review(db_session, store.id, 4, "매장 리뷰")
 
         body = client.get("/api/reviews").json()
@@ -111,8 +101,8 @@ class TestAccessCodePath:
 
 class TestListing:
     @pytest.fixture(name="store")
-    def fixture_store(self, client, db_session, kakao_on):  # pylint: disable=unused-argument
-        store = _make_store(db_session, "9999", "가게")
+    def fixture_store(self, client, db_session, kakao_on, make_store):  # pylint: disable=unused-argument
+        store = make_store("9999", "가게")
         _login(client, store, db_session)
         return store
 
@@ -199,8 +189,8 @@ class TestPersist:
     """수집 결과를 행으로 옮기는 부분. 크롤러 없이 직접 부른다."""
 
     @pytest.fixture(name="store")
-    def fixture_store(self, db_session):
-        return _make_store(db_session, "5555", "가게")
+    def fixture_store(self, make_store):
+        return make_store("5555", "가게")
 
     def test_saves_valid_reviews(self, db_session, store):
         saved, _ = reviews_router._persist(  # pylint: disable=protected-access
@@ -266,8 +256,8 @@ class TestCollectEndpoint:
     """크롤러와 저장을 잇는 부분. 크롤러는 가짜로 바꿔 외부에 나가지 않는다."""
 
     @pytest.fixture(name="store")
-    def fixture_store(self, client, db_session, kakao_on):  # pylint: disable=unused-argument
-        store = _make_store(db_session, "7777", "가게")
+    def fixture_store(self, client, db_session, kakao_on, make_store):  # pylint: disable=unused-argument
+        store = make_store("7777", "가게")
         _login(client, store, db_session)
         return store
 
@@ -377,9 +367,9 @@ class TestCollectEndpoint:
 
         assert (saved, skipped) == (1, 1)
 
-    def test_other_stores_reviews_do_not_block_collection(self, db_session, store):
+    def test_other_stores_reviews_do_not_block_collection(self, db_session, store, make_store):
         """중복 검사도 매장 안에서만 본다. 남의 매장 글 때문에 건너뛰면 안 된다."""
-        other = _make_store(db_session, "8888", "다른 가게")
+        other = make_store("8888", "다른 가게")
         url = "https://www.coupang.com/vp/products/1"
         reviews_router._persist(  # pylint: disable=protected-access
             db_session, other, "coupang", url, [{"Ratings": 5, "Reviews": "맛있어요"}])

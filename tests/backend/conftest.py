@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from starlette.testclient import TestClient
 
 from backend.database.database import get_db
-from backend.database.models import Base
+from backend.database.models import Base, Store, User
 from backend.main import app
 from core import config
 
@@ -38,3 +38,18 @@ def fixture_client(db_session):
 @pytest.fixture(name="secret")
 def fixture_secret(monkeypatch):
     monkeypatch.setattr(config, "SESSION_SECRET", "test-secret-key-do-not-use")
+
+
+@pytest.fixture(name="make_store")
+def fixture_make_store(db_session):
+    """사장님 계정과 매장 한 쌍. 여러 테스트가 같은 방식으로 만든다."""
+    def _make(kakao_id: str = "1111", name: str = "가게") -> Store:
+        user = User(kakao_id=kakao_id)
+        db_session.add(user)
+        db_session.commit()
+        store = Store(owner_user_id=user.id, name=name)
+        db_session.add(store)
+        db_session.commit()
+        return store
+
+    return _make

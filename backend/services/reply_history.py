@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from backend.database.models import ReplySample
+from core import config
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,9 @@ def record_onboarding(
     return sample
 
 
-def style_examples(db: Session, store_id: int, limit: int = 8) -> list[ReplySample]:
+def style_examples(
+    db: Session, store_id: int, limit: int = 8, *, positive: bool | None = None,
+) -> list[ReplySample]:
     """말투 few-shot 예시. 사장님이 실제로 게시한 답글만 쓴다.
 
     생성만 하고 게시하지 않은 답글은 채택 근거가 없어서 제외한다. 그걸
@@ -135,15 +138,22 @@ def style_examples(db: Session, store_id: int, limit: int = 8) -> list[ReplySamp
 
     고쳐 쓴 답글(`edited`)을 먼저 준다. 사장님이 손을 댔다는 건 생성본이
     본인 말투와 달랐다는 뜻이라 신호가 가장 강하다.
+
+    `positive` 로 성향을 거를 수 있다. 거르는 일은 반드시 여기서, 개수를
+    자르기 **전에** 해야 한다. 전체에서 30건을 먼저 자르고 나중에 성향으로
+    나누면, 칭찬 답글이 30건인 매장은 불만 답글이 있어도 부정 경로가
+    표본을 하나도 못 받는다.
     """
-    rows = (
-        db.query(ReplySample)
-        .filter(
-            ReplySample.store_id == store_id,
-            ReplySample.final_reply.isnot(None),
-        )
-        .all()
+    query = db.query(ReplySample).filter(
+        ReplySample.store_id == store_id,
+        ReplySample.final_reply.isnot(None),
     )
+    if positive is True:
+        query = query.filter(ReplySample.rating >= config.POSITIVE_RATING_THRESHOLD)
+    elif positive is False:
+        query = query.filter(ReplySample.rating < config.POSITIVE_RATING_THRESHOLD)
+
+    rows = query.all()
     priority = {"edited": 0, "onboarding": 1, "generated": 2}
     rows.sort(
         key=lambda r: (

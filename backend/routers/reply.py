@@ -17,12 +17,16 @@ from backend.database.database import get_db
 from backend.database.models import ReplySample, Store
 from backend.dependencies import store_or_access_code
 from backend.services import reply_history
-from core import config
+from core import config, reply_style
 from core.reply_generator import ReplyGenerator
 from core.reply_guide import get_guide, list_guides
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# 말투 표본을 긍정·부정으로 가르기 전에 넉넉히 뽑아 온다. 8건만 받으면
+# 한쪽 성향이 0건이 되어 학습이 안 걸리는 매장이 생긴다.
+STYLE_POOL_SIZE = 30
 
 
 class GuideRequest(BaseModel):
@@ -142,6 +146,32 @@ async def verify_access_code():
     return {"ok": True}
 
 
+def _style_for(db: Session, store: Store | None, rating: int):
+    """이 매장·이 성향의 말투 프로필. 표본이 없으면 None.
+
+    긍정과 부정은 길이도 문장 구조도 달라서 섞으면 안 된다. 사장님이
+    "감사합니다" 로 짧게 쓰는 칭찬 답글과 사과·재발방지를 담는 불만 답글을
+    한 통에 넣으면 어느 쪽도 닮지 않은 평균이 나온다.
+    """
+    if store is None:
+        # 접속코드 경로에는 매장이 없어 표본을 고를 기준이 없다.
+        return None
+
+    samples = [
+        {
+            "review": row.review_body,
+            "rating": row.rating,
+            "reply": row.final_reply or "",
+        }
+        for row in reply_history.style_examples(
+            db, store.id, limit=STYLE_POOL_SIZE,
+            positive=rating >= config.POSITIVE_RATING_THRESHOLD,
+        )
+    ]
+    profile = reply_style.build_profile(samples)
+    return profile or None
+
+
 @router.post("/store/generate")
 async def generate_store_reply(
     request: StoreReplyRequest,
@@ -168,6 +198,7 @@ async def generate_store_reply(
             avoid_closings=request.avoid_closings,
             exclude_angles=request.exclude_angles,
             exclude_closings=request.exclude_closings,
+            style=_style_for(db, store, request.rating),
         )
     except Exception:
         logger.exception("답변 생성 실패")
