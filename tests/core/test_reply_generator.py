@@ -8,7 +8,9 @@ from core.reply_generator import (
     ReplyGenerator,
     _build_batch_prompt,
     _build_single_prompt,
+    _length_window,
 )
+from core.reply_style import build_profile
 
 # ── 프롬프트 빌드 테스트 ─────────────────────────────────────
 
@@ -150,3 +152,39 @@ class TestGenerateBatch:
 
         assert not results
         mock_call.assert_not_called()
+
+
+class TestLengthWindow:
+    """말투 학습이 길이 기준을 바꿔 끼우는 부분."""
+
+    def test_no_style_keeps_the_defaults(self):
+        assert _length_window(None, 130, 250) == (130, 250)
+
+    def test_style_window_replaces_the_defaults(self):
+        style = build_profile([
+            {"review": "r", "rating": 2, "reply": "가" * 50},
+            {"review": "r", "rating": 2, "reply": "나" * 70},
+        ])
+
+        assert _length_window(style, 130, 250) == (35, 98)
+
+    def test_thin_sample_falls_back_to_the_defaults(self):
+        """한 건뿐이면 프로필이 길이를 비워 둔다."""
+        style = build_profile([{"review": "r", "rating": 2, "reply": "가" * 50}])
+
+        assert _length_window(style, 130, 250) == (130, 250)
+
+    def test_floor_max_protects_content_length(self):
+        """사장님이 30자로 쓰셔도 메뉴 이야기가 들어갈 자리는 남겨 둔다.
+
+        상한을 30자에 맞추면 매번 세 번 재생성하고 실패한 답을 내놓는다.
+        """
+        style = build_profile([
+            {"review": "r", "rating": 5, "reply": "가" * 28},
+            {"review": "r", "rating": 5, "reply": "나" * 30},
+        ])
+
+        low, high = _length_window(style, 100, 200, floor_max=200)
+
+        assert low < 100      # 사장님이 짧게 쓰면 하한은 따라 내려간다
+        assert high == 200    # 상한은 지켜 준다

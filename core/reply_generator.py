@@ -20,7 +20,7 @@ import logging
 import random
 from datetime import datetime
 
-from core import config
+from core import config, reply_style
 from core.menu_profiles import (
     format_menu_block,
     format_store_menu,
@@ -41,6 +41,33 @@ logger = logging.getLogger(__name__)
 
 REPLY_BATCH_SIZE = 10
 MAX_ATTEMPTS = 3
+
+# 부정 답글 기본 길이. 사장님 표본이 쌓이면 그 값이 이 자리를 대신한다.
+# 상수로 빼 둔 이유는 말투 학습이 이 값을 바꿔 끼우기 때문이다.
+NEGATIVE_MIN_CHARS = 130
+NEGATIVE_MAX_CHARS = 250
+
+
+def _length_window(
+    style, default_min: int, default_max: int, *, floor_max: int | None = None,
+) -> tuple[int, int]:
+    """이번 생성에 쓸 길이 기준.
+
+    사장님 표본에서 뽑은 값이 있으면 그걸 쓰고, 없으면 기본값으로 간다.
+    표본이 한두 건뿐이면 프로필이 길이를 비워 두므로 여기서 기본값이 된다.
+
+    `floor_max` 는 상한이 그 아래로 내려가지 않게 막는다. 긍정 답글에 쓴다.
+    사장님은 "감사합니다 고객님 또 오세요" 처럼 30자로 쓰시는데, 우리 답글은
+    시킨 메뉴 이야기를 담아야 해서 그 길이에 넣을 수 없다. 상한을 30자에
+    맞추면 매번 세 번 재생성하고 결국 실패한 답을 내놓는다 — LLM 요금만
+    세 배 든다. 말투는 따르되 길이는 내용이 들어갈 만큼 둔다.
+    """
+    if style is not None and style.min_chars and style.max_chars:
+        high = style.max_chars
+        if floor_max is not None:
+            high = max(high, floor_max)
+        return style.min_chars, high
+    return default_min, default_max
 
 SYSTEM_PROMPT = (
     "당신은 배달앱에서 장사하는 중식당 사장님입니다. "
@@ -83,17 +110,44 @@ DELIVERY_ISSUES = """## 배달 음식에서 실제로 벌어지는 문제 (해�
 - 배달: 도착이 늦음, 포장이 새거나 쏟아짐
 - 조리: 고기가 질김, 기름을 많이 먹음, 재료 상태가 좋지 않음"""
 
-NEGATIVE_RULES = """## 답변 작성 규칙
-1. 손님이 쓴 구체적인 단어를 그대로 받아 쓴다 ("면이 다 불어서"라고 썼으면 "불어버린 면"으로 짚는다).
-2. 무엇이 잘못됐는지 → 왜 그렇게 나갔을 수 있는지(변명 아님, 짧게) → 다음에 어떻게 할 것인지 순서로 쓴다.
-3. 해결 방안은 배달 매장이 실제로 할 수 있는 것만 쓴다:
-   다음 주문 때 해당 메뉴를 다시 챙겨 보내기, 누락분에 대한 직접 연락, 조리·포장 방식 변경,
-   면과 국물 분리 포장, 튀김 포장 통풍 처리 등. 교환·환불·배송 지연 같은 이커머스 표현은 쓰지 않는다.
-4. 손님이 연락을 원할 수 있으면 매장으로 직접 연락 달라는 한 줄을 넣는다.
-5. 원인을 모르면 추측해서 단정하지 않는다. 확인해 보겠다고 쓴다.
-6. 매장 이름으로 시작하지 않는다. 닉네임 + 인사 정형구로 시작하지 않는다.
-7. 이모지를 쓰지 않는다. 한국어 존댓말, 130~250자.
-8. 과하게 굽신대지 말고, 사장이 직접 상황을 파악하고 있다는 태도로 쓴다."""
+def negative_rules(min_chars: int, max_chars: int, has_style: bool) -> str:
+    """불만 답글 작성 규칙.
+
+    사장님 표본이 있으면 몇 가지 규칙을 뺀다. 그 규칙들은 표본이 없을 때
+    AI 티가 나는 답글을 막으려고 만든 것인데, 실제 사장님 관행과 부딪힌다.
+    도입 매장 사장님은 늘 "죄송합니다 고객님" 으로 시작하고("인사 정형구
+    금지" 와 충돌), 굽신대는 편이며("굽신대지 말 것" 과 충돌), 70자 안팎으로
+    짧게 쓴다(130~250자와 충돌). 표본이 있으면 사장님의 실제 관행이 이겨야
+    한다 — 그러라고 배우는 것이다.
+    """
+    rules = [
+        '손님이 쓴 구체적인 단어를 그대로 받아 쓴다 ("면이 다 불어서"라고 썼으면 '
+        '"불어버린 면"으로 짚는다).',
+        "무엇이 잘못됐는지 → 왜 그렇게 나갔을 수 있는지(변명 아님, 짧게) → "
+        "다음에 어떻게 할 것인지 순서로 쓴다.",
+        "해결 방안은 배달 매장이 실제로 할 수 있는 것만 쓴다:\n"
+        "   다음 주문 때 해당 메뉴를 다시 챙겨 보내기, 누락분에 대한 직접 연락, "
+        "조리·포장 방식 변경,\n"
+        "   면과 국물 분리 포장, 튀김 포장 통풍 처리 등. "
+        "교환·환불·배송 지연 같은 이커머스 표현은 쓰지 않는다.",
+        "원인을 모르면 추측해서 단정하지 않는다. 확인해 보겠다고 쓴다.",
+        "매장 이름으로 시작하지 않는다.",
+        f"한국어 존댓말, {min_chars}~{max_chars}자.",
+    ]
+    if not has_style:
+        # 표본이 없을 때만 거는 기본 규칙. 사장님 답글이 쌓이면 위 예시가 대신한다.
+        rules.insert(3, "손님이 연락을 원할 수 있으면 매장으로 직접 연락 달라는 한 줄을 넣는다.")
+        rules.append("닉네임 + 인사 정형구로 시작하지 않는다.")
+        rules.append("이모지를 쓰지 않는다.")
+        rules.append("과하게 굽신대지 말고, 사장이 직접 상황을 파악하고 있다는 태도로 쓴다.")
+    else:
+        rules.append(
+            "위 사장님 답글에 인사말·사과 정형구가 있으면 그 습관을 그대로 따른다. "
+            "일반적인 '좋은 답글' 규칙보다 사장님이 실제로 쓰는 방식이 우선이다."
+        )
+
+    numbered = "\n".join(f"{i}. {r}" for i, r in enumerate(rules, 1))
+    return f"## 답변 작성 규칙\n{numbered}"
 
 # 도입 방식을 매번 바꾸는 것이 첫 문장 중복을 막는 가장 확실한 수단이다.
 OPENING_ANGLES = [
@@ -225,9 +279,11 @@ def _menu_block(menu) -> str:
     return f"\n주문 메뉴:\n{format_menu_block(items)}"
 
 
-def _build_single_prompt(
+def _build_single_prompt(  # pylint: disable=too-many-arguments
     review_text: str, rating: int, category: str | None = None,
-    menu: str | None = None, context: dict | None = None,
+    menu: str | None = None, context: dict | None = None, *,
+    style_block: str = "", min_chars: int = NEGATIVE_MIN_CHARS,
+    max_chars: int = NEGATIVE_MAX_CHARS,
 ) -> str:
     """불만 리뷰 한 건에 대한 프롬프트. 배달 음식 맥락."""
     category_line = f"\n이 리뷰의 불만 분류: {category}" if category else ""
@@ -248,8 +304,8 @@ def _build_single_prompt(
 
 {BANNED_BLOCK_NEGATIVE}
 {DELIVERY_ISSUES}
-
-{NEGATIVE_RULES}
+{style_block}
+{negative_rules(min_chars, max_chars, bool(style_block))}
 
 ## 출력 형식 (JSON)
 {{
@@ -276,7 +332,7 @@ def _build_batch_prompt(reviews: list[dict]) -> str:
 
 {DELIVERY_ISSUES}
 
-{NEGATIVE_RULES}
+{negative_rules(NEGATIVE_MIN_CHARS, NEGATIVE_MAX_CHARS, has_style=False)}
 
 ## 출력 형식 (JSON)
 {{
@@ -297,7 +353,7 @@ def _build_positive_prompt(  # pylint: disable=too-many-arguments,too-many-posit
     review_text, rating, menu_items, angle, closing,
     ordered_at=None, order_type=None,
     avoid_openings=None, avoid_closings=None, avoid_shapes=None,
-    emoji=None, violations=None,
+    emoji=None, violations=None, style=None,
 ):
     """좋은 리뷰에 대한 프롬프트. 도입·끝맺음 방식이 매번 다르다."""
     time_hint = _time_hint(ordered_at)
@@ -333,6 +389,31 @@ def _build_positive_prompt(  # pylint: disable=too-many-arguments,too-many-posit
         if emoji else "이모지를 쓰지 않는다."
     )
 
+    style_block = reply_style.prompt_block(style) if style else ""
+
+    # 사장님이 늘 같은 인사말로 시작한다면, 매번 도입 방식을 바꾸라는 지시와
+    # 부딪힌다. 습관이 확인된 매장에서는 사장님 인사말이 이긴다.
+    if style is not None and style.common_opening:
+        opening_block = (
+            "## 이번 답변의 도입 방식\n"
+            "위 사장님 인사말로 시작한다. 그 뒤에 이어지는 내용은 "
+            f"이렇게 끌고 간다: {angle['instruction']}"
+        )
+    else:
+        opening_block = (
+            "## 이번 답변의 도입 방식 (반드시 이대로 시작할 것)\n"
+            f"{angle['instruction']}"
+        )
+
+    # 사장님이 아주 짧게 쓰는 매장이면 메뉴 이야기를 넣을 자리가 없다.
+    # 규칙을 그대로 두면 길이 기준과 충돌해 매번 재생성만 반복한다.
+    menu_rule_note = ""
+    if style is not None and style.max_chars and style.max_chars < 60:
+        menu_rule_note = (
+            " (사장님 답글이 짧은 편이다. 길이를 맞추기 어려우면 메뉴 이야기보다 "
+            "사장님 말투를 지키는 쪽을 택한다.)"
+        )
+
     return f"""배달앱에 달린 좋은 리뷰입니다. 사장님이 직접 다는 답글을 쓰세요.
 
 ## 리뷰
@@ -343,16 +424,14 @@ def _build_positive_prompt(  # pylint: disable=too-many-arguments,too-many-posit
 
 {format_store_menu()}
 
-## 이번 답변의 도입 방식 (반드시 이대로 시작할 것)
-{angle["instruction"]}
-
+{opening_block}
 ## 이번 답변의 끝맺음 방식 (반드시 이대로 끝낼 것)
 {closing["instruction"]}
 {avoid_block}
 {BANNED_BLOCK_POSITIVE}
-
+{style_block}
 ## 작성 규칙
-1. 주문한 메인 메뉴({main_names}) 중 하나를 골라 이름 그대로 답변에 넣는다.
+1. 주문한 메인 메뉴({main_names}) 중 하나를 골라 이름 그대로 답변에 넣는다.{menu_rule_note}
 2. 그 메뉴에만 해당하는 이야기를 쓴다. 다른 메뉴로 바꿔 넣어도 말이 되는 문장이면 실패다.
    (짬뽕=매콤함·불맛·국물 / 짜장=고소한 춘장 향·면과 소스 / 탕수육=바삭함·소스 /
     만두·꽃빵=곁들임 — 이런 식으로 축이 다르다)
@@ -438,11 +517,12 @@ class ReplyGenerator:
 
     def _positive_violations(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, reply, menu, avoid_openings, avoid_closings, avoid_shapes, max_emoji=1,
+        min_chars=None, max_chars=None,
     ):
         problems = find_violations(
             reply, self.store_name,
-            min_chars=config.POSITIVE_REPLY_MIN_CHARS,
-            max_chars=config.POSITIVE_REPLY_MAX_CHARS,
+            min_chars=min_chars if min_chars is not None else config.POSITIVE_REPLY_MIN_CHARS,
+            max_chars=max_chars if max_chars is not None else config.POSITIVE_REPLY_MAX_CHARS,
             max_emoji=max_emoji,
             avoid_openings=avoid_openings,
             avoid_closings=avoid_closings,
@@ -477,9 +557,19 @@ class ReplyGenerator:
         ordered_at=None, order_type=None,
         avoid_openings=None, avoid_closings=None, avoid_shapes=None, avoid_emojis=None,
         exclude_angles=None, exclude_closings=None, angle=None, closing=None,
+        style=None,
     ) -> dict:
-        """좋은 리뷰에 대한 답글. 주문 메뉴와 도입·끝맺음 방식으로 매번 다르게 만든다."""
+        """좋은 리뷰에 대한 답글. 주문 메뉴와 도입·끝맺음 방식으로 매번 다르게 만든다.
+
+        `style` 이 있으면 사장님이 실제로 쓴 답글을 예시로 넣고, 길이 기준도
+        그 표본에서 뽑은 값으로 바꾼다. 길이를 안 바꾸면 예시만 넣어 봐야
+        검사기가 짧은 답글을 되돌려보내 세 배 긴 글이 나온다.
+        """
         menu_items = parse_menu(menu)
+        min_chars, max_chars = _length_window(
+            style, config.POSITIVE_REPLY_MIN_CHARS, config.POSITIVE_REPLY_MAX_CHARS,
+            floor_max=config.POSITIVE_REPLY_MAX_CHARS,
+        )
         chosen = ANGLE_BY_KEY.get(angle) or pick_angle(
             review_text, ordered_at, exclude=exclude_angles
         )
@@ -497,6 +587,7 @@ class ReplyGenerator:
                 ordered_at=ordered_at, order_type=order_type,
                 avoid_openings=avoid_openings, avoid_closings=avoid_closings,
                 avoid_shapes=avoid_shapes, emoji=chosen_emoji, violations=violations,
+                style=style,
             )
             parsed = self._call(prompt, POSITIVE_SYSTEM_PROMPT,
                                 config.REPLY_POSITIVE_TEMPERATURE)
@@ -506,6 +597,7 @@ class ReplyGenerator:
             violations = self._positive_violations(
                 parsed["reply"], menu, avoid_openings, avoid_closings, avoid_shapes,
                 max_emoji=1 if chosen_emoji else 0,
+                min_chars=min_chars, max_chars=max_chars,
             )
             if best is None or len(violations) < len(best_violations):
                 best, best_violations = parsed, violations
@@ -544,18 +636,25 @@ class ReplyGenerator:
 
     # ── 부정 리뷰 (검사 포함, 새 화면용) ──────────────────────
 
-    def generate_negative(  # pylint: disable=too-many-arguments
+    def generate_negative(  # pylint: disable=too-many-arguments,too-many-locals
         self, review_text, rating, menu=None, *,
-        ordered_at=None, order_type=None, category=None,
+        ordered_at=None, order_type=None, category=None, style=None,
     ) -> dict:
         """불만 리뷰 답글. 배달 맥락으로 짚고 다음 주문 보완을 약속한다."""
+        style_block = reply_style.prompt_block(style) if style else ""
+        min_chars, max_chars = _length_window(
+            style, NEGATIVE_MIN_CHARS, NEGATIVE_MAX_CHARS,
+        )
         violations: list[str] = []
         parsed = None
         best, best_violations = None, []
 
         context = {"ordered_at": ordered_at, "order_type": order_type}
         for attempt in range(MAX_ATTEMPTS):
-            prompt = _build_single_prompt(review_text, rating, category, menu, context)
+            prompt = _build_single_prompt(
+                review_text, rating, category, menu, context, style_block=style_block,
+                min_chars=min_chars, max_chars=max_chars,
+            )
             if violations:
                 prompt += "\n\n## 직전 시도가 걸린 규칙 (반드시 고칠 것)\n" + \
                     "\n".join(f"- {v}" for v in violations)
@@ -565,7 +664,7 @@ class ReplyGenerator:
 
             violations = find_violations(
                 parsed["reply"], self.store_name,
-                min_chars=130, max_chars=250, max_emoji=0, negative=True,
+                min_chars=min_chars, max_chars=max_chars, max_emoji=0, negative=True,
             )
             if best is None or len(violations) < len(best_violations):
                 best, best_violations = parsed, violations
@@ -598,6 +697,7 @@ class ReplyGenerator:
         """별점에 따라 긍정·부정 경로로 보낸다."""
         if rating >= config.POSITIVE_RATING_THRESHOLD:
             return self.generate_positive(review_text, rating, menu, **kwargs)
+        # style 은 두 경로 모두 쓰므로 여기서 걸러내지 않는다.
         for positive_only in (
             "avoid_openings", "avoid_closings", "avoid_shapes", "avoid_emojis",
             "exclude_angles", "exclude_closings", "angle", "closing",
