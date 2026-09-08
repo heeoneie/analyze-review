@@ -9,7 +9,7 @@
 
 import pytest
 
-from backend.database.models import ReplySample
+from backend.database.models import ReplySample, Review
 from backend.dependencies import store_or_access_code
 from backend.services import reply_history
 from core import config
@@ -223,3 +223,59 @@ class TestOnboarding:
         assert client.post("/api/reply/style/onboarding", json={"samples": [
             {"review_text": "맛있어요", "rating": 5, "reply": "감사합니다"},
         ]}).status_code == 409
+
+
+class TestReplyIsLinkedToTheReview:
+    """대시보드에서 만든 답글이 어느 리뷰 것인지 남아야 목록이 알아본다."""
+
+    @pytest.fixture(name="linked")
+    def fixture_linked(self, client, db_session, make_store, monkeypatch):
+        monkeypatch.setattr(config, "KAKAO_LOGIN_ENABLED", False)
+        monkeypatch.setattr(config, "ACCESS_CODE", "")
+        monkeypatch.setattr(
+            "core.reply_generator.ReplyGenerator.generate",
+            lambda self, review_text=None, rating=5, menu=None, **kw: {"reply": "답글"},
+        )
+        store = make_store("7777", "가게")
+        client.app.dependency_overrides[store_or_access_code] = lambda: store
+        yield client, db_session, store
+        client.app.dependency_overrides.pop(store_or_access_code, None)
+
+    @staticmethod
+    def _add_review(db_session, store_id, body="맛있어요"):
+        review = Review(store_id=store_id, source="coupang", rating=5, body=body)
+        db_session.add(review)
+        db_session.commit()
+        return review
+
+    def test_review_id_is_recorded(self, linked):
+        client, db_session, store = linked
+        review = self._add_review(db_session, store.id)
+
+        client.post("/api/reply/store/generate", json={
+            "review_text": "맛있어요", "rating": 5, "review_id": review.id,
+        })
+
+        assert db_session.query(ReplySample).one().review_id == review.id
+
+    def test_pasted_reply_has_no_review(self, linked):
+        """붙여넣기 화면에는 가리킬 리뷰가 없다."""
+        client, db_session, _ = linked
+
+        client.post("/api/reply/store/generate", json={
+            "review_text": "맛있어요", "rating": 5,
+        })
+
+        assert db_session.query(ReplySample).one().review_id is None
+
+    def test_other_stores_review_is_not_linked(self, linked, make_store):
+        """남의 매장 리뷰에 답글을 붙이지 못한다."""
+        client, db_session, _ = linked
+        other = make_store("8888", "남의 가게")
+        stranger = self._add_review(db_session, other.id, "남의 리뷰")
+
+        client.post("/api/reply/store/generate", json={
+            "review_text": "맛있어요", "rating": 5, "review_id": stranger.id,
+        })
+
+        assert db_session.query(ReplySample).one().review_id is None

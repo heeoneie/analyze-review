@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.database.database import get_db
-from backend.database.models import ReplySample, Store
+from backend.database.models import ReplySample, Review, Store
 from backend.dependencies import store_or_access_code
 from backend.services import reply_history
 from core import config, reply_style
@@ -126,6 +126,9 @@ class StoreReplyRequest(BaseModel):
     avoid_closings: list[str] = Field(default_factory=list, max_length=10)
     exclude_angles: list[str] = Field(default_factory=list, max_length=10)
     exclude_closings: list[str] = Field(default_factory=list, max_length=10)
+    # 대시보드에서 수집한 리뷰에 다는 경우 그 리뷰 id. 붙여넣기 화면은 비운다.
+    # 이 값이 있어야 목록이 "이 리뷰엔 답글이 있다" 를 알 수 있다.
+    review_id: int | None = None
 
 
 @router.get("/config")
@@ -182,6 +185,12 @@ async def generate_store_reply(
             review_body=request.review_text, rating=request.rating,
             menu=request.menu, generated_reply=result.get("reply", ""),
         )
+        if request.review_id is not None:
+            # 남의 매장 리뷰에 붙이지 못하게 소유권을 확인한다.
+            review = db.get(Review, request.review_id)
+            if review is not None and review.store_id == store.id:
+                sample.review_id = review.id
+                db.commit()
         result = {**result, "sample_id": sample.id}
 
     return result

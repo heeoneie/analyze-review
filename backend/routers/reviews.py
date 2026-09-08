@@ -12,7 +12,6 @@ pandas 를 최상단에서 임포트해서, 슬림 이미지(requirements-web.tx
 구조라 계정 체계가 들어온 지금은 쓸 수 없다 (CLAUDE.md 의 매장 격리).
 """
 
-import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -24,9 +23,7 @@ from sqlalchemy.orm import Session
 from backend.database.database import get_db
 from backend.database.models import ReplySample, Review, Store
 from backend.dependencies import store_or_access_code
-from backend.services import reply_history
 from backend.services.priority_service import PriorityLevel, score_and_sort
-from core.reply_generator import ReplyGenerator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -335,101 +332,3 @@ def summary(
         "rating_average": round(float(average), 2) if average is not None else 0.0,
         "last_collected_at": _utc_iso(latest),
     }
-
-
-# ── 모은 리뷰에 답글 만들기 ─────────────────────────────────
-
-def _without_reply():
-    """아직 답글을 만들지 않은 리뷰 조건.
-
-    답글이 붙은 리뷰를 다시 만들면 요금만 나가고 사장님이 고쳐 둔 문장이
-    묻힌다. 이미 만든 것은 건너뛴다.
-
-    매장으로 거르지 않아도 된다. 리뷰 id 는 전역으로 유일하고, 부르는 쪽이
-    `_mine(store)` 과 함께 쓴다.
-    """
-    answered = select(ReplySample.review_id).where(ReplySample.review_id.isnot(None))
-    return Review.id.notin_(answered)
-
-
-def _pending_count(db: Session, store: Store | None) -> int:
-    return db.scalar(
-        select(func.count()).select_from(Review)
-        .where(_mine(store)).where(_without_reply())
-    ) or 0
-
-
-class GenerateRepliesRequest(BaseModel):
-    # 한 번에 몇 건까지. 화면이 이어서 부르며 진행률을 보여 준다.
-    limit: int = Field(default=REPLY_BATCH_LIMIT, ge=1, le=MAX_REPLY_BATCH)
-    # 부정 리뷰부터 답할지. 먼저 답해야 할 것이 먼저다.
-    negative_first: bool = True
-
-
-@router.post("/replies/generate")
-async def generate_replies(
-    request: GenerateRepliesRequest,
-    store: Store | None = Depends(store_or_access_code),
-    db: Session = Depends(get_db),
-):
-    """답글이 없는 리뷰에 답글을 만들어 둔다.
-
-    한 요청이 `limit` 건만 처리하고 남은 수를 함께 돌려준다. 화면이 그
-    수를 보고 다시 부른다.
-
-    사장님 말투 프로필을 그대로 쓴다. 붙여넣기 화면과 같은 경로라
-    한쪽만 말투를 배우는 일이 없다.
-    """
-    stmt = select(Review).where(_mine(store)).where(_without_reply())
-    if request.negative_first:
-        stmt = stmt.order_by(Review.rating.asc(), Review.ingested_at.desc())
-    else:
-        stmt = stmt.order_by(Review.ingested_at.desc())
-    targets = list(db.scalars(stmt.limit(request.limit)))
-
-    if not targets:
-        return {"generated": 0, "failed": 0, "remaining": 0}
-
-    generator = ReplyGenerator(store_name=store.name if store else None)
-    generated = 0
-    failed = 0
-
-    for review in targets:
-        try:
-            result = await asyncio.to_thread(
-                generator.generate,
-                review.body,
-                review.rating,
-                None,
-                style=reply_history.style_profile_for(db, store, review.rating),
-            )
-        except Exception:  # pylint: disable=broad-except
-            # 한 건이 실패해도 나머지는 계속 만든다. 통째로 실패하면
-            # 사장님은 아무것도 못 받고 요금만 나간다.
-            logger.exception("리뷰 %s 답글 생성 실패", review.id)
-            failed += 1
-            continue
-
-        sample = reply_history.record_generated(
-            db, store_id=_store_id(store),
-            review_body=review.body, rating=review.rating, menu=None,
-            generated_reply=result.get("reply", ""),
-        )
-        sample.review_id = review.id
-        db.commit()
-        generated += 1
-
-    return {
-        "generated": generated,
-        "failed": failed,
-        "remaining": _pending_count(db, store),
-    }
-
-
-@router.get("/replies/pending")
-def pending_replies(
-    store: Store | None = Depends(store_or_access_code),
-    db: Session = Depends(get_db),
-):
-    """답글을 아직 안 만든 리뷰가 몇 건인지. 버튼에 숫자를 띄우는 데 쓴다."""
-    return {"pending": _pending_count(db, store)}

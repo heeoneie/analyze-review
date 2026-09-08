@@ -12,7 +12,6 @@ import { collectReviews, getReviewSummary } from '../api/client';
 import useAccessGate from '../hooks/useAccessGate';
 import AccessGate from './AccessGate';
 import LoginGate from './LoginGate';
-import BulkReplyBar from '../components/BulkReplyBar';
 import ReviewList from '../components/ReviewList';
 import PriorityReviewList from '../components/PriorityReviewList';
 
@@ -193,12 +192,6 @@ export default function Dashboard() {
       <main className="mx-auto max-w-4xl space-y-5 px-5 py-6">
         <CollectForm
           onCollected={() => setRefreshKey((k) => k + 1)}
-          onUnauthorized={lockGate}
-        />
-
-        <BulkReplyBar
-          refreshKey={refreshKey}
-          onProgress={() => setRefreshKey((k) => k + 1)}
           onUnauthorized={lockGate}
         />
 

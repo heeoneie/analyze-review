@@ -222,6 +222,7 @@ export default function PriorityReviewList({ refreshKey = 0, onUnauthorized }) {
                         key={key}
                         review={review}
                         onClose={() => setReplyKey(null)}
+                        onUnauthorized={onUnauthorized}
                       />
                     </div>
                   )}

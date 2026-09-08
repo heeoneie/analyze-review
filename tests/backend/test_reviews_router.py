@@ -393,8 +393,8 @@ class TestCollectEndpoint:
         assert db_session.query(Review).count() == 2
 
 
-class TestBulkReplyGeneration:
-    """모은 리뷰 전체에 답글 만들기. LLM 은 가짜로 바꿔 부르지 않는다."""
+class TestReplyShowsUpOnTheReview:
+    """대시보드에서 만든 답글이 그 리뷰에 붙어 보여야 한다."""
 
     @pytest.fixture(name="store")
     def fixture_store(self, client, db_session, kakao_on, make_store):  # pylint: disable=unused-argument
@@ -402,117 +402,38 @@ class TestBulkReplyGeneration:
         _login(client, store, db_session)
         return store
 
-    @pytest.fixture(name="fake_llm")
-    def fixture_fake_llm(self, monkeypatch):
-        calls = []
-
-        def fake_generate(self, review_text=None, rating=5, menu=None, **kwargs):  # pylint: disable=unused-argument
-            calls.append({"review": review_text, "style": kwargs.get("style")})
-            return {"reply": f"[{rating}점 답글] {review_text}", "sentiment": "positive"}
-
-        monkeypatch.setattr(
-            "core.reply_generator.ReplyGenerator.generate", fake_generate,
-        )
-        return calls
-
-    def test_generates_for_reviews_without_a_reply(
-        self, client, db_session, store, fake_llm,
-    ):
-        for i in range(3):
-            _add_review(db_session, store.id, 5, f"리뷰{i}")
-
-        body = client.post("/api/reviews/replies/generate", json={"limit": 10}).json()
-
-        assert body == {"generated": 3, "failed": 0, "remaining": 0}
-        assert len(fake_llm) == 3
-
-    def test_second_run_does_not_regenerate(self, client, db_session, store, fake_llm):
-        """다시 눌러도 이미 만든 것은 건너뛴다. 요금만 나가고 고쳐 둔 문장이 묻힌다."""
-        _add_review(db_session, store.id, 5, "리뷰")
-        client.post("/api/reviews/replies/generate", json={"limit": 10})
-
-        body = client.post("/api/reviews/replies/generate", json={"limit": 10}).json()
-
-        assert body["generated"] == 0
-        assert len(fake_llm) == 1
-
-    def test_limit_leaves_the_rest_for_the_next_call(
-        self, client, db_session, store, fake_llm,  # pylint: disable=unused-argument
-    ):
-        """한 요청에 다 몰면 몇 분이 걸려 브라우저가 먼저 끊는다."""
-        for i in range(5):
-            _add_review(db_session, store.id, 5, f"리뷰{i}")
-
-        body = client.post("/api/reviews/replies/generate", json={"limit": 2}).json()
-
-        assert body["generated"] == 2
-        assert body["remaining"] == 3
-
-    def test_negative_reviews_come_first(self, client, db_session, store, fake_llm):
-        _add_review(db_session, store.id, 5, "칭찬")
-        _add_review(db_session, store.id, 1, "불만")
-
-        client.post("/api/reviews/replies/generate", json={"limit": 1}).json()
-
-        assert fake_llm[0]["review"] == "불만"
-
-    def test_one_failure_does_not_lose_the_others(
-        self, client, db_session, store, monkeypatch,
-    ):
-        """한 건이 실패해도 나머지는 만든다. 통째로 죽으면 요금만 나간다."""
-        _add_review(db_session, store.id, 5, "터지는 리뷰")
-        _add_review(db_session, store.id, 4, "멀쩡한 리뷰")
-
-        def flaky(self, review_text=None, rating=5, menu=None, **kwargs):  # pylint: disable=unused-argument
-            if "터지는" in review_text:
-                raise RuntimeError("LLM 실패")
-            return {"reply": "답글", "sentiment": "positive"}
-
-        monkeypatch.setattr("core.reply_generator.ReplyGenerator.generate", flaky)
-
-        body = client.post("/api/reviews/replies/generate", json={"limit": 10}).json()
-
-        assert body["generated"] == 1
-        assert body["failed"] == 1
-
-    def test_style_profile_is_used(self, client, db_session, store, fake_llm):
-        """붙여넣기 화면만 말투를 배우고 여기는 안 배우면 안 된다."""
-        for reply in ("감사합니다 고객님 또 오세요", "감사합니다 고객님 좋은 하루"):
-            db_session.add(ReplySample(
-                store_id=store.id, origin="edited", review_body="리뷰",
-                rating=5, final_reply=reply,
-            ))
+    def test_list_carries_the_reply(self, client, db_session, store):
+        _add_review(db_session, store.id, 5, "맛있어요")
+        review = db_session.query(Review).one()
+        db_session.add(ReplySample(
+            store_id=store.id, origin="generated", review_body="맛있어요",
+            rating=5, generated_reply="감사합니다 고객님", review_id=review.id,
+        ))
         db_session.commit()
-        _add_review(db_session, store.id, 5, "맛있어요")
-
-        client.post("/api/reviews/replies/generate", json={"limit": 1})
-
-        assert fake_llm[0]["style"] is not None
-        assert fake_llm[0]["style"].common_opening == "감사합니다 고객님"
-
-    def test_generated_reply_shows_up_in_the_list(self, client, db_session, store, fake_llm):  # pylint: disable=unused-argument
-        _add_review(db_session, store.id, 5, "맛있어요")
-        client.post("/api/reviews/replies/generate", json={"limit": 1})
 
         row = client.get("/api/reviews").json()["reviews"][0]
 
-        assert row["reply"] == "[5점 답글] 맛있어요"
+        assert row["reply"] == "감사합니다 고객님"
         assert row["reply_posted"] is False
-        assert row["sample_id"]
 
-    def test_pending_count(self, client, db_session, store, fake_llm):  # pylint: disable=unused-argument
-        for i in range(4):
-            _add_review(db_session, store.id, 5, f"리뷰{i}")
+    def test_posted_reply_is_marked(self, client, db_session, store):
+        _add_review(db_session, store.id, 5, "맛있어요")
+        review = db_session.query(Review).one()
+        db_session.add(ReplySample(
+            store_id=store.id, origin="edited", review_body="맛있어요",
+            rating=5, generated_reply="초안", final_reply="사장님이 고친 답글",
+            review_id=review.id,
+        ))
+        db_session.commit()
 
-        assert client.get("/api/reviews/replies/pending").json() == {"pending": 4}
+        row = client.get("/api/reviews").json()["reviews"][0]
 
-    def test_other_stores_reviews_are_not_touched(
-        self, client, db_session, store, fake_llm, make_store,
-    ):
-        other = make_store("6666", "남의 가게")
-        _add_review(db_session, other.id, 5, "남의 리뷰")
-        _add_review(db_session, store.id, 5, "내 리뷰")
+        assert row["reply"] == "사장님이 고친 답글"
+        assert row["reply_posted"] is True
 
-        client.post("/api/reviews/replies/generate", json={"limit": 10})
+    def test_review_without_a_reply_has_no_reply_field(self, client, db_session, store):
+        _add_review(db_session, store.id, 5, "맛있어요")
 
-        assert [c["review"] for c in fake_llm] == ["내 리뷰"]
+        row = client.get("/api/reviews").json()["reviews"][0]
+
+        assert "reply" not in row
