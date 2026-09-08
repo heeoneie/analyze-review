@@ -239,3 +239,77 @@ def finalize_store_reply(
 
     reply_history.finalize(db, sample, body.final_reply)
     return {"recorded": True, "was_edited": sample.was_edited}
+
+
+# ── 말투 온보딩 ─────────────────────────────────────────────
+# 말투 학습은 사장님이 게시한 답글이 있어야 걸린다. 갓 가입한 사장님은
+# 표본이 0건이라 아무 효과가 없다 — 답글을 몇 번 달아야 비로소 시작된다.
+# 가입 직후에 직접 써 넣게 해서 그 공백을 메운다.
+
+class OnboardingSample(BaseModel):
+    review_text: str = Field(min_length=1, max_length=2000)
+    rating: int = Field(ge=1, le=5)
+    reply: str = Field(min_length=1, max_length=4000)
+
+
+class OnboardingRequest(BaseModel):
+    samples: list[OnboardingSample] = Field(min_length=1, max_length=20)
+
+
+@router.get("/style/status")
+def style_status(
+    store: Store | None = Depends(store_or_access_code),
+    db: Session = Depends(get_db),
+):
+    """이 매장이 말투 표본을 몇 건 갖고 있는지.
+
+    화면이 온보딩을 띄울지 정하는 데 쓴다. 긍정·부정을 따로 세는 이유는
+    한쪽만 쌓여 있으면 그 성향에서만 말투가 걸리기 때문이다.
+    """
+    if store is None:
+        # 접속코드 경로에는 매장이 없어 표본을 담을 곳이 없다.
+        return {
+            "store": False, "positive": 0, "negative": 0, "learning": False,
+            "needed": reply_style.MIN_SAMPLES_FOR_LENGTH,
+            "positive_from": config.POSITIVE_RATING_THRESHOLD,
+        }
+
+    positive = len(reply_history.style_examples(
+        db, store.id, limit=STYLE_POOL_SIZE, positive=True))
+    negative = len(reply_history.style_examples(
+        db, store.id, limit=STYLE_POOL_SIZE, positive=False))
+
+    return {
+        "store": True,
+        "positive": positive,
+        "negative": negative,
+        # 한쪽이라도 기준을 채우면 그 성향에서는 말투가 걸린다.
+        "learning": max(positive, negative) >= reply_style.MIN_SAMPLES_FOR_LENGTH,
+        "needed": reply_style.MIN_SAMPLES_FOR_LENGTH,
+        # 화면이 긍정·부정을 같은 기준으로 갈라야 한다. 여기서 내보내지
+        # 않으면 프론트가 4를 따로 들고 있게 되고, 서버 값이 바뀌는 날
+        # 화면만 조용히 어긋난 안내를 한다.
+        "positive_from": config.POSITIVE_RATING_THRESHOLD,
+    }
+
+
+@router.post("/style/onboarding")
+def add_onboarding_samples(
+    body: OnboardingRequest,
+    store: Store | None = Depends(store_or_access_code),
+    db: Session = Depends(get_db),
+):
+    """사장님이 직접 써 넣은 답글을 말투 표본으로 담는다."""
+    if store is None:
+        raise HTTPException(409, "연결된 매장이 없습니다.")
+
+    for sample in body.samples:
+        reply_history.record_onboarding(
+            db,
+            store_id=store.id,
+            review_body=sample.review_text,
+            rating=sample.rating,
+            owner_reply=sample.reply,
+        )
+
+    return {"saved": len(body.samples)}
