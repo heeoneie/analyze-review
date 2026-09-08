@@ -437,3 +437,25 @@ class TestReplyShowsUpOnTheReview:
         row = client.get("/api/reviews").json()["reviews"][0]
 
         assert "reply" not in row
+
+    def test_posted_reply_wins_over_a_newer_draft(self, client, db_session, store):
+        """다시 만들기를 눌러 초안이 더 쌓여도, 게시한 답글이 이겨야 한다."""
+        _add_review(db_session, store.id, 5, "맛있어요")
+        review = db_session.query(Review).one()
+        db_session.add_all([
+            ReplySample(
+                store_id=store.id, origin="edited", review_body="맛있어요",
+                rating=5, generated_reply="초안1", final_reply="게시한 답글",
+                review_id=review.id,
+            ),
+            ReplySample(
+                store_id=store.id, origin="generated", review_body="맛있어요",
+                rating=5, generated_reply="그 뒤에 또 만든 초안", review_id=review.id,
+            ),
+        ])
+        db_session.commit()
+
+        row = client.get("/api/reviews").json()["reviews"][0]
+
+        assert row["reply"] == "게시한 답글"
+        assert row["reply_posted"] is True

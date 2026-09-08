@@ -97,13 +97,19 @@ def _replies_by_review(db: Session, reviews: list[Review]) -> dict[int, ReplySam
         return {}
     rows = db.scalars(
         select(ReplySample).where(ReplySample.review_id.in_(ids))
-        .order_by(ReplySample.id.desc())
+        .order_by(
+            # 게시한 답글이 먼저다. "다시 만들기" 를 누를 때마다 표본이
+            # 새로 쌓이는데, 사장님이 두 번째를 복사해 게시하고 세 번째를
+            # 또 만들면 최신순으로는 게시 안 한 세 번째가 이긴다. 그러면
+            # 이미 답한 리뷰가 화면에 "만들어 둔 답글" 로 남는다.
+            ReplySample.final_reply.is_(None),
+            ReplySample.id.desc(),
+        )
     )
-    # 같은 리뷰에 여러 건이 있으면 최근 것을 쓴다.
-    latest: dict[int, ReplySample] = {}
+    best: dict[int, ReplySample] = {}
     for row in rows:
-        latest.setdefault(row.review_id, row)
-    return latest
+        best.setdefault(row.review_id, row)
+    return best
 
 
 def _to_row(review: Review) -> dict:
