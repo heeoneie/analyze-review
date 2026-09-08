@@ -19,6 +19,8 @@ export default function ReplyPanel({ review, onClose, onUnauthorized }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(null);
+  // 기록 실패는 따로 둔다. 복사는 이미 됐으므로 생성 오류와 뜻이 다르다.
+  const [recordError, setRecordError] = useState(null);
 
   const generate = async () => {
     setIsGenerating(true);
@@ -50,6 +52,7 @@ export default function ReplyPanel({ review, onClose, onUnauthorized }) {
   };
 
   const copy = async () => {
+    setRecordError(null);
     try {
       await navigator.clipboard.writeText(editedReply);
       setCopied(true);
@@ -58,10 +61,19 @@ export default function ReplyPanel({ review, onClose, onUnauthorized }) {
       // 클립보드를 막아 둔 브라우저도 있다. 답글은 화면에 그대로 보인다.
       return;
     }
+
     // 복사했다는 건 사장님이 이 답글을 쓰기로 했다는 뜻이다. 고쳐 쓴
     // 문장이 있으면 그쪽이 기록된다 — 말투 학습에 더 값진 신호다.
-    if (result?.sample_id) {
-      finalizeStoreReply(result.sample_id, editedReply).catch(() => {});
+    //
+    // 실패를 조용히 삼키면 안 된다. 기록이 안 되면 이 답글은 말투 학습에서
+    // 빠지는데, 사장님은 복사가 됐으니 다 된 줄 안다. 왜 학습이 안 되는지
+    // 아무도 모르게 된다.
+    if (!result?.sample_id) return;
+    try {
+      await finalizeStoreReply(result.sample_id, editedReply);
+    } catch (err) {
+      if (err.response?.status === 401) onUnauthorized?.();
+      else setRecordError('복사는 됐지만 기록에 실패했습니다. 다시 눌러 주세요.');
     }
   };
 
@@ -143,9 +155,15 @@ export default function ReplyPanel({ review, onClose, onUnauthorized }) {
             </button>
           </div>
 
-          <p className="text-xs text-slate-400">
-            복사하시면 이 답글을 쓰신 것으로 기록해 다음 답글이 더 사장님 말투에 가까워집니다.
-          </p>
+          {recordError ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {recordError}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-400">
+              복사하시면 이 답글을 쓰신 것으로 기록해 다음 답글이 더 사장님 말투에 가까워집니다.
+            </p>
+          )}
         </div>
       )}
     </div>

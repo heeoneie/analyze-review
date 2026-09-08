@@ -268,14 +268,18 @@ class TestReplyIsLinkedToTheReview:
 
         assert db_session.query(ReplySample).one().review_id is None
 
-    def test_other_stores_review_is_not_linked(self, linked, make_store):
-        """남의 매장 리뷰에 답글을 붙이지 못한다."""
+    def test_other_stores_review_is_rejected(self, linked, make_store):
+        """남의 매장 리뷰 id 로 오면 LLM 을 부르기 전에 막는다.
+
+        뒤에서 걸러도 되지만 그러면 답글을 만들어 버려 요금이 나간다.
+        """
         client, db_session, _ = linked
         other = make_store("8888", "남의 가게")
         stranger = self._add_review(db_session, other.id, "남의 리뷰")
 
-        client.post("/api/reply/store/generate", json={
+        response = client.post("/api/reply/store/generate", json={
             "review_text": "맛있어요", "rating": 5, "review_id": stranger.id,
         })
 
-        assert db_session.query(ReplySample).one().review_id is None
+        assert response.status_code == 404
+        assert db_session.query(ReplySample).count() == 0

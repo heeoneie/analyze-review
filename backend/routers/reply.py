@@ -162,6 +162,14 @@ async def generate_store_reply(
     if not request.review_text.strip() and not request.menu.strip():
         raise HTTPException(400, "리뷰 내용이나 주문 메뉴 중 하나는 입력해 주세요.")
 
+    # 소유권은 LLM 을 부르기 **전에** 본다. 뒤에서 확인하면 남의 매장 리뷰
+    # id 로 요청이 와도 답글을 만들어 버려 요금이 나간다.
+    linked_review = None
+    if request.review_id is not None and store is not None:
+        linked_review = db.get(Review, request.review_id)
+        if linked_review is None or linked_review.store_id != store.id:
+            raise HTTPException(404, "리뷰를 찾을 수 없습니다.")
+
     generator = ReplyGenerator(store_name=request.store_name)
     try:
         result = await asyncio.to_thread(
@@ -185,12 +193,9 @@ async def generate_store_reply(
             review_body=request.review_text, rating=request.rating,
             menu=request.menu, generated_reply=result.get("reply", ""),
         )
-        if request.review_id is not None:
-            # 남의 매장 리뷰에 붙이지 못하게 소유권을 확인한다.
-            review = db.get(Review, request.review_id)
-            if review is not None and review.store_id == store.id:
-                sample.review_id = review.id
-                db.commit()
+        if linked_review is not None:
+            sample.review_id = linked_review.id
+            db.commit()
         result = {**result, "sample_id": sample.id}
 
     return result
