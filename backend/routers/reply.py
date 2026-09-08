@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.database.database import get_db
-from backend.database.models import ReplySample, Store
+from backend.database.models import ReplySample, Review, Store
 from backend.dependencies import store_or_access_code
 from backend.services import reply_history
 from core import config, reply_style
@@ -24,9 +24,7 @@ from core.reply_guide import get_guide, list_guides
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# 말투 표본을 긍정·부정으로 가르기 전에 넉넉히 뽑아 온다. 8건만 받으면
-# 한쪽 성향이 0건이 되어 학습이 안 걸리는 매장이 생긴다.
-STYLE_POOL_SIZE = 30
+
 
 
 class GuideRequest(BaseModel):
@@ -128,6 +126,9 @@ class StoreReplyRequest(BaseModel):
     avoid_closings: list[str] = Field(default_factory=list, max_length=10)
     exclude_angles: list[str] = Field(default_factory=list, max_length=10)
     exclude_closings: list[str] = Field(default_factory=list, max_length=10)
+    # 대시보드에서 수집한 리뷰에 다는 경우 그 리뷰 id. 붙여넣기 화면은 비운다.
+    # 이 값이 있어야 목록이 "이 리뷰엔 답글이 있다" 를 알 수 있다.
+    review_id: int | None = None
 
 
 @router.get("/config")
@@ -146,32 +147,6 @@ async def verify_access_code():
     return {"ok": True}
 
 
-def _style_for(db: Session, store: Store | None, rating: int):
-    """이 매장·이 성향의 말투 프로필. 표본이 없으면 None.
-
-    긍정과 부정은 길이도 문장 구조도 달라서 섞으면 안 된다. 사장님이
-    "감사합니다" 로 짧게 쓰는 칭찬 답글과 사과·재발방지를 담는 불만 답글을
-    한 통에 넣으면 어느 쪽도 닮지 않은 평균이 나온다.
-    """
-    if store is None:
-        # 접속코드 경로에는 매장이 없어 표본을 고를 기준이 없다.
-        return None
-
-    samples = [
-        {
-            "review": row.review_body,
-            "rating": row.rating,
-            "reply": row.final_reply or "",
-        }
-        for row in reply_history.style_examples(
-            db, store.id, limit=STYLE_POOL_SIZE,
-            positive=rating >= config.POSITIVE_RATING_THRESHOLD,
-        )
-    ]
-    profile = reply_style.build_profile(samples)
-    return profile or None
-
-
 @router.post("/store/generate")
 async def generate_store_reply(
     request: StoreReplyRequest,
@@ -187,6 +162,14 @@ async def generate_store_reply(
     if not request.review_text.strip() and not request.menu.strip():
         raise HTTPException(400, "리뷰 내용이나 주문 메뉴 중 하나는 입력해 주세요.")
 
+    # 소유권은 LLM 을 부르기 **전에** 본다. 뒤에서 확인하면 남의 매장 리뷰
+    # id 로 요청이 와도 답글을 만들어 버려 요금이 나간다.
+    linked_review = None
+    if request.review_id is not None and store is not None:
+        linked_review = db.get(Review, request.review_id)
+        if linked_review is None or linked_review.store_id != store.id:
+            raise HTTPException(404, "리뷰를 찾을 수 없습니다.")
+
     generator = ReplyGenerator(store_name=request.store_name)
     try:
         result = await asyncio.to_thread(
@@ -198,7 +181,7 @@ async def generate_store_reply(
             avoid_closings=request.avoid_closings,
             exclude_angles=request.exclude_angles,
             exclude_closings=request.exclude_closings,
-            style=_style_for(db, store, request.rating),
+            style=reply_history.style_profile_for(db, store, request.rating),
         )
     except Exception:
         logger.exception("답변 생성 실패")
@@ -210,6 +193,9 @@ async def generate_store_reply(
             review_body=request.review_text, rating=request.rating,
             menu=request.menu, generated_reply=result.get("reply", ""),
         )
+        if linked_review is not None:
+            sample.review_id = linked_review.id
+            db.commit()
         result = {**result, "sample_id": sample.id}
 
     return result
@@ -275,9 +261,9 @@ def style_status(
         }
 
     positive = len(reply_history.style_examples(
-        db, store.id, limit=STYLE_POOL_SIZE, positive=True))
+        db, store.id, limit=reply_history.STYLE_POOL_SIZE, positive=True))
     negative = len(reply_history.style_examples(
-        db, store.id, limit=STYLE_POOL_SIZE, positive=False))
+        db, store.id, limit=reply_history.STYLE_POOL_SIZE, positive=False))
 
     return {
         "store": True,

@@ -1,151 +1,169 @@
 import { useState } from 'react';
-import {
-  Sparkles,
-  Copy,
-  RefreshCw,
-  Check,
-  MessageCircle,
-  Tag,
-  ArrowRight,
-} from 'lucide-react';
-import { generateReply } from '../api/client';
+import { Sparkles, Copy, RefreshCw, Check, MessageCircle } from 'lucide-react';
+import { generateStoreReply, finalizeStoreReply } from '../api/client';
 
-export default function ReplyPanel({ review, onClose }) {
-  const [replyData, setReplyData] = useState(null);
+/**
+ * 리뷰 한 건에 대한 답글 패널.
+ *
+ * 매장 경로(`/reply/store/generate`)를 쓴다. 예전에는 `/reply/generate` 를
+ * 불렀는데 그건 매장을 모르는 옛 엔드포인트라, 사장님 말투도 쓰지 않고
+ * 답글 이력도 남기지 않았다. 붙여넣기 화면에서만 학습이 걸리고 대시보드로
+ * 일하는 사장님은 학습이 영영 시작되지 않았다.
+ *
+ * 복사하면 게시한 것으로 기록한다. 사장님이 실제로 쓰기로 한 문장만
+ * 말투 학습의 재료가 된다.
+ */
+export default function ReplyPanel({ review, onClose, onUnauthorized }) {
+  const [result, setResult] = useState(null);
   const [editedReply, setEditedReply] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(null);
+  // 기록 실패는 따로 둔다. 복사는 이미 됐으므로 생성 오류와 뜻이 다르다.
+  const [recordError, setRecordError] = useState(null);
 
-  const handleGenerate = async () => {
+  const generate = async () => {
     setIsGenerating(true);
     setError(null);
     try {
-      const { data } = await generateReply(
-        review.Reviews,
-        review.Ratings,
-        review.category || null
-      );
-      setReplyData(data);
+      const { data } = await generateStoreReply({
+        review_text: review.Reviews,
+        rating: Number(review.Ratings) || 5,
+        menu: '',
+        // 이 답글이 어느 리뷰 것인지 남긴다. 목록이 "답글 있음" 을 알아야 한다.
+        review_id: review.id ?? null,
+        // 앞서 만든 문장을 넘겨 같은 첫 문장이 반복되지 않게 한다.
+        avoid_openings: result?.opening_sentence ? [result.opening_sentence] : [],
+        avoid_closings: result?.closing_sentence ? [result.closing_sentence] : [],
+      });
+      setResult(data);
       setEditedReply(data.reply);
     } catch (err) {
-      setError('답변 생성에 실패했습니다. 다시 시도해주세요.');
+      if (err.response?.status === 401) onUnauthorized?.();
+      else {
+        setError(
+          err.response?.data?.detail
+          || '답글을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.',
+        );
+      }
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(editedReply);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copy = async () => {
+    setRecordError(null);
+    try {
+      await navigator.clipboard.writeText(editedReply);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // 클립보드를 막아 둔 브라우저도 있다. 답글은 화면에 그대로 보인다.
+      return;
+    }
+
+    // 복사했다는 건 사장님이 이 답글을 쓰기로 했다는 뜻이다. 고쳐 쓴
+    // 문장이 있으면 그쪽이 기록된다 — 말투 학습에 더 값진 신호다.
+    //
+    // 실패를 조용히 삼키면 안 된다. 기록이 안 되면 이 답글은 말투 학습에서
+    // 빠지는데, 사장님은 복사가 됐으니 다 된 줄 안다. 왜 학습이 안 되는지
+    // 아무도 모르게 된다.
+    if (!result?.sample_id) return;
+    try {
+      await finalizeStoreReply(result.sample_id, editedReply);
+    } catch (err) {
+      if (err.response?.status === 401) onUnauthorized?.();
+      else setRecordError('복사는 됐지만 기록에 실패했습니다. 다시 눌러 주세요.');
+    }
   };
 
   return (
-    <div className="mt-3 border-t border-blue-100 pt-4 space-y-4">
-      {/* 답변 생성 버튼 */}
-      {!replyData && !isGenerating && (
+    <div className="mt-3 space-y-4 border-t border-slate-200 pt-4">
+      {!result && !isGenerating && (
         <button
-          onClick={handleGenerate}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors"
+          type="button"
+          onClick={generate}
+          className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm
+                     font-medium text-white transition hover:bg-slate-700"
         >
           <Sparkles size={16} />
-          AI 맞춤 답변 생성
+          사장님 말투로 답글 만들기
         </button>
       )}
 
-      {/* 로딩 */}
       {isGenerating && (
         <div className="flex items-center gap-3 py-4">
-          <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full" />
-          <span className="text-sm text-blue-600">맞춤 답변 생성 중...</span>
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-900
+                          border-t-transparent" />
+          <span className="text-sm text-slate-600">답글 만드는 중...</span>
         </div>
       )}
 
-      {/* 에러 */}
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-          {error}
-        </div>
+        <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       )}
 
-      {/* 생성된 답변 */}
-      {replyData && (
+      {result && (
         <div className="space-y-3">
-          {/* 편집 가능한 답변 */}
           <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1.5">
-              <MessageCircle size={14} className="text-blue-500" />
-              생성된 답변
+            <label
+              htmlFor={`reply-${review.id ?? 'x'}`}
+              className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-700"
+            >
+              <MessageCircle size={14} className="text-slate-500" />
+              만든 답글 — 고쳐서 쓰셔도 됩니다
             </label>
             <textarea
+              id={`reply-${review.id ?? 'x'}`}
               value={editedReply}
               onChange={(e) => setEditedReply(e.target.value)}
               rows={5}
-              className="w-full text-sm text-gray-800 border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-y"
+              className="w-full resize-y rounded-lg border border-slate-200 p-3 text-sm
+                         text-slate-800 outline-none focus:border-slate-400"
             />
           </div>
 
-          {/* 메타데이터 */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-            {replyData.tone && (
-              <div className="bg-purple-50 rounded-lg px-3 py-2">
-                <span className="text-purple-600 font-medium flex items-center gap-1">
-                  <Tag size={12} /> 어조
-                </span>
-                <p className="text-purple-700 mt-0.5">{replyData.tone}</p>
-              </div>
-            )}
-            {replyData.key_points_addressed?.length > 0 && (
-              <div className="bg-green-50 rounded-lg px-3 py-2">
-                <span className="text-green-600 font-medium flex items-center gap-1">
-                  <Check size={12} /> 다룬 포인트
-                </span>
-                <ul className="text-green-700 mt-0.5">
-                  {replyData.key_points_addressed.map((p, i) => (
-                    <li key={i}>- {p}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {replyData.suggested_action && (
-              <div className="bg-amber-50 rounded-lg px-3 py-2">
-                <span className="text-amber-600 font-medium flex items-center gap-1">
-                  <ArrowRight size={12} /> 후속 조치
-                </span>
-                <p className="text-amber-700 mt-0.5">{replyData.suggested_action}</p>
-              </div>
-            )}
-          </div>
-
-          {/* 액션 버튼 */}
           <div className="flex gap-2">
             <button
-              onClick={handleCopy}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                copied
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              type="button"
+              onClick={copy}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition
+                ${copied
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-slate-900 text-white hover:bg-slate-700'}`}
             >
               {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? '복사됨' : '복사'}
+              {copied ? '복사했습니다' : '복사하기'}
             </button>
             <button
-              onClick={handleGenerate}
+              type="button"
+              onClick={generate}
               disabled={isGenerating}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5
+                         text-sm text-slate-700 transition hover:bg-slate-200
+                         disabled:opacity-50"
             >
               <RefreshCw size={14} className={isGenerating ? 'animate-spin' : ''} />
-              재생성
+              다시 만들기
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              className="px-3 py-1.5 text-sm text-slate-500 transition hover:text-slate-700"
             >
               닫기
             </button>
           </div>
+
+          {recordError ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {recordError}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-400">
+              복사하시면 이 답글을 쓰신 것으로 기록해 다음 답글이 더 사장님 말투에 가까워집니다.
+            </p>
+          )}
         </div>
       )}
     </div>

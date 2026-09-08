@@ -21,7 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.database.database import get_db
-from backend.database.models import Review, Store
+from backend.database.models import ReplySample, Review, Store
 from backend.dependencies import store_or_access_code
 from backend.services.priority_service import PriorityLevel, score_and_sort
 
@@ -37,6 +37,15 @@ NEGATIVE_RATING_THRESHOLD = 3
 
 # 본문 길이 상한. 모델 컬럼이 String(4096) 이라 넘치면 넣을 때 잘린다.
 MAX_BODY_CHARS = 4096
+
+# 한 번의 요청에서 답글을 몇 건까지 만들지.
+#
+# 리뷰 한 건마다 LLM 을 부르고, 규칙에 걸리면 최대 세 번까지 다시 부른다.
+# 30건을 한 요청에 몰면 몇 분이 걸려 프록시나 브라우저가 먼저 끊는다.
+# 작게 끊어 돌리고 남은 수를 돌려주면, 화면이 이어서 부르며 진행률을
+# 보여 줄 수 있다. 사장님도 중간에 멈출 수 있다.
+REPLY_BATCH_LIMIT = 5
+MAX_REPLY_BATCH = 20
 
 
 class CollectRequest(BaseModel):
@@ -79,6 +88,28 @@ def _utc_iso(value: datetime | None) -> str | None:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     return value.isoformat()
+
+
+def _replies_by_review(db: Session, reviews: list[Review]) -> dict[int, ReplySample]:
+    """리뷰 id -> 그 리뷰에 만들어 둔 답글. 목록 한 번에 같이 싣는다."""
+    ids = [r.id for r in reviews]
+    if not ids:
+        return {}
+    rows = db.scalars(
+        select(ReplySample).where(ReplySample.review_id.in_(ids))
+        .order_by(
+            # 게시한 답글이 먼저다. "다시 만들기" 를 누를 때마다 표본이
+            # 새로 쌓이는데, 사장님이 두 번째를 복사해 게시하고 세 번째를
+            # 또 만들면 최신순으로는 게시 안 한 세 번째가 이긴다. 그러면
+            # 이미 답한 리뷰가 화면에 "만들어 둔 답글" 로 남는다.
+            ReplySample.final_reply.is_(None),
+            ReplySample.id.desc(),
+        )
+    )
+    best: dict[int, ReplySample] = {}
+    for row in rows:
+        best.setdefault(row.review_id, row)
+    return best
 
 
 def _to_row(review: Review) -> dict:
@@ -236,7 +267,17 @@ def list_reviews(
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
-    rows = [_to_row(r) for r in db.scalars(stmt)]
+    found = list(db.scalars(stmt))
+    replies = _replies_by_review(db, found)
+    rows = []
+    for review in found:
+        row = _to_row(review)
+        sample = replies.get(review.id)
+        if sample:
+            row["reply"] = sample.final_reply or sample.generated_reply or ""
+            row["sample_id"] = sample.id
+            row["reply_posted"] = sample.final_reply is not None
+        rows.append(row)
 
     return {
         "reviews": rows,

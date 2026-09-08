@@ -8,7 +8,7 @@
 
 import pytest
 
-from backend.database.models import Review, User
+from backend.database.models import ReplySample, Review, User
 from backend.routers import reviews as reviews_router
 from backend.services import auth_service
 from core import config
@@ -391,3 +391,71 @@ class TestCollectEndpoint:
 
         assert saved == 1
         assert db_session.query(Review).count() == 2
+
+
+class TestReplyShowsUpOnTheReview:
+    """대시보드에서 만든 답글이 그 리뷰에 붙어 보여야 한다."""
+
+    @pytest.fixture(name="store")
+    def fixture_store(self, client, db_session, kakao_on, make_store):  # pylint: disable=unused-argument
+        store = make_store("4444", "가게")
+        _login(client, store, db_session)
+        return store
+
+    def test_list_carries_the_reply(self, client, db_session, store):
+        _add_review(db_session, store.id, 5, "맛있어요")
+        review = db_session.query(Review).one()
+        db_session.add(ReplySample(
+            store_id=store.id, origin="generated", review_body="맛있어요",
+            rating=5, generated_reply="감사합니다 고객님", review_id=review.id,
+        ))
+        db_session.commit()
+
+        row = client.get("/api/reviews").json()["reviews"][0]
+
+        assert row["reply"] == "감사합니다 고객님"
+        assert row["reply_posted"] is False
+
+    def test_posted_reply_is_marked(self, client, db_session, store):
+        _add_review(db_session, store.id, 5, "맛있어요")
+        review = db_session.query(Review).one()
+        db_session.add(ReplySample(
+            store_id=store.id, origin="edited", review_body="맛있어요",
+            rating=5, generated_reply="초안", final_reply="사장님이 고친 답글",
+            review_id=review.id,
+        ))
+        db_session.commit()
+
+        row = client.get("/api/reviews").json()["reviews"][0]
+
+        assert row["reply"] == "사장님이 고친 답글"
+        assert row["reply_posted"] is True
+
+    def test_review_without_a_reply_has_no_reply_field(self, client, db_session, store):
+        _add_review(db_session, store.id, 5, "맛있어요")
+
+        row = client.get("/api/reviews").json()["reviews"][0]
+
+        assert "reply" not in row
+
+    def test_posted_reply_wins_over_a_newer_draft(self, client, db_session, store):
+        """다시 만들기를 눌러 초안이 더 쌓여도, 게시한 답글이 이겨야 한다."""
+        _add_review(db_session, store.id, 5, "맛있어요")
+        review = db_session.query(Review).one()
+        db_session.add_all([
+            ReplySample(
+                store_id=store.id, origin="edited", review_body="맛있어요",
+                rating=5, generated_reply="초안1", final_reply="게시한 답글",
+                review_id=review.id,
+            ),
+            ReplySample(
+                store_id=store.id, origin="generated", review_body="맛있어요",
+                rating=5, generated_reply="그 뒤에 또 만든 초안", review_id=review.id,
+            ),
+        ])
+        db_session.commit()
+
+        row = client.get("/api/reviews").json()["reviews"][0]
+
+        assert row["reply"] == "게시한 답글"
+        assert row["reply_posted"] is True

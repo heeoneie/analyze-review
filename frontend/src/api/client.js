@@ -101,6 +101,7 @@ export const listPrioritizedReviews = (page = 1, pageSize = 10, level = null) =>
 export const getReviewSummary = () =>
   api.get('/reviews/summary', withAccessCode());
 
+
 // 사장님이 실제로 게시한 답글을 기록한다. 말투 학습은 이 기록만 쓴다.
 export const finalizeStoreReply = (sampleId, finalReply) =>
   api.post('/reply/store/finalize', { sample_id: sampleId, final_reply: finalReply },

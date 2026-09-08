@@ -1,6 +1,60 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Star, ChevronLeft, ChevronRight } from 'lucide-react';
-import { listReviews } from '../api/client';
+import { MessageSquare, Star, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
+import { listReviews, finalizeStoreReply } from '../api/client';
+
+function GeneratedReply({ review, onUnauthorized }) {
+  const [copied, setCopied] = useState(false);
+  const [recordError, setRecordError] = useState(null);
+
+  const copy = async () => {
+    setRecordError(null);
+    try {
+      await navigator.clipboard.writeText(review.reply);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // 클립보드를 막아 둔 브라우저도 있다. 답글은 화면에 그대로 보인다.
+      return;
+    }
+
+    // 복사했다는 건 사장님이 이 답글을 쓰기로 했다는 뜻이다. 기록이 안 되면
+    // 말투 학습에서 빠지는데 사장님은 다 된 줄 안다. 조용히 삼키지 않는다.
+    if (!review.sample_id) return;
+    try {
+      await finalizeStoreReply(review.sample_id, review.reply);
+    } catch (err) {
+      if (err.response?.status === 401) onUnauthorized?.();
+      else setRecordError('복사는 됐지만 기록에 실패했습니다. 다시 눌러 주세요.');
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-xl bg-slate-50 p-3">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-500">
+          {review.reply_posted ? '게시한 답글' : '만들어 둔 답글'}
+        </span>
+        <button
+          type="button"
+          onClick={copy}
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium
+                     text-slate-500 hover:bg-slate-200 hover:text-slate-700"
+        >
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          {copied ? '복사함' : '복사'}
+        </button>
+      </div>
+      <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+        {review.reply}
+      </p>
+      {recordError && (
+        <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {recordError}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function ReviewList({ refreshKey = 0, onUnauthorized }) {
   const [reviews, setReviews] = useState([]);
@@ -72,6 +126,9 @@ export default function ReviewList({ refreshKey = 0, onUnauthorized }) {
                 <p className="text-sm text-gray-700 leading-relaxed line-clamp-3">
                   {review.Reviews}
                 </p>
+                {review.reply && (
+                  <GeneratedReply review={review} onUnauthorized={onUnauthorized} />
+                )}
               </div>
             ))}
           </div>

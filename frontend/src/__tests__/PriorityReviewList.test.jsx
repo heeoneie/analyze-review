@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import PriorityReviewList from '../components/PriorityReviewList';
-import { listPrioritizedReviews, generateReply } from '../api/client';
+import { listPrioritizedReviews, generateStoreReply } from '../api/client';
 
 vi.mock('../api/client', () => ({
   listPrioritizedReviews: vi.fn(),
-  generateReply: vi.fn(),
+  generateStoreReply: vi.fn(),
+  finalizeStoreReply: vi.fn(),
 }));
 
 const makeReview = (text, overrides = {}) => ({
@@ -49,18 +50,17 @@ describe('PriorityReviewList', () => {
     listPrioritizedReviews
       .mockResolvedValueOnce(pageOf([makeReview('첫 페이지 리뷰입니다')]))
       .mockResolvedValueOnce(pageOf([makeReview('두 번째 페이지 리뷰입니다')]));
-    generateReply.mockResolvedValue({
+    generateStoreReply.mockResolvedValue({
       data: {
         reply: '첫 페이지 리뷰에 대한 답변',
-        tone: '정중',
-        key_points_addressed: [],
+        sample_id: 1,
       },
     });
 
     render(<PriorityReviewList />);
     fireEvent.click(await screen.findByText('첫 페이지 리뷰입니다'));
     fireEvent.click(screen.getByText('답변 작성하기 →'));
-    fireEvent.click(screen.getByText('AI 맞춤 답변 생성'));
+    fireEvent.click(screen.getByText('사장님 말투로 답글 만들기'));
     await screen.findByDisplayValue('첫 페이지 리뷰에 대한 답변');
 
     fireEvent.click(screen.getByRole('button', { name: /다음/ }));

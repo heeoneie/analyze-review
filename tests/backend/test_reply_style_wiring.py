@@ -9,9 +9,9 @@
 
 import pytest
 
-from backend.database.models import ReplySample
+from backend.database.models import ReplySample, Review
 from backend.dependencies import store_or_access_code
-from backend.routers import reply as reply_router
+from backend.services import reply_history
 from core import config
 
 
@@ -27,12 +27,12 @@ def _posted(db_session, store, rating, reply, *, review="리뷰 본문"):
 class TestStyleForStore:
     def test_no_store_means_no_style(self, db_session):
         """접속코드 경로에는 매장이 없어 표본을 고를 기준이 없다."""
-        assert reply_router._style_for(db_session, None, 5) is None  # pylint: disable=protected-access
+        assert reply_history.style_profile_for(db_session, None, 5) is None
 
     def test_store_without_samples_gets_no_style(self, db_session, make_store):
         store = make_store()
 
-        assert reply_router._style_for(db_session, store, 5) is None  # pylint: disable=protected-access
+        assert reply_history.style_profile_for(db_session, store, 5) is None
 
     def test_positive_request_only_sees_positive_samples(self, db_session, make_store):
         """칭찬 답글과 사과 답글을 섞으면 어느 쪽도 닮지 않은 평균이 나온다."""
@@ -41,7 +41,7 @@ class TestStyleForStore:
         _posted(db_session, store, 5, "고맙습니다 다음에 또 뵈어요")
         _posted(db_session, store, 1, "죄송합니다 다시는 이런 일 없게 하겠습니다")
 
-        style = reply_router._style_for(db_session, store, 5)  # pylint: disable=protected-access
+        style = reply_history.style_profile_for(db_session, store, 5)
 
         replies = [e["reply"] for e in style.examples]
         assert replies == ["감사합니다 또 오세요", "고맙습니다 다음에 또 뵈어요"]
@@ -52,7 +52,7 @@ class TestStyleForStore:
         _posted(db_session, store, 2, "죄송합니다 다음엔 꼭 챙기겠습니다")
         _posted(db_session, store, 1, "불편을 드려 죄송합니다 바로 고치겠습니다")
 
-        style = reply_router._style_for(db_session, store, 2)  # pylint: disable=protected-access
+        style = reply_history.style_profile_for(db_session, store, 2)
 
         replies = [e["reply"] for e in style.examples]
         assert "감사합니다 또 오세요" not in replies
@@ -65,7 +65,7 @@ class TestStyleForStore:
         _posted(db_session, other, 5, "남의 가게 말투입니다")
         _posted(db_session, other, 5, "남의 가게 인사말입니다")
 
-        assert reply_router._style_for(db_session, mine, 5) is None  # pylint: disable=protected-access
+        assert reply_history.style_profile_for(db_session, mine, 5) is None
 
     def test_length_window_follows_the_owner(self, db_session, make_store):
         """사장님이 짧게 쓰면 기준도 짧아져야 한다. 안 그러면 검사기가 되돌려보낸다."""
@@ -73,7 +73,7 @@ class TestStyleForStore:
         _posted(db_session, store, 5, "가" * 30)
         _posted(db_session, store, 5, "나" * 30)
 
-        style = reply_router._style_for(db_session, store, 5)  # pylint: disable=protected-access
+        style = reply_history.style_profile_for(db_session, store, 5)
 
         assert style.max_chars < config.POSITIVE_REPLY_MIN_CHARS
 
@@ -86,7 +86,7 @@ class TestStyleForStore:
         ))
         db_session.commit()
 
-        assert reply_router._style_for(db_session, store, 5) is None  # pylint: disable=protected-access
+        assert reply_history.style_profile_for(db_session, store, 5) is None
 
 
 class TestSentimentFilterHappensBeforeTheLimit:
@@ -101,7 +101,7 @@ class TestSentimentFilterHappensBeforeTheLimit:
         _posted(db_session, store, 1, "죄송합니다 고객님 다시는 이런 일 없게 하겠습니다")
         _posted(db_session, store, 2, "죄송합니다 고객님 바로 확인해보겠습니다")
 
-        style = reply_router._style_for(db_session, store, 2)  # pylint: disable=protected-access
+        style = reply_history.style_profile_for(db_session, store, 2)
 
         assert style is not None
         assert len(style.examples) == 2
@@ -185,7 +185,7 @@ class TestOnboarding:
             {"review_text": "좋아요", "rating": 5, "reply": "감사합니다 고객님 좋은 하루 되세요"},
         ]})
 
-        style = reply_router._style_for(db_session, logged_in_store, 5)  # pylint: disable=protected-access
+        style = reply_history.style_profile_for(db_session, logged_in_store, 5)
 
         assert style is not None
         assert style.common_opening == "감사합니다 고객님"
@@ -223,3 +223,63 @@ class TestOnboarding:
         assert client.post("/api/reply/style/onboarding", json={"samples": [
             {"review_text": "맛있어요", "rating": 5, "reply": "감사합니다"},
         ]}).status_code == 409
+
+
+class TestReplyIsLinkedToTheReview:
+    """대시보드에서 만든 답글이 어느 리뷰 것인지 남아야 목록이 알아본다."""
+
+    @pytest.fixture(name="linked")
+    def fixture_linked(self, client, db_session, make_store, monkeypatch):
+        monkeypatch.setattr(config, "KAKAO_LOGIN_ENABLED", False)
+        monkeypatch.setattr(config, "ACCESS_CODE", "")
+        monkeypatch.setattr(
+            "core.reply_generator.ReplyGenerator.generate",
+            lambda self, review_text=None, rating=5, menu=None, **kw: {"reply": "답글"},
+        )
+        store = make_store("7777", "가게")
+        client.app.dependency_overrides[store_or_access_code] = lambda: store
+        yield client, db_session, store
+        client.app.dependency_overrides.pop(store_or_access_code, None)
+
+    @staticmethod
+    def _add_review(db_session, store_id, body="맛있어요"):
+        review = Review(store_id=store_id, source="coupang", rating=5, body=body)
+        db_session.add(review)
+        db_session.commit()
+        return review
+
+    def test_review_id_is_recorded(self, linked):
+        client, db_session, store = linked
+        review = self._add_review(db_session, store.id)
+
+        client.post("/api/reply/store/generate", json={
+            "review_text": "맛있어요", "rating": 5, "review_id": review.id,
+        })
+
+        assert db_session.query(ReplySample).one().review_id == review.id
+
+    def test_pasted_reply_has_no_review(self, linked):
+        """붙여넣기 화면에는 가리킬 리뷰가 없다."""
+        client, db_session, _ = linked
+
+        client.post("/api/reply/store/generate", json={
+            "review_text": "맛있어요", "rating": 5,
+        })
+
+        assert db_session.query(ReplySample).one().review_id is None
+
+    def test_other_stores_review_is_rejected(self, linked, make_store):
+        """남의 매장 리뷰 id 로 오면 LLM 을 부르기 전에 막는다.
+
+        뒤에서 걸러도 되지만 그러면 답글을 만들어 버려 요금이 나간다.
+        """
+        client, db_session, _ = linked
+        other = make_store("8888", "남의 가게")
+        stranger = self._add_review(db_session, other.id, "남의 리뷰")
+
+        response = client.post("/api/reply/store/generate", json={
+            "review_text": "맛있어요", "rating": 5, "review_id": stranger.id,
+        })
+
+        assert response.status_code == 404
+        assert db_session.query(ReplySample).count() == 0
