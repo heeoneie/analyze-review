@@ -11,7 +11,7 @@ import pytest
 
 from backend.database.models import ReplySample
 from backend.dependencies import store_or_access_code
-from backend.routers import reply as reply_router
+from backend.services import reply_history
 from core import config
 
 
@@ -27,12 +27,12 @@ def _posted(db_session, store, rating, reply, *, review="리뷰 본문"):
 class TestStyleForStore:
     def test_no_store_means_no_style(self, db_session):
         """접속코드 경로에는 매장이 없어 표본을 고를 기준이 없다."""
-        assert reply_router._style_for(db_session, None, 5) is None  # pylint: disable=protected-access
+        assert reply_history.style_profile_for(db_session, None, 5) is None
 
     def test_store_without_samples_gets_no_style(self, db_session, make_store):
         store = make_store()
 
-        assert reply_router._style_for(db_session, store, 5) is None  # pylint: disable=protected-access
+        assert reply_history.style_profile_for(db_session, store, 5) is None
 
     def test_positive_request_only_sees_positive_samples(self, db_session, make_store):
         """칭찬 답글과 사과 답글을 섞으면 어느 쪽도 닮지 않은 평균이 나온다."""
@@ -41,7 +41,7 @@ class TestStyleForStore:
         _posted(db_session, store, 5, "고맙습니다 다음에 또 뵈어요")
         _posted(db_session, store, 1, "죄송합니다 다시는 이런 일 없게 하겠습니다")
 
-        style = reply_router._style_for(db_session, store, 5)  # pylint: disable=protected-access
+        style = reply_history.style_profile_for(db_session, store, 5)
 
         replies = [e["reply"] for e in style.examples]
         assert replies == ["감사합니다 또 오세요", "고맙습니다 다음에 또 뵈어요"]
@@ -52,7 +52,7 @@ class TestStyleForStore:
         _posted(db_session, store, 2, "죄송합니다 다음엔 꼭 챙기겠습니다")
         _posted(db_session, store, 1, "불편을 드려 죄송합니다 바로 고치겠습니다")
 
-        style = reply_router._style_for(db_session, store, 2)  # pylint: disable=protected-access
+        style = reply_history.style_profile_for(db_session, store, 2)
 
         replies = [e["reply"] for e in style.examples]
         assert "감사합니다 또 오세요" not in replies
@@ -65,7 +65,7 @@ class TestStyleForStore:
         _posted(db_session, other, 5, "남의 가게 말투입니다")
         _posted(db_session, other, 5, "남의 가게 인사말입니다")
 
-        assert reply_router._style_for(db_session, mine, 5) is None  # pylint: disable=protected-access
+        assert reply_history.style_profile_for(db_session, mine, 5) is None
 
     def test_length_window_follows_the_owner(self, db_session, make_store):
         """사장님이 짧게 쓰면 기준도 짧아져야 한다. 안 그러면 검사기가 되돌려보낸다."""
@@ -73,7 +73,7 @@ class TestStyleForStore:
         _posted(db_session, store, 5, "가" * 30)
         _posted(db_session, store, 5, "나" * 30)
 
-        style = reply_router._style_for(db_session, store, 5)  # pylint: disable=protected-access
+        style = reply_history.style_profile_for(db_session, store, 5)
 
         assert style.max_chars < config.POSITIVE_REPLY_MIN_CHARS
 
@@ -86,7 +86,7 @@ class TestStyleForStore:
         ))
         db_session.commit()
 
-        assert reply_router._style_for(db_session, store, 5) is None  # pylint: disable=protected-access
+        assert reply_history.style_profile_for(db_session, store, 5) is None
 
 
 class TestSentimentFilterHappensBeforeTheLimit:
@@ -101,7 +101,7 @@ class TestSentimentFilterHappensBeforeTheLimit:
         _posted(db_session, store, 1, "죄송합니다 고객님 다시는 이런 일 없게 하겠습니다")
         _posted(db_session, store, 2, "죄송합니다 고객님 바로 확인해보겠습니다")
 
-        style = reply_router._style_for(db_session, store, 2)  # pylint: disable=protected-access
+        style = reply_history.style_profile_for(db_session, store, 2)
 
         assert style is not None
         assert len(style.examples) == 2
@@ -185,7 +185,7 @@ class TestOnboarding:
             {"review_text": "좋아요", "rating": 5, "reply": "감사합니다 고객님 좋은 하루 되세요"},
         ]})
 
-        style = reply_router._style_for(db_session, logged_in_store, 5)  # pylint: disable=protected-access
+        style = reply_history.style_profile_for(db_session, logged_in_store, 5)
 
         assert style is not None
         assert style.common_opening == "감사합니다 고객님"

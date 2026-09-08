@@ -101,6 +101,13 @@ export const listPrioritizedReviews = (page = 1, pageSize = 10, level = null) =>
 export const getReviewSummary = () =>
   api.get('/reviews/summary', withAccessCode());
 
+// 모은 리뷰에 답글 만들기. 한 요청이 limit 건만 처리하고 남은 수를 준다.
+export const generateRepliesBatch = (limit = 5) =>
+  api.post('/reviews/replies/generate', { limit }, withAccessCode());
+
+export const getPendingReplies = () =>
+  api.get('/reviews/replies/pending', withAccessCode());
+
 // 사장님이 실제로 게시한 답글을 기록한다. 말투 학습은 이 기록만 쓴다.
 export const finalizeStoreReply = (sampleId, finalReply) =>
   api.post('/reply/store/finalize', { sample_id: sampleId, final_reply: finalReply },

@@ -143,6 +143,14 @@ class ReplySample(Base):
     )
     origin: Mapped[str] = mapped_column(String(16), nullable=False)
 
+    # 대시보드에서 수집한 리뷰에 답글을 만든 경우 그 리뷰를 가리킨다.
+    # 어떤 리뷰가 아직 답글이 없는지 알아야 "전체에 한번에" 를 다시 눌러도
+    # 이미 만든 것을 또 만들지 않는다. 붙여넣기로 만든 답글은 NULL 이다.
+    review_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("reviews.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
+
     review_body: Mapped[str] = mapped_column(Text, nullable=False)
     rating: Mapped[int] = mapped_column(Integer, nullable=False)
     menu: Mapped[str | None] = mapped_column(String(512), nullable=True)
