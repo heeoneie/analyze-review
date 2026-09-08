@@ -4,9 +4,6 @@ import { addStyleSamples } from '../api/client';
 
 const RATINGS = [5, 4, 3, 2, 1];
 
-// 이 별점 이상을 좋은 리뷰로 본다. 서버의 POSITIVE_RATING_THRESHOLD 와 같다.
-const POSITIVE_FROM = 4;
-
 // 처음에 몇 칸을 펼쳐 둘지. 빈 칸이 너무 많으면 숙제처럼 보이고, 하나만
 // 있으면 여러 건을 넣어야 한다는 게 안 보인다.
 const INITIAL_ROWS = 2;
@@ -75,7 +72,9 @@ function SampleRow({ index, value, onChange, onRemove, canRemove }) {
   );
 }
 
-export default function StyleOnboarding({ needed = 2, onDone, onSkip }) {
+export default function StyleOnboarding({
+  needed = 2, positiveFrom = 4, onDone, onSkip,
+}) {
   const [rows, setRows] = useState(() =>
     Array.from({ length: INITIAL_ROWS }, emptyRow));
   const [isSaving, setIsSaving] = useState(false);
@@ -84,7 +83,7 @@ export default function StyleOnboarding({ needed = 2, onDone, onSkip }) {
   const filled = rows.filter((r) => r.review_text.trim() && r.reply.trim());
   // 기준은 성향별이다. 좋은 리뷰만 다섯 개 넣어도 아쉬운 리뷰 답글의
   // 말투는 배우지 못한다. 전체 개수로 안내하면 사장님이 다 됐다고 믿는다.
-  const positives = filled.filter((r) => Number(r.rating) >= POSITIVE_FROM).length;
+  const positives = filled.filter((r) => Number(r.rating) >= positiveFrom).length;
   const negatives = filled.length - positives;
   const missing = [
     positives < needed ? `좋은 리뷰 ${needed - positives}개` : null,

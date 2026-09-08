@@ -198,6 +198,7 @@ export default function ReplyStudio() {
     return (
       <StyleOnboarding
         needed={styleStatus.needed}
+        positiveFrom={styleStatus.positive_from}
         onDone={finishOnboarding}
         onSkip={() => {
           localStorage.setItem(ONBOARDED_KEY, '1');

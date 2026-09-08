@@ -157,7 +157,7 @@ class TestOnboarding:
 
         assert body == {
             "store": True, "positive": 0, "negative": 0,
-            "learning": False, "needed": 2,
+            "learning": False, "needed": 2, "positive_from": 4,
         }
 
     def test_samples_are_saved_and_counted(self, client, logged_in_store):  # pylint: disable=unused-argument
@@ -205,6 +205,12 @@ class TestOnboarding:
         assert client.post(
             "/api/reply/style/onboarding", json={"samples": []},
         ).status_code == 422
+
+    def test_status_serves_the_rating_threshold(self, client, logged_in_store, monkeypatch):  # pylint: disable=unused-argument
+        """화면이 4를 따로 들고 있으면 서버 값이 바뀌는 날 조용히 어긋난다."""
+        monkeypatch.setattr(config, "POSITIVE_RATING_THRESHOLD", 3)
+
+        assert client.get("/api/reply/style/status").json()["positive_from"] == 3
 
     def test_access_code_path_has_nowhere_to_store(self, client, monkeypatch):
         """매장이 없으면 담을 곳이 없다. 화면은 온보딩을 띄우지 않는다."""

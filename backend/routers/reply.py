@@ -268,7 +268,11 @@ def style_status(
     """
     if store is None:
         # 접속코드 경로에는 매장이 없어 표본을 담을 곳이 없다.
-        return {"store": False, "positive": 0, "negative": 0, "learning": False}
+        return {
+            "store": False, "positive": 0, "negative": 0, "learning": False,
+            "needed": reply_style.MIN_SAMPLES_FOR_LENGTH,
+            "positive_from": config.POSITIVE_RATING_THRESHOLD,
+        }
 
     positive = len(reply_history.style_examples(
         db, store.id, limit=STYLE_POOL_SIZE, positive=True))
@@ -282,6 +286,10 @@ def style_status(
         # 한쪽이라도 기준을 채우면 그 성향에서는 말투가 걸린다.
         "learning": max(positive, negative) >= reply_style.MIN_SAMPLES_FOR_LENGTH,
         "needed": reply_style.MIN_SAMPLES_FOR_LENGTH,
+        # 화면이 긍정·부정을 같은 기준으로 갈라야 한다. 여기서 내보내지
+        # 않으면 프론트가 4를 따로 들고 있게 되고, 서버 값이 바뀌는 날
+        # 화면만 조용히 어긋난 안내를 한다.
+        "positive_from": config.POSITIVE_RATING_THRESHOLD,
     }
 
 
