@@ -214,6 +214,27 @@ LLM_MODEL = "gpt-4o-mini"
 
 ---
 
+## 분류 정확도 — 측정 전
+
+| 항목 | 상태 |
+|---|---|
+| 정확도 / Precision / Recall / F1 | **미측정** |
+| 평가 표본 | 라벨링 진행 중 |
+| 라벨 출처 | 사람이 직접 (LLM 생성 금지) |
+| 라벨 체계 | [v1 · 13종 닫힌 집합](docs/evaluation/labeling-guide-v1.md) |
+
+분석 파이프라인은 동작하지만 **정확도가 정량 검증되지 않았습니다.**
+수치가 나오기 전까지 이 저장소는 어떤 정확도도 표시하지 않습니다
+(`GET /evaluate/metrics` 는 `status: "not_measured"` 를 반환합니다).
+
+> 이전에 `evaluation/metrics_latest.json` 이 정확도 96.67% 를 서빙했으나,
+> 레포의 어떤 데이터셋에서도 재현되지 않는 수치여서 제거했습니다.
+> `docs/IMPLEMENTATION_PLAN.md` 의 90~95% 도 전부 목표치이지 측정값이 아닙니다.
+
+측정 절차는 [라벨링 가이드](docs/evaluation/labeling-guide-v1.md)에 있습니다.
+
+---
+
 ## 제한사항 및 범위
 
 이 프로젝트는 **PoC(Proof of Concept)** 수준입니다:
@@ -221,7 +242,7 @@ LLM_MODEL = "gpt-4o-mini"
 - ✅ 가능성 검증용
 - ❌ 상용 서비스 아님
 - ❌ 결제/유저 관리 없음
-- ❌ 정확도 최적화 없음
+- ❌ 정확도 미측정 (위 섹션 참고)
 - ❌ 프로덕션 레벨 에러 핸들링 없음
 
 **목적:** "리뷰 데이터를 활용하면 의사결정에 어떤 도움이 되는가" 검증

@@ -119,7 +119,7 @@ python3 fine_tuning/evaluate_finetuned.py \
   --compare results/baseline_metrics.json
 ```
 
-출력 예시:
+출력 예시 (**가상의 숫자입니다. 실제로 이 값이 나온 적 없습니다**):
 ```
 Metric          Base Model      Fine-tuned      Improvement
 ------------------------------------------------------------------------
@@ -214,6 +214,8 @@ result = analyzer.categorize_issues(reviews)
 
 ## 예상 결과
 
+> ⚠️ 아래는 전부 **측정된 적 없는 가정치**입니다. 인용하지 마십시오.
+
 ### Baseline vs Fine-tuned
 
 | Stage | Method | Accuracy | Cost/1k reviews |
@@ -223,9 +225,9 @@ result = analyzer.categorize_issues(reviews)
 | Fine-tuned | Custom Model | 95% | $12 |
 
 ### 핵심 이점
-- ✅ **정확도**: 78% → 95% (+17%)
-- ✅ **비용**: $28 → $12 (-57%)
-- ✅ **속도**: 프롬프트 단순화로 2배 빠름
+- (가정) **정확도**: 78% → 95% (+17%) — 미측정
+- (가정) **비용**: $28 → $12 (-57%) — 미측정
+- (가정) **속도**: 프롬프트 단순화로 2배 빠름 — 미측정
 - ✅ **유지보수**: 프롬프트 관리 부담 감소
 
 ---

@@ -46,6 +46,33 @@ function ScoreBadge({ value = 0 }) {
   );
 }
 
+function NotMeasured({ reason, detail, lang }) {
+  return (
+    <div className="border border-zinc-800 rounded-xl overflow-hidden">
+      <div className="px-5 py-3 bg-zinc-900/60 border-b border-zinc-800 flex items-center gap-2.5">
+        <div className="w-1.5 h-4 bg-zinc-600 rounded-full" />
+        <span className="text-sm font-semibold text-zinc-100">AI Model Quality</span>
+        <span className="px-2 py-0.5 text-xs bg-zinc-800 text-zinc-400 rounded border border-zinc-700">
+          {lang === 'ko' ? '측정 전' : 'Not measured'}
+        </span>
+      </div>
+      <div className="p-5 space-y-2">
+        <p className="text-sm text-zinc-300">
+          {reason || (lang === 'ko'
+            ? '사람이 직접 라벨링한 평가 표본이 아직 없습니다.'
+            : 'No human-labeled evaluation sample yet.')}
+        </p>
+        {detail && <p className="text-xs text-zinc-500 leading-relaxed">{detail}</p>}
+        <p className="text-xs text-zinc-600 pt-1">
+          {lang === 'ko'
+            ? '측정되지 않은 정확도를 표시하지 않습니다.'
+            : 'No accuracy figure is shown until it has been measured.'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function ModelQuality() {
   const { lang } = useLang();
   const [metrics, setMetrics] = useState(null);
@@ -79,8 +106,13 @@ export default function ModelQuality() {
 
   if (!metrics) return null;
 
+  // 측정 전 상태를 카드 자체로 보여준다. null 을 반환해 카드를 지우면
+  // "아직 측정 안 함" 과 "API 가 죽음" 이 화면에서 구분되지 않는다.
+  if (metrics.measured === false || !metrics.overall) {
+    return <NotMeasured reason={metrics.reason} detail={metrics.detail} lang={lang} />;
+  }
+
   const { overall, per_class, meta, rag_comparison, error_analysis } = metrics;
-  if (!overall) return null;
 
   const topCategories = Object.entries(per_class || {})
     .sort((a, b) => b[1].f1 - a[1].f1)
