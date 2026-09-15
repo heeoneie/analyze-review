@@ -56,3 +56,11 @@ cloudflared/*.json
 
 # 검증 산출물에는 실제 손님이 쓴 리뷰 원문이 들어간다. 공개 레포에 올리지 않는다.
 results/reply_verification.*
+
+# 평가 표본·라벨 파일에는 실제 손님이 쓴 리뷰 원문이 들어간다. 이 레포는 공개다.
+# (*.csv 규칙에 이미 걸리지만, 그 규칙이 바뀌어도 이건 남아야 한다.)
+evaluation/sample_*.csv
+evaluation/*.retest.csv
+evaluation/labels_*.csv
+# 모델 예측 원본에도 리뷰 본문이 함께 실린다. 집계 결과만 커밋한다.
+results/eval/predictions_*.jsonl
