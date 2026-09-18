@@ -15,20 +15,25 @@
 
 ## 지금 어디까지 됐는가
 
+> 이 절은 쉽게 낡는다. 고칠 때는 **워킹트리가 아니라 `origin/main` 을 보고** 확인한다. 한 번은 낡은 로컬 main 에서 브랜치를 따는 바람에, 이미 끝난 문제를 다시 고치는 PR 이 세 개 만들어졌다(#50 #51 #52, 전부 `37f6515` 기준). 마지막 확인: 2026-09-18, `8e9a234`.
+
 **동작하는 것**
 
 - 답글 생성 — 별점에 따라 긍정/부정 경로가 갈린다 (`core/reply_generator.py`)
 - 카카오 로그인과 매장 계정 (`backend/routers/auth.py`, `User`/`Store` 모델)
 - 사장님이 실제로 게시한 답글의 이력 저장 (`ReplySample`, `backend/services/reply_history.py`)
+- **말투 학습 루프가 닫혀 있다.** 온보딩·게시 이력 → `reply_history.style_profile_for()` → `ReplyGenerator.generate(style=...)`. `POST /reply/store/generate` 가 그 경로다. 긍정과 부정은 표본 풀을 따로 쓰고, 표본에서 예시·길이 기준·인사말 습관을 뽑는다 (`core/reply_style.py`)
+- **말투 온보딩.** 가입 직후 사장님이 자기 답글을 직접 써넣는다 (`POST /reply/style/onboarding`, `GET /reply/style/status`, `StyleOnboarding.jsx`). 표본 0건인 첫 사용자의 공백을 이걸로 메운다
+- **수집 · 리뷰 목록 화면.** `Dashboard.jsx` 가 `ReviewList` 와 `PriorityReviewList` 를 띄우고, 리뷰는 CSV 임시파일이 아니라 DB 에 남는다 (`backend/routers/reviews.py`)
 - 쿠팡 · 네이버 스마트스토어 수집 **API** (`backend/services/crawler_service.py`, `POST /api/data/crawl`)
 
 **아직 안 되는 것**
 
-- **수집 · 리뷰 목록 화면이 없다.** 백엔드 엔드포인트는 살아 있는데 부르는 UI가 없다. `ReviewList` `PriorityReviewList` `MetricsOverview` `TopIssuesCard` `CategoryChart` `EmergingIssues` `ActionPlan` `FileUpload` 는 이 용도로 남겨 둔 것이지 죽은 코드가 아니다. **지우지 말 것.**
-- **말투 학습 루프가 닫히지 않았다.** `reply_history.style_examples()` 를 호출하는 곳이 없고, `ReplyGenerator.generate()` 에 few-shot 예시를 받을 인자가 없다. 답글을 모으기만 하고 생성에 반영하지 않는다.
-- **온보딩이 없다.** `record_onboarding()` 은 테스트에서만 불린다. 가입 직후 사장님이 자기 답글을 써넣는 경로가 없어서 첫 사용자는 예시 풀이 비어 있다.
+- **분석 화면이 없다.** `MetricsOverview` `TopIssuesCard` `CategoryChart` `EmergingIssues` `ActionPlan` `FileUpload` `ReplyPanel` `ReplyGuide` 는 어느 페이지에서도 import 되지 않는다. 백엔드 엔드포인트는 살아 있고 이 용도로 남겨 둔 것이지 죽은 코드가 아니다. **지우지 말 것.** (`ReplyPanel` 이 안 걸려 있으므로 `backend/routers/reply.py` 의 `/generate`·`/generate-batch` 도 지금은 부르는 화면이 없다.)
+- **말투가 실제로 맞는지 재는 숫자가 없다.** 예시·길이·인사말을 프롬프트에 넣고는 있지만 그게 듣는지 측정한 적이 없다. 여기에 자가 없으면 말투 학습을 더 만들어도 좋아졌다는 근거가 안 생긴다.
+- **"가게마다" 가 아니다.** `POST /auth/claim-store` 는 `config.STORE_NAME` 한 곳만 만들고 `Store.name` 이 전역 unique 라, 두 번째 사장님은 409 로 막힌다. 매장을 만드는 경로가 1회성 이관 하나뿐이다.
 - **배달앱 수집기가 없다.** 지금은 사장님이 리뷰를 복사해서 붙여넣는다.
-- **보관기간 · 파기, 재위탁 동의가 없다.** 아래 법적 제약 참고.
+- **보관기간 · 파기, 재위탁 동의가 없다.** 아래 법적 제약 참고. 위의 "가게마다" 를 여는 일이 여기에 막혀 있다.
 
 ## 넘지 말아야 할 선
 
