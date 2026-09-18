@@ -1,6 +1,6 @@
 """말투 적합도 리포트 — 답글이 사장님께 맞는지, 그리고 매크로가 아닌지.
 
-    python scripts/style_report.py                 # 기본 DB
+    python scripts/style_report.py                 # DATABASE_URL 의 DB
     python scripts/style_report.py --db data/ontology.db
     python scripts/style_report.py --store 1 --json
 
@@ -45,9 +45,36 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core import config, style_fit  # noqa: E402  pylint: disable=wrong-import-position
 
-DEFAULT_DB = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "ontology.db"
-)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 앱이 DATABASE_URL 을 못 찾았을 때 쓰는 경로와 같아야 한다
+# (`backend/database/database.py`). 여기서만 다르게 두면 조용히 다른 DB 를 읽는다.
+_FALLBACK_DB = os.path.join(_ROOT, "data", "ontology.db")
+
+
+def default_db() -> str | None:
+    """앱이 실제로 쓰는 SQLite 경로. 알아낼 수 없으면 None.
+
+    `DATABASE_URL` 을 먼저 본다. 이걸 안 보고 `data/ontology.db` 를 박아 두면
+    배포 환경에서 두 가지로 틀린다. docker-compose 는
+    `sqlite:////app/var/app.db` 를 넣고, `data/ontology.db` 는 마이그레이션
+    기록상 **옛 경로**다. 앱이 임포트될 때마다 그 디렉터리를 만들어 두므로
+    빈 파일이나 낡은 파일이 남아 있기 쉽고, 그러면 죽은 데이터로 리포트가
+    멀쩡히 나온다. 틀린 숫자를 조용히 내는 쪽이 못 찾는 쪽보다 나쁘다.
+
+    sqlite 가 아닌 DSN(postgres 등)이면 None 을 돌려준다. 이 스크립트는
+    sqlite 만 읽는다.
+    """
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        return _FALLBACK_DB
+    if not url.startswith("sqlite"):
+        return None
+    # sqlite:///상대경로 · sqlite:////절대경로 둘 다 앞의 "sqlite:///" 를 떼면 된다.
+    _, _, path = url.partition("sqlite:///")
+    path = path.split("?", 1)[0]
+    if not path:
+        return None
+    return path if os.path.isabs(path) else os.path.join(_ROOT, path)
 
 
 def load_samples(db_path: str, store_id: int | None = None) -> list[dict]:
@@ -57,20 +84,26 @@ def load_samples(db_path: str, store_id: int | None = None) -> list[dict]:
     하고 모델도 라우터도 건드리지 않으므로, 앱을 임포트해서 설정과 마이그레이션이
     딸려 오게 만들 이유가 없다.
 
-    `finalized_at` 은 문자열 그대로 둔다. ISO 형식이라 문자열 정렬이 곧
-    시간순이고, 학습 곡선은 순서만 쓴다.
+    `created_at`·`finalized_at` 은 문자열 그대로 둔다. ISO 형식이라 문자열
+    비교가 곧 시간 비교이고, 학습 곡선은 앞뒤 관계만 쓴다. 둘 다 읽어야
+    한다 — 곡선은 답글을 **만든** 시각으로 세고, 그 시점의 표본 수는
+    **게시된** 시각으로 센다.
     """
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     try:
         sql = (
             "SELECT store_id, origin, rating, generated_reply, final_reply, "
-            "finalized_at FROM reply_samples"
+            "created_at, finalized_at FROM reply_samples"
         )
         params: tuple = ()
         if store_id is not None:
             sql += " WHERE store_id = ?"
             params = (store_id,)
+        # ORDER BY 를 빼면 같은 DB 를 두 번 읽어도 다른 반복률이 나온다.
+        # 행 순서는 계약이 아니다 — VACUUM 이나 batch_alter_table 로 테이블이
+        # 다시 만들어지면 바뀐다. 마이그레이션이 실제로 batch_alter_table 을 쓴다.
+        sql += " ORDER BY id"
         return [dict(row) for row in conn.execute(sql, params)]
     finally:
         conn.close()
@@ -97,7 +130,11 @@ def _edit_line(label: str, stats: style_fit.EditStats, indent: str = "  ") -> st
 def build(samples: list[dict]) -> dict:
     """리포트에 들어갈 수치 전부. --json 이 그대로 내보낸다."""
     posted = [s for s in samples if (s.get("final_reply") or "").strip()]
-    generated_posted = [s for s in posted if (s.get("generated_reply") or "").strip()]
+    # 게시 여부와 무관하게 우리가 만든 초안 **전부**를 센다. 게시된 것만 세면
+    # 사장님이 버린 초안이 빠지는데, 매크로처럼 읽히는 초안이야말로 버려질
+    # 가능성이 높다. 그러면 "우리가 매크로를 만들었나" 라는 바로 그 질문에
+    # 유리한 쪽으로 표본이 걸러진다.
+    drafted = [s for s in samples if (s.get("generated_reply") or "").strip()]
 
     def _pol(rows, positive):
         return [
@@ -124,10 +161,8 @@ def build(samples: list[dict]) -> dict:
         "repetition": {
             # 사장님이 실제로 올린 글 전부. 매크로 기준선이다.
             "게시본": style_fit.repetition([s["final_reply"] for s in posted]),
-            # 우리가 만든 초안. 게시본보다 이쪽이 더 반복적이면 우리가 만든 문제다.
-            "생성본": style_fit.repetition(
-                [s["generated_reply"] for s in generated_posted]
-            ),
+            # 우리가 만든 초안 전량. 게시본보다 이쪽이 더 반복적이면 우리 문제다.
+            "생성본": style_fit.repetition([s["generated_reply"] for s in drafted]),
         },
     }
 
@@ -135,20 +170,19 @@ def build(samples: list[dict]) -> dict:
 def group_by_store(samples: list[dict]) -> dict:
     """매장별로 가른다. 합치지 않는다 — 모듈 최상단의 설명 참고.
 
-    `store_id` 가 NULL 인 행은 카카오 로그인 이전의 접속코드 시절 데이터다.
-    매장이 하나뿐이던 시기라 한 덩어리로 묶어도 섞이지 않는다.
+    `reply_samples.store_id` 는 NOT NULL 이다 (모델과 baseline 마이그레이션
+    양쪽에서). `Review` 쪽과 달리 접속코드 시절의 NULL 행이 존재하지 않으므로
+    없는 경우를 다루지 않는다.
     """
     groups: dict = {}
     for sample in samples:
-        groups.setdefault(sample.get("store_id"), []).append(sample)
-    return dict(sorted(groups.items(), key=lambda kv: (kv[0] is not None, kv[0])))
+        groups.setdefault(sample["store_id"], []).append(sample)
+    return dict(sorted(groups.items()))
 
 
-def render(report: dict, store_id: int | None = None) -> str:
+def render(report: dict, store_id: int) -> str:
     counts = report["counts"]
-    title = "  말투 적합도" + (
-        f" — 매장 {store_id}" if store_id is not None else " — 매장 연결 전 데이터"
-    )
+    title = f"  말투 적합도 — 매장 {store_id}"
     lines = [
         "",
         "═" * 68,
@@ -210,6 +244,8 @@ def render(report: dict, store_id: int | None = None) -> str:
         "  학습 곡선은 관측이지 실험이 아니다. 표본이 쌓이는 동안 프롬프트도 바뀌었다면",
         "  원인을 가를 수 없다. 바꾼 것은 evaluation/public/tuning_log.json 에 남긴다.",
         "  반복률은 구두점 없이 이어 쓴 답글에서 반복을 덜 잡는다 (과소평가 방향).",
+        "  게시본 반복률에는 사장님이 직접 쓴 온보딩 답글이 섞여 있다. 우리가 만든",
+        "  글만 보려면 생성본 쪽을 본다 — 그쪽은 버린 초안까지 전부 센다.",
         "",
     ]
     return "\n".join(lines)
@@ -233,16 +269,26 @@ def _jsonable(report: dict) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="말투 적합도 리포트")
-    parser.add_argument("--db", default=DEFAULT_DB, help="SQLite 경로")
+    parser.add_argument(
+        "--db", default=None, help="SQLite 경로 (기본: DATABASE_URL 에서 찾는다)",
+    )
     parser.add_argument("--store", type=int, default=None, help="매장 id (기본: 전체)")
     parser.add_argument("--json", action="store_true", help="수치만 JSON 으로")
     args = parser.parse_args()
 
-    if not os.path.exists(args.db):
-        print(f"DB 가 없습니다: {args.db}", file=sys.stderr)
+    db = args.db or default_db()
+    if db is None:
+        print(
+            "DATABASE_URL 이 sqlite 가 아니라 읽을 경로를 알 수 없습니다. "
+            "--db 로 지정해 주십시오.",
+            file=sys.stderr,
+        )
+        return 1
+    if not os.path.exists(db):
+        print(f"DB 가 없습니다: {db}", file=sys.stderr)
         return 1
 
-    samples = load_samples(args.db, args.store)
+    samples = load_samples(db, args.store)
     if not samples:
         where = f"store_id={args.store} " if args.store else ""
         print(f"{where}답글 표본이 없습니다. 답글을 게시한 뒤에 다시 보십시오.")

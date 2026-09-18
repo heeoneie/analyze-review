@@ -38,6 +38,7 @@ DB 를 모르는 순수 함수로 둔다 — `core/reply_style.py` 와 같은 �
 부르는 쪽이 `ReplySample` 을 평범한 dict 로 바꿔서 넘긴다.
 """
 
+from bisect import bisect_left
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
@@ -177,23 +178,35 @@ class RepetitionStats:
 def _cluster(sentences: list[str]) -> list[int]:
     """사실상 같은 문장끼리 묶고 각 군집의 크기를 돌려준다.
 
-    `openings_collide` 는 이행적이지 않다 (A~B, B~C 여도 A~C 는 아닐 수 있다).
-    그래서 완전한 군집화가 아니라 **먼저 만들어진 군집의 대표와 비교하는**
-    탐욕적 방식이다. 군집 개수를 조금 많게 잡는 쪽으로 치우치므로,
-    `top_opening_share` 는 실제 반복 정도를 과소평가할 수는 있어도
-    과대평가하지는 않는다. 안전한 방향이다.
+    `openings_collide` 는 이행적이지 않다 — A~B 이고 B~C 여도 A~C 는 아닐 수
+    있다. 그래서 군집을 만들 때 **이미 들어 있는 모든 문장과 충돌해야** 넣는다
+    (대표 하나와만 비교하지 않는다). 두 가지가 여기에 걸려 있다.
+
+    첫째, 군집이 전부 서로 충돌하는 무리가 되므로 `top_opening_share` 가
+    실제보다 큰 값이 되지 않는다. 대표와만 비교하면 A~C 가 아닌데도 B 를
+    거쳐 한 군집에 들어간다. 실제로 그렇게 됐었다:
+
+        A="감사합니다 고객님 진심으로 감사드립니다"
+        B="감사합니다 고객님"
+        C="고객님 안녕하세요 반갑습니다 감사합니다 고객님"
+        (A~B 참, B~C 참, A~C 거짓)
+
+        입력 [A,B,C] → 최다 군집 66.7%
+        입력 [B,A,C] → 최다 군집 100.0%    ← 같은 데이터, 다른 숫자
+
+    둘째, 그래서 입력 순서에 따라 결과가 흔들렸다. 이 값은 매크로 기준선
+    31% 와 나란히 놓고 읽는 숫자라 행 순서로 바뀌면 안 된다. 들어온 순서를
+    먼저 정렬해 결과를 고정한다.
     """
-    reps: list[str] = []
-    sizes: list[int] = []
-    for sentence in sentences:
-        for i, rep in enumerate(reps):
-            if openings_collide(sentence, rep):
-                sizes[i] += 1
+    clusters: list[list[str]] = []
+    for sentence in sorted(sentences):
+        for members in clusters:
+            if all(openings_collide(sentence, m) for m in members):
+                members.append(sentence)
                 break
         else:
-            reps.append(sentence)
-            sizes.append(1)
-    return sizes
+            clusters.append([sentence])
+    return [len(c) for c in clusters]
 
 
 def repetition(replies: list[str]) -> RepetitionStats:
@@ -234,29 +247,56 @@ class CurvePoint:
 def learning_curve(samples: list[dict], *, positive: bool | None = None) -> list[CurvePoint]:
     """"표본이 쌓일수록 덜 고치는가" 를 구간별로 본다.
 
-    각 답글을 만든 시점에 **같은 성향의 확정 표본이 몇 건 있었는지**를 세어
-    구간에 넣는다. 그 값이 곧 `reply_style.build_profile` 이 그때 받았을
-    표본 수다. 성향을 나누는 이유는 생성 경로가 긍정·부정으로 갈리고 표본
-    풀도 따로 쓰이기 때문이다 — 섞으면 한쪽이 많은 매장에서 다른 쪽의
-    학습 상태를 잘못 읽는다.
+    각 답글을 **만든 시점**에 같은 성향의 게시된 표본이 몇 건 있었는지를 세어
+    구간에 넣는다. 그 값이 곧 `reply_style.build_profile` 이 그때 받은 표본
+    수다.
 
-    이건 관측이다. 표본이 쌓이는 동안 프롬프트나 모델이 같이 바뀌었으면
-    편집률 변화의 원인을 가를 수 없다. 리포트에 그 기간을 같이 적는다.
+    ## 만든 시각으로 센다 — 게시한 시각이 아니다
+
+    `created_at` 은 `record_generated` 가 찍고 `finalized_at` 은 `finalize`
+    가 찍는다. 둘은 다른 순간이고, 프롬프트를 만든 것은 앞쪽이다.
+
+    게시 시각으로 줄을 세우면 x축을 지어낼 수 있다. 사장님이 월요일에 리뷰
+    다섯 건의 답글을 한꺼번에 만들면 다섯 건 모두 표본 0건으로 생성된다.
+    그걸 화요일에 하나씩 올리면, 게시 순서만 보고 0·1·2·3·4 건으로 세어
+    뒤쪽 세 건이 "표본 2-4건으로 만든 답글" 이 된다. 그것들이 수정 없이
+    올라갔다면, 학습이 전혀 걸리지 않은 데이터에서 이 리포트가 찾으려는
+    바로 그 하향 곡선이 그려진다.
+
+    ## 성향을 나누는 이유
+
+    생성 경로가 긍정·부정으로 갈리고 표본 풀도 따로 쓰인다. 섞으면 한쪽이
+    많은 매장에서 다른 쪽의 학습 상태를 잘못 읽는다.
+
+    ## 무엇을 풀로 세는가
+
+    `final_reply` 가 빈 문자열이 아닌 행만 센다. `style_examples` 는 NULL 만
+    거르지만 그 뒤 `build_profile` 이 빈 답글을 다시 걸러내므로, 프롬프트에
+    실제로 들어간 수는 이쪽이다.
+
+    이건 관측이지 실험이 아니다. 표본이 쌓이는 동안 프롬프트나 모델이 같이
+    바뀌었으면 편집률 변화의 원인을 가를 수 없다.
     """
-    dated = [s for s in samples if s.get("finalized_at") is not None]
+    drafts = [
+        s for s in samples
+        if s.get("created_at") is not None
+        and (s.get("generated_reply") or "").strip()
+    ]
     if positive is not None:
-        dated = [s for s in dated if _is_positive(s["rating"]) == positive]
-    dated.sort(key=lambda s: s["finalized_at"])
+        drafts = [s for s in drafts if _is_positive(s["rating"]) == positive]
 
-    # 성향별로 따로 센다. 긍정 답글을 만들 때 부정 표본 20건은 도움이 안 된다.
-    seen: dict[bool, int] = {True: 0, False: 0}
-    tagged: list[tuple[int, dict]] = []
-    for sample in dated:
-        polarity = _is_positive(sample["rating"])
-        tagged.append((seen[polarity], sample))
-        # 게시된 답글만 다음 표본 풀에 들어간다 (`style_examples` 와 같은 기준).
-        if (sample.get("final_reply") or "").strip():
-            seen[polarity] += 1
+    # 성향별 게시 시각을 정렬해 두고, 답글을 만든 시각보다 앞선 것을 센다.
+    posted: dict[bool, list] = {True: [], False: []}
+    for sample in samples:
+        if (sample.get("final_reply") or "").strip() and sample.get("finalized_at"):
+            posted[_is_positive(sample["rating"])].append(sample["finalized_at"])
+    for times in posted.values():
+        times.sort()
+
+    tagged = [
+        (bisect_left(posted[_is_positive(d["rating"])], d["created_at"]), d)
+        for d in drafts
+    ]
 
     points = []
     for low, high in CURVE_BUCKETS:

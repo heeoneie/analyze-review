@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from core import style_fit
+from core.reply_text import openings_collide
 
 BASE = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
@@ -20,6 +21,7 @@ def _sample(prefix, **kw):
         "rating": 5,
         "generated_reply": f"{prefix} 생성본입니다",
         "final_reply": f"{prefix} 생성본입니다",
+        "created_at": BASE,
         "finalized_at": BASE,
     }
     base.update(kw)
@@ -211,7 +213,8 @@ def _series(count, *, rating, edited_upto):
             rating=rating,
             generated_reply=gen,
             final_reply=f"{i}번 고쳐 썼습니다" if i < edited_upto else gen,
-            finalized_at=BASE + timedelta(days=i),
+            created_at=BASE + timedelta(days=i),
+            finalized_at=BASE + timedelta(days=i, hours=1),
         ))
     return out
 
@@ -240,8 +243,11 @@ def test_curve_keeps_polarities_apart():
     samples = []
     for i in range(10):
         samples.append(_sample(f"부{i}", rating=2,
-                               finalized_at=BASE + timedelta(days=i)))
-    samples.append(_sample("긍1", rating=5, finalized_at=BASE + timedelta(days=20)))
+                               created_at=BASE + timedelta(days=i),
+                               finalized_at=BASE + timedelta(days=i, hours=1)))
+    samples.append(_sample("긍1", rating=5,
+                           created_at=BASE + timedelta(days=20),
+                           finalized_at=BASE + timedelta(days=20, hours=1)))
 
     points = style_fit.learning_curve(samples, positive=True)
     # 긍정은 한 건뿐이고 그 앞에 쌓인 긍정 표본은 0건이다.
@@ -255,9 +261,11 @@ def test_unposted_drafts_do_not_grow_the_pool():
     다르면 곡선의 x축이 실제로 프롬프트에 들어간 표본 수와 어긋난다.
     """
     samples = [
-        _sample("가", final_reply=None, finalized_at=BASE),
-        _sample("나", final_reply=None, finalized_at=BASE + timedelta(days=1)),
-        _sample("다", finalized_at=BASE + timedelta(days=2)),
+        _sample("가", final_reply=None, created_at=BASE, finalized_at=None),
+        _sample("나", final_reply=None,
+                created_at=BASE + timedelta(days=1), finalized_at=None),
+        _sample("다", created_at=BASE + timedelta(days=2),
+                finalized_at=BASE + timedelta(days=2, hours=1)),
     ]
     points = style_fit.learning_curve(samples)
     # 앞 두 건이 풀에 안 쌓이므로 '다' 는 여전히 표본 0건 구간이다.
@@ -265,7 +273,82 @@ def test_unposted_drafts_do_not_grow_the_pool():
     assert points[0].stats.edited == 0
 
 
-def test_rows_without_a_finalized_time_are_skipped():
-    samples = [_sample("가", finalized_at=None), _sample("나")]
+def test_rows_without_a_created_time_are_skipped():
+    """언제 만들었는지 모르면 그 시점의 표본 수도 알 수 없다."""
+    samples = [_sample("가", created_at=None), _sample("나")]
     points = style_fit.learning_curve(samples)
     assert sum(p.stats.total for p in points) == 1
+
+
+def test_batch_generation_does_not_fabricate_a_curve():
+    """한꺼번에 만들고 하나씩 게시해도 학습 곡선이 생기면 안 된다.
+
+    게시 시각으로 줄을 세우면 여기서 0·1·2·3·4 건 구간이 만들어지고,
+    뒤쪽이 수정 없이 올라갔으므로 이 리포트가 찾으려는 하향 곡선이 그대로
+    그려진다. 학습이 전혀 걸리지 않은 데이터인데도.
+    """
+    made = BASE
+    samples = [
+        _sample(
+            str(i),
+            generated_reply=f"{i}번 생성본입니다",
+            final_reply=f"{i}번 생성본입니다",
+            created_at=made,                                   # 전부 같은 순간에 생성
+            finalized_at=BASE + timedelta(days=1, hours=i),     # 게시는 하루 뒤 순차
+        )
+        for i in range(5)
+    ]
+    points = style_fit.learning_curve(samples)
+    # 만든 시점에는 게시된 표본이 0건이었다. 전부 첫 구간에 들어가야 한다.
+    assert points[0].stats.total == 5
+    assert sum(p.stats.total for p in points[1:]) == 0
+
+
+def test_prior_count_uses_replies_posted_before_generation():
+    """생성 전에 이미 게시돼 있던 답글만 그 시점의 표본으로 센다.
+
+    하루에 한 건씩 만들고 곧바로 게시하면 n번째 답글의 표본은 n-1 건이다.
+    0·1번은 0-1 구간, 2번과 그 뒤는 2-4 구간에 들어간다.
+    """
+    daily = [
+        _sample(f"이전{i}",
+                created_at=BASE + timedelta(days=i),
+                finalized_at=BASE + timedelta(days=i, hours=1))
+        for i in range(3)
+    ]
+    later = _sample("나중", created_at=BASE + timedelta(days=10),
+                    finalized_at=BASE + timedelta(days=10, hours=1))
+    points = style_fit.learning_curve(daily + [later])
+    assert {p.label: p.stats.total for p in points} == {
+        "0-1": 2, "2-4": 2, "5-9": 0, "10+": 0,
+    }
+
+
+# 서로 겹치는 관계가 이행적이지 않은 세 문장. A~B 참, B~C 참, A~C 거짓이라
+# 군집화가 순서에 휘둘리기 쉬운 자리다.
+_A = "감사합니다 고객님 진심으로 감사드립니다"
+_B = "감사합니다 고객님"
+_C = "고객님 안녕하세요 반갑습니다 감사합니다 고객님"
+
+
+def test_the_three_sentences_are_not_transitive():
+    """아래 두 테스트가 기대는 전제. 깨지면 그 테스트들이 헛돈다."""
+    assert openings_collide(_A, _B) is True
+    assert openings_collide(_B, _C) is True
+    assert openings_collide(_A, _C) is False
+
+
+def test_repetition_does_not_depend_on_input_order():
+    """같은 데이터에서 같은 숫자가 나와야 한다.
+
+    대표 하나와만 비교하던 때는 순서에 따라 최다 군집이 66.7% 와 100% 로
+    갈렸다. 매크로 기준선 31% 와 나란히 읽는 값이라 흔들리면 안 된다.
+    """
+    assert style_fit.repetition([_A, _B, _C]) == style_fit.repetition([_B, _A, _C])
+    assert style_fit.repetition([_C, _B, _A]) == style_fit.repetition([_A, _B, _C])
+
+
+def test_repetition_never_merges_sentences_that_do_not_collide():
+    """군집은 서로 전부 충돌하는 무리다. 그래야 반복률이 부풀지 않는다."""
+    # A 와 C 가 B 를 거쳐 한 군집에 들어가면 최다 군집이 100% 가 된다.
+    assert style_fit.repetition([_A, _B, _C]).top_opening_share < 1.0

@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from backend.database.models import ReplySample
+
 _SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "style_report.py"
 _spec = importlib.util.spec_from_file_location("style_report", _SCRIPT)
 style_report = importlib.util.module_from_spec(_spec)
@@ -23,30 +25,36 @@ _spec.loader.exec_module(style_report)
 
 
 ROWS = [
-    # (store_id, origin, rating, generated, final, finalized_at)
-    (1, "generated", 5, "가게 초안 하나입니다", "가게 초안 하나입니다", "2026-01-01"),
-    (1, "generated", 5, "가게 초안 둘입니다", "사장님이 고쳐 쓴 답글", "2026-01-02"),
-    (2, "generated", 5, "다른 가게 초안입니다", "다른 가게 초안입니다", "2026-01-03"),
+    # (store_id, origin, rating, generated, final, created_at, finalized_at)
+    (1, "generated", 5, "가게 초안 하나입니다", "가게 초안 하나입니다",
+     "2026-01-01T00:00", "2026-01-01T01:00"),
+    (1, "generated", 5, "가게 초안 둘입니다", "사장님이 고쳐 쓴 답글",
+     "2026-01-02T00:00", "2026-01-02T01:00"),
+    (2, "generated", 5, "다른 가게 초안입니다", "다른 가게 초안입니다",
+     "2026-01-03T00:00", "2026-01-03T01:00"),
 ]
 
 
-@pytest.fixture(name="db_path")
-def _db_path(tmp_path):
-    path = tmp_path / "samples.db"
+def _make_db(path, rows):
     conn = sqlite3.connect(path)
     conn.execute(
-        "CREATE TABLE reply_samples (id INTEGER PRIMARY KEY, store_id INTEGER, "
-        "origin TEXT, rating INTEGER, generated_reply TEXT, final_reply TEXT, "
-        "finalized_at TEXT)"
+        "CREATE TABLE reply_samples (id INTEGER PRIMARY KEY, "
+        "store_id INTEGER NOT NULL, origin TEXT, rating INTEGER, "
+        "generated_reply TEXT, final_reply TEXT, created_at TEXT, finalized_at TEXT)"
     )
     conn.executemany(
         "INSERT INTO reply_samples (store_id, origin, rating, generated_reply, "
-        "final_reply, finalized_at) VALUES (?,?,?,?,?,?)",
-        ROWS,
+        "final_reply, created_at, finalized_at) VALUES (?,?,?,?,?,?,?)",
+        rows,
     )
     conn.commit()
     conn.close()
     return str(path)
+
+
+@pytest.fixture(name="db_path")
+def _db_path(tmp_path):
+    return _make_db(tmp_path / "samples.db", ROWS)
 
 
 def test_samples_are_split_per_store(db_path):
@@ -79,26 +87,15 @@ def test_edit_rate_is_computed_per_store(db_path):
     assert style_report.build(groups[2])["edit"]["전체"].rate == 0.0
 
 
-def test_pre_store_rows_group_together(tmp_path):
-    """store_id 가 NULL 인 행은 접속코드 시절 데이터다. 그때는 매장이 하나였다."""
-    path = tmp_path / "legacy.db"
-    conn = sqlite3.connect(path)
-    conn.execute(
-        "CREATE TABLE reply_samples (id INTEGER PRIMARY KEY, store_id INTEGER, "
-        "origin TEXT, rating INTEGER, generated_reply TEXT, final_reply TEXT, "
-        "finalized_at TEXT)"
-    )
-    conn.executemany(
-        "INSERT INTO reply_samples (store_id, origin, rating, generated_reply, "
-        "final_reply, finalized_at) VALUES (?,?,?,?,?,?)",
-        [(None, "generated", 5, "초안입니다", "초안입니다", "2026-01-01"),
-         (1, "generated", 5, "다른 초안입니다", "다른 초안입니다", "2026-01-02")],
-    )
-    conn.commit()
-    conn.close()
+def test_reply_samples_store_id_is_not_nullable():
+    """매장 없는 행을 다루는 분기를 두지 않는 근거.
 
-    groups = style_report.group_by_store(style_report.load_samples(str(path)))
-    assert list(groups) == [None, 1]
+    `Review.store_id` 와 달리 `ReplySample.store_id` 는 NOT NULL 이다. 모델과
+    baseline 마이그레이션 양쪽에 걸려 있으므로 접속코드 시절의 NULL 행이
+    존재하지 않는다. 이게 뒤집히면 `group_by_store` 가 KeyError 로 먼저
+    깨져야 한다 — 조용히 "None" 매장을 만들어 내는 것보다 낫다.
+    """
+    assert ReplySample.__table__.c.store_id.nullable is False
 
 
 def test_report_carries_no_reply_text(db_path):
@@ -108,23 +105,14 @@ def test_report_carries_no_reply_text(db_path):
         style_report.render(style_report.build(rows), sid)
         for sid, rows in groups.items()
     )
-    for _, _, _, generated, final, _ in ROWS:
+    for _, _, _, generated, final, _, _ in ROWS:
         assert generated not in rendered
         assert final not in rendered
 
 
 def test_empty_database_exits_quietly(tmp_path, capsys, monkeypatch):
-    path = tmp_path / "empty.db"
-    conn = sqlite3.connect(path)
-    conn.execute(
-        "CREATE TABLE reply_samples (id INTEGER PRIMARY KEY, store_id INTEGER, "
-        "origin TEXT, rating INTEGER, generated_reply TEXT, final_reply TEXT, "
-        "finalized_at TEXT)"
-    )
-    conn.commit()
-    conn.close()
-
-    monkeypatch.setattr(sys, "argv", ["style_report.py", "--db", str(path)])
+    path = _make_db(tmp_path / "empty.db", [])
+    monkeypatch.setattr(sys, "argv", ["style_report.py", "--db", path])
     assert style_report.main() == 0
     assert "표본이 없습니다" in capsys.readouterr().out
 
@@ -136,9 +124,55 @@ def test_missing_database_returns_one(tmp_path, capsys, monkeypatch):
     assert "DB 가 없습니다" in capsys.readouterr().err
 
 
-def test_database_is_opened_read_only(db_path):
-    """리포트가 운영 DB 를 건드릴 일은 없다. 실수로도 못 쓰게 막혀 있어야 한다."""
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+def test_database_is_opened_read_only(db_path, monkeypatch):
+    """리포트가 운영 DB 를 건드릴 일은 없다. 실수로도 못 쓰게 막혀 있어야 한다.
+
+    URI 를 테스트가 다시 조립하면 `load_samples` 를 읽기·쓰기로 바꿔도 통과한다.
+    실제로 `load_samples` 가 연 연결을 잡아서 본다.
+    """
+    opened = {}
+    real_connect = sqlite3.connect
+
+    def spy(target, *args, **kwargs):
+        opened["target"] = target
+        opened["uri"] = kwargs.get("uri", False)
+        return real_connect(target, *args, **kwargs)
+
+    monkeypatch.setattr(style_report.sqlite3, "connect", spy)
+    style_report.load_samples(db_path)
+
+    assert opened["uri"] is True
+    assert opened["target"].endswith("?mode=ro")
+
+    conn = real_connect(opened["target"], uri=True)
     with pytest.raises(sqlite3.OperationalError):
         conn.execute("DELETE FROM reply_samples")
     conn.close()
+
+
+def test_default_db_follows_database_url(monkeypatch):
+    """배포는 DATABASE_URL 로 경로를 준다. 여기를 안 보면 옛 DB 를 읽는다."""
+    monkeypatch.setenv("DATABASE_URL", "sqlite:////app/var/app.db")
+    assert style_report.default_db() == "/app/var/app.db"
+
+
+def test_default_db_resolves_a_relative_sqlite_url(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///var/app.db")
+    assert style_report.default_db().endswith("/var/app.db")
+
+
+def test_default_db_gives_up_on_non_sqlite(monkeypatch):
+    """postgres 면 이 스크립트가 읽을 수 없다. 조용히 다른 파일을 읽지 않는다."""
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user@host/db")
+    assert style_report.default_db() is None
+
+
+def test_unposted_drafts_count_toward_generated_repetition(tmp_path):
+    """버린 초안도 센다. 살아남은 것만 세면 매크로 판정이 유리하게 걸러진다."""
+    rows = list(ROWS[:1]) + [
+        (1, "generated", 5, "버려진 초안입니다", None, "2026-01-05T00:00", None),
+    ]
+    samples = style_report.load_samples(_make_db(tmp_path / "d.db", rows))
+    report = style_report.build(samples)
+    assert report["repetition"]["생성본"].total == 2
+    assert report["repetition"]["게시본"].total == 1
