@@ -52,6 +52,8 @@ from core.eval.taxonomy import (  # noqa: E402  pylint: disable=wrong-import-pos
 
 # 배달앱 리뷰 내보내기 형식 ↔ 표준 컬럼명
 COLUMN_ALIASES = {
+    # 원본에 리뷰 고유번호가 있으면 review_id 해시에 넣는다. 없으면 원본 행 번호.
+    "source_id": ("리뷰번호", "리뷰ID", "review_id", "id"),
     "review_text": ("리뷰내용", "리뷰", "review_text", "Reviews", "content"),
     "rating": ("별점", "평점", "rating", "Ratings", "score"),
     "ordered_at": ("작성일시", "작성일", "created_at", "date"),
@@ -111,9 +113,16 @@ def _assign_stratum(rating: int, text: str) -> str:
     return "S3" if has_complaint_signal(text) else "S4"
 
 
-def _review_id(text: str, rating: int, ordered_at: str) -> str:
-    """원문 해시 기반 안정 ID. 원문을 다시 노출하지 않으면서 건을 지목할 수 있다."""
-    raw = f"{rating}|{ordered_at}|{text}".encode("utf-8")
+def _review_id(text: str, rating, ordered_at: str, source: object) -> str:
+    """원문 해시 기반 안정 ID. 원문을 다시 노출하지 않으면서 건을 지목할 수 있다.
+
+    `source` 는 원본의 리뷰 고유번호, 없으면 **원본 CSV 의 행 번호** 다. 본문·
+    별점·작성일시만 해시하면 `--no-dedup` 으로 남긴 중복 행이 같은 ID 를 받고,
+    `label_tool` 의 재검사 추출이 review_id 해시로 고르므로 그 행들이 한꺼번에
+    뽑히거나 한꺼번에 빠져 10% 재검사 표본이 왜곡된다. 섞은 뒤에 붙는
+    sample_id 는 쓰지 않는다 — 시드가 바뀌면 같은 리뷰의 ID 가 달라진다.
+    """
+    raw = f"{rating}|{ordered_at}|{text}|{source}".encode("utf-8")
     return hashlib.sha256(raw).hexdigest()[:12]
 
 
@@ -130,12 +139,28 @@ def load_and_stratify(
         df[cols["ordered_at"]].fillna("").astype(str) if "ordered_at" in cols else ""
     )
     out["menu"] = df[cols["menu"]].fillna("").astype(str) if "menu" in cols else ""
+    # 원본 행을 지목하는 열쇠. 고유번호 컬럼이 있으면 그것, 없으면 원본 행 번호.
+    # (아직 어떤 행도 버리지 않았으므로 out.index 가 곧 원본 행 번호다.)
+    if "source_id" in cols:
+        source = df[cols["source_id"]].fillna("").astype(str).str.strip()
+        out["source_key"] = source.where(source != "", out.index.astype(str))
+    else:
+        out["source_key"] = out.index.astype(str)
 
-    bad_rating = out["rating"].isna().sum()
+    # 별점은 1~5 정수여야 층에 들어간다. 4.9 를 astype(int) 로 4 로 만들면 S2 에
+    # 들어가고, 0 이나 6 은 엉뚱한 층에 들어가 포함확률과 가중치를 흐린다.
+    # 본문 없는 행은 어차피 층 밖(EMPTY)이므로 별점이 어떻든 모집단 집계에 남긴다.
+    has_body = out["review_text"] != ""
+    valid_rating = (
+        out["rating"].notna()
+        & out["rating"].between(1, 5)
+        & (out["rating"] % 1 == 0)
+    )
+    bad_rating = int((has_body & ~valid_rating).sum())
     if bad_rating:
-        print(f"⚠️  별점을 숫자로 읽을 수 없는 행 {bad_rating}건을 버립니다.")
-        out = out[out["rating"].notna()]
-    out["rating"] = out["rating"].astype(int)
+        print(f"⚠️  별점이 1~5 정수가 아닌 행 {bad_rating}건을 버립니다.")
+        out = out[~(has_body & ~valid_rating)]
+    out["rating"] = out["rating"].astype("Int64")
 
     before = len(out)
     if dedup:
@@ -154,8 +179,10 @@ def load_and_stratify(
             )
 
     out["review_id"] = [
-        _review_id(r.review_text, r.rating, r.ordered_at) for r in out.itertuples()
+        _review_id(r.review_text, r.rating, r.ordered_at, r.source_key)
+        for r in out.itertuples()
     ]
+    out = out.drop(columns=["source_key"])
     out["stratum"] = [
         _assign_stratum(r.rating, r.review_text) for r in out.itertuples()
     ]

@@ -144,6 +144,52 @@ def test_missing_required_column_fails_loudly(tmp_path):
         build_sample.load_and_stratify(path)
 
 
+def test_kept_duplicates_get_distinct_review_ids(tmp_path):
+    """`--no-dedup` 으로 남긴 중복 행이 같은 ID 를 받으면 재검사 추출이 왜곡된다.
+
+    `label_tool` 은 review_id 해시로 10% 를 고르므로 같은 ID 는 전부 뽑히거나
+    전부 빠진다.
+    """
+    rows = [{"별점": 5, "리뷰내용": "맛있어요", "작성일시": "2026-09-01",
+             "주문메뉴": "짬뽕", "주문유형": "배달"}] * 5
+    pop, _, _ = build_sample.load_and_stratify(_write_csv(tmp_path, rows), dedup=False)
+    assert pop["review_id"].nunique() == 5
+
+
+def test_source_review_id_column_anchors_the_hash(tmp_path):
+    """원본에 고유번호가 있으면 행 순서가 바뀌어도 같은 리뷰는 같은 ID 다."""
+    rows = [
+        {"리뷰번호": "r-1", "별점": 5, "리뷰내용": "맛있어요", "작성일시": "t"},
+        {"리뷰번호": "r-2", "별점": 5, "리뷰내용": "괜찮아요", "작성일시": "t"},
+    ]
+    a, _, _ = build_sample.load_and_stratify(_write_csv(tmp_path, rows))
+    b, _, _ = build_sample.load_and_stratify(_write_csv(tmp_path, rows[::-1]))
+    assert set(a["review_id"]) == set(b["review_id"])
+
+
+def test_non_integer_or_out_of_range_ratings_are_dropped(tmp_path):
+    """4.9 를 4 로 잘라 S2 에 넣거나 0·6 을 엉뚱한 층에 넣으면 π 와 가중치가 흐려진다."""
+    rows = [
+        {"별점": 4.9, "리뷰내용": "본문 있음 a", "작성일시": "t"},
+        {"별점": 0, "리뷰내용": "본문 있음 b", "작성일시": "t"},
+        {"별점": 6, "리뷰내용": "본문 있음 c", "작성일시": "t"},
+        {"별점": 5, "리뷰내용": "본문 있음 d", "작성일시": "t"},
+    ]
+    pop, _, _ = build_sample.load_and_stratify(_write_csv(tmp_path, rows))
+    assert pop["stratum"].tolist() == ["S4"]
+
+
+def test_empty_body_rows_stay_in_the_population_whatever_the_rating(tmp_path):
+    """본문 없는 행은 층 밖(EMPTY)이라 별점이 이상해도 모집단 집계에서 빠지면 안 된다."""
+    rows = [
+        {"별점": None, "리뷰내용": "", "작성일시": "t"},
+        {"별점": 7, "리뷰내용": "", "작성일시": "t"},
+        {"별점": 5, "리뷰내용": "본문", "작성일시": "t"},
+    ]
+    pop, _, _ = build_sample.load_and_stratify(_write_csv(tmp_path, rows))
+    assert pop["stratum"].value_counts().to_dict() == {"EMPTY": 2, "S4": 1}
+
+
 def test_dedup_can_be_disabled(tmp_path):
     rows = [{"별점": 5, "리뷰내용": "맛있어요", "작성일시": "2026-09-01",
              "주문메뉴": "짬뽕", "주문유형": "배달"}] * 5

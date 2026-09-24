@@ -24,7 +24,6 @@ import csv
 import hashlib
 import json
 import os
-import shutil
 import sys
 import tempfile
 import threading
@@ -42,6 +41,61 @@ from core.eval.taxonomy import (  # noqa: E402  pylint: disable=wrong-import-pos
 
 SESSION_LIMIT = 60  # 이 건수를 넘기면 쉬라고 경고한다. 집중력이 떨어지면 기준이 흔들린다.
 RETEST_FRACTION = 0.10
+# 라벨러가 채우는 칸. 재검사 사본을 만들 때 대상 행에서 이 칸들을 비운다.
+WORK_FIELDS = ("primary_label", "alt_label", "notes", "labeled_at")
+
+
+def _read_rows(path: str) -> tuple[list[str], list[dict]]:
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        return list(reader.fieldnames or []), list(reader)
+
+
+def _write_rows(path: str, fieldnames: list[str], rows: list[dict]) -> None:
+    """임시 파일에 다 쓴 뒤 바꿔치기한다. 중간에 죽어도 원본은 온전하다."""
+    directory = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def retest_indices(rows: list[dict]) -> list[int]:
+    """재검사 대상 10%. 시드가 아니라 review_id 해시로 고른다 —
+    같은 표본이면 언제 돌려도 같은 건이 뽑히고, 재현 가능하다."""
+    picked = []
+    for i, row in enumerate(rows):
+        key = row.get("review_id") or row["sample_id"]
+        digest = hashlib.sha256(f"retest|{key}".encode("utf-8")).hexdigest()
+        if int(digest[:8], 16) / 0xFFFFFFFF < RETEST_FRACTION:
+            picked.append(i)
+    return picked
+
+
+def make_retest_copy(source: str, target: str) -> int:
+    """재검사 사본을 만든다. 대상 행의 라벨 칸을 비운 채로.
+
+    원본을 그대로 복사하면 세 가지가 어긋난다. 진행률이 최초 라벨을 재검사
+    완료로 세고, 재검사 라벨을 저장한 뒤 다시 열면 화면이 그걸 가려서 같은
+    건을 또 달게 되며, 파일 안에서 최초 라벨과 재검사 라벨이 구분되지 않는다.
+    대상 행만 비우면 `reliability.py` 가 원본과 사본을 sample_id 로 맞대어
+    비교하는 형식은 그대로다. 대상이 아닌 행은 최초 라벨을 그대로 둔다.
+    """
+    fieldnames, rows = _read_rows(source)
+    targets = retest_indices(rows)
+    for i in targets:
+        for field in WORK_FIELDS:
+            if field in rows[i]:
+                rows[i][field] = ""
+    _write_rows(target, fieldnames, rows)
+    return len(targets)
 
 
 class Store:
@@ -51,28 +105,19 @@ class Store:
         self.path = path
         self.retest = retest
         self.lock = threading.Lock()
-        with open(path, encoding="utf-8-sig", newline="") as f:
-            reader = csv.DictReader(f)
-            self.fieldnames = list(reader.fieldnames or [])
-            self.rows = list(reader)
+        self.fieldnames, self.rows = _read_rows(path)
         for required in ("sample_id", "review_text", "primary_label"):
             if required not in self.fieldnames:
                 raise SystemExit(f"표본 CSV 에 '{required}' 컬럼이 없습니다: {path}")
-        self.indices = self._retest_indices() if retest else list(range(len(self.rows)))
-
-    def _retest_indices(self) -> list[int]:
-        """재검사 대상 10%. 시드가 아니라 review_id 해시로 고른다 —
-        같은 표본이면 언제 돌려도 같은 건이 뽑히고, 재현 가능하다."""
-        picked = []
-        for i, row in enumerate(self.rows):
-            key = row.get("review_id") or row["sample_id"]
-            digest = hashlib.sha256(f"retest|{key}".encode("utf-8")).hexdigest()
-            if int(digest[:8], 16) / 0xFFFFFFFF < RETEST_FRACTION:
-                picked.append(i)
-        return picked
+        self.indices = retest_indices(self.rows) if retest else list(range(len(self.rows)))
 
     def view(self) -> list[dict]:
-        """브라우저로 보낼 형태. 재검사 모드에서는 기존 라벨을 가린다."""
+        """브라우저로 보낼 형태.
+
+        재검사 모드에서도 행의 값을 그대로 보낸다. 사본은 `make_retest_copy` 가
+        대상 행의 라벨을 비워서 만들었으므로 최초 라벨은 여기 없고, 저장한
+        재검사 라벨은 다시 열어도 보여야 이어서 할 수 있다.
+        """
         out = []
         for i in self.indices:
             row = self.rows[i]
@@ -82,9 +127,9 @@ class Store:
                 "text": row["review_text"],
                 "rating": row.get("rating", ""),
                 "menu": row.get("menu", ""),
-                "primary": "" if self.retest else row.get("primary_label", ""),
-                "alt": "" if self.retest else row.get("alt_label", ""),
-                "notes": "" if self.retest else row.get("notes", ""),
+                "primary": row.get("primary_label", ""),
+                "alt": row.get("alt_label", ""),
+                "notes": row.get("notes", ""),
             })
         return out
 
@@ -100,18 +145,7 @@ class Store:
             self._flush()
 
     def _flush(self) -> None:
-        directory = os.path.dirname(self.path) or "."
-        fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8-sig", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=self.fieldnames)
-                writer.writeheader()
-                writer.writerows(self.rows)
-            os.replace(tmp, self.path)
-        except BaseException:
-            if os.path.exists(tmp):
-                os.unlink(tmp)
-            raise
+        _write_rows(self.path, self.fieldnames, self.rows)
 
     def progress(self) -> dict:
         done = sum(1 for i in self.indices if self.rows[i].get("primary_label"))
@@ -177,6 +211,7 @@ PAGE = r"""<!doctype html>
     <span id="rating"></span>
     <span id="menu"></span>
     <span id="session"></span>
+    <span id="err" class="warn"></span>
   </div>
   <div class="review" id="text"></div>
   <div class="chosen" id="chosen"></div>
@@ -273,33 +308,55 @@ function render(){
   if (done === rows.length) finish();
 }
 
+// 저장은 한 줄로 세운다. 키를 빠르게 연타하면 요청이 겹치는데, 뒤 요청이 먼저
+// 닿으면 앞 상태로 덮어써진다. 그리고 응답을 확인한다 — 디스크 쓰기가 실패했는데
+// 화면이 다음 건으로 넘어가면 라벨러는 저장됐다고 믿고 그 건을 잃는다.
+let saveQueue = Promise.resolve();
 function save(r){
-  fetch('/api/label', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({idx:r.idx, primary:r.primary||'', alt:r.alt||'',
-                          notes:r.notes||''})});
+  const body = JSON.stringify({idx:r.idx, primary:r.primary||'', alt:r.alt||'',
+                               notes:r.notes||''});
+  const attempt = saveQueue.then(async () => {
+    const res = await fetch('/api/label', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+  });
+  saveQueue = attempt.catch(() => {});
+  return attempt.then(() => { showError(''); return true; },
+                      e => { showError('저장 실패 — ' + e.message
+                               + '. 서버가 살아 있는지 확인하세요. 화면은 그대로입니다.');
+                             return false; });
 }
 
-function setPrimary(k){
+function showError(msg){ document.getElementById('err').textContent = msg; }
+
+// 저장이 확인된 뒤에만 화면 상태를 확정한다. 실패하면 이전 값으로 되돌린다.
+async function commit(r, apply){
+  const before = {primary: r.primary, alt: r.alt, notes: r.notes};
+  apply(r);
+  if (await save(r)) return true;
+  Object.assign(r, before);
+  render();
+  return false;
+}
+
+async function setPrimary(k){
   const r = rows[cur];
   const wasEmpty = !r.primary;
-  r.primary = k;
-  if (r.alt === k) r.alt = '';
-  save(r);
+  const ok = await commit(r, x => { x.primary = k; if (x.alt === k) x.alt = ''; });
+  if (!ok) return;
   if (wasEmpty) sessionCount++;
   render();
-  setTimeout(() => { if (cur < rows.length - 1) { cur++; render(); } }, 60);
+  if (cur < rows.length - 1) { cur++; render(); }
 }
 
-function setAlt(k){
+async function setAlt(k){
   const r = rows[cur];
-  r.alt = (r.alt === k || r.primary === k) ? '' : k;
-  save(r); render();
+  if (await commit(r, x => { x.alt = (x.alt === k || x.primary === k) ? '' : k; })) render();
 }
 
-function clearLabel(){
+async function clearLabel(){
   const r = rows[cur];
-  r.primary = ''; r.alt = '';
-  save(r); render();
+  if (await commit(r, x => { x.primary = ''; x.alt = ''; })) render();
 }
 
 function jumpUnlabeled(){
@@ -322,7 +379,8 @@ document.addEventListener('keydown', e => {
   const notes = document.getElementById('notes');
   if (document.activeElement === notes){
     if (e.key === 'Escape' || e.key === 'Enter'){
-      const r = rows[cur]; r.notes = notes.value; save(r); notes.blur();
+      const r = rows[cur]; const value = notes.value; notes.blur();
+      commit(r, x => { x.notes = value; }).then(ok => { if (!ok) notes.value = r.notes || ''; });
     }
     return;
   }
@@ -390,12 +448,19 @@ def make_handler(store: Store, mode: str):
                 return
             length = int(self.headers.get("Content-Length", 0))
             payload = json.loads(self.rfile.read(length) or b"{}")
-            store.set_label(
-                int(payload["idx"]),
-                payload.get("primary", ""),
-                payload.get("alt", ""),
-                payload.get("notes", ""),
-            )
+            try:
+                store.set_label(
+                    int(payload["idx"]),
+                    payload.get("primary", ""),
+                    payload.get("alt", ""),
+                    payload.get("notes", ""),
+                )
+            except (OSError, KeyError, ValueError, IndexError) as exc:
+                # 디스크 쓰기 실패를 200 으로 감추면 화면이 다음 건으로 넘어간다.
+                print(f"\n  ⚠️  저장 실패: {exc}", flush=True)
+                self._send(500, json.dumps({"error": str(exc)}),
+                           "application/json; charset=utf-8")
+                return
             p = store.progress()
             print(f"\r  진행 {p['done']}/{p['total']}", end="", flush=True)
             self._send(200, json.dumps(p), "application/json; charset=utf-8")
@@ -416,8 +481,8 @@ def main() -> None:
     if args.mode == "retest":
         target = os.path.splitext(args.sample)[0] + ".retest.csv"
         if not os.path.exists(target):
-            shutil.copyfile(args.sample, target)
-            print(f"재검사 사본 생성: {target}")
+            n = make_retest_copy(args.sample, target)
+            print(f"재검사 사본 생성: {target} (대상 {n}건의 라벨 칸을 비움)")
 
     store = Store(target, retest=args.mode == "retest")
     progress = store.progress()

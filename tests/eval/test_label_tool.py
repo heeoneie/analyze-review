@@ -97,14 +97,59 @@ def test_view_never_exposes_stratum(tmp_path):
         assert "weight" not in row
 
 
-def test_retest_hides_previous_labels(tmp_path):
+def _retest_copy(tmp_path, **kw):
+    source = _sample(tmp_path, **kw)
+    target = str(tmp_path / "sample.retest.csv")
+    label_tool.make_retest_copy(source, target)
+    return source, target
+
+
+def test_retest_copy_hides_previous_labels_of_target_rows(tmp_path):
     """이전 라벨이 보이면 재검사가 아니라 베껴쓰기가 된다."""
-    store = label_tool.Store(_sample(tmp_path, labeled=True), retest=True)
+    _, target = _retest_copy(tmp_path, labeled=True)
+    store = label_tool.Store(target, retest=True)
     view = store.view()
     assert view, "재검사 대상이 하나도 안 뽑혔다"
     assert all(r["primary"] == "" for r in view)
     assert all(r["alt"] == "" for r in view)
     assert all(r["notes"] == "" for r in view)
+
+
+def test_retest_copy_keeps_baseline_labels_of_other_rows(tmp_path):
+    """대상이 아닌 행의 최초 라벨은 사본에도 남는다. 비교 파일 형식이 그대로다."""
+    _, target = _retest_copy(tmp_path, n=200, labeled=True)
+    store = label_tool.Store(target, retest=True)
+    targets = set(store.indices)
+    for i, row in enumerate(store.rows):
+        assert (row["primary_label"] == "") == (i in targets)
+
+
+def test_retest_progress_starts_at_zero(tmp_path):
+    """최초 라벨을 재검사 완료로 세면 진행률이 처음부터 다 찬 것으로 나온다."""
+    _, target = _retest_copy(tmp_path, labeled=True)
+    store = label_tool.Store(target, retest=True)
+    assert store.progress()["done"] == 0
+    assert store.progress()["total"] == len(store.indices) > 0
+
+
+def test_retest_labels_survive_a_restart(tmp_path):
+    """저장한 재검사 라벨은 다시 열어도 보여야 이어서 한다. 가리면 같은 건을 또 단다."""
+    _, target = _retest_copy(tmp_path, labeled=True)
+    store = label_tool.Store(target, retest=True)
+    idx = store.indices[0]
+    store.set_label(idx, "portion", "price", "R6")
+
+    reopened = label_tool.Store(target, retest=True)
+    assert reopened.progress()["done"] == 1
+    shown = next(r for r in reopened.view() if r["idx"] == idx)
+    assert (shown["primary"], shown["alt"], shown["notes"]) == ("portion", "price", "R6")
+
+
+def test_retest_copy_does_not_touch_the_source(tmp_path):
+    source, _ = _retest_copy(tmp_path, labeled=True)
+    with open(source, encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.DictReader(f))
+    assert all(r["primary_label"] == "taste" for r in rows)
 
 
 def test_retest_selects_about_ten_percent(tmp_path):
@@ -121,7 +166,7 @@ def test_retest_selection_is_reproducible(tmp_path):
 
 
 def test_retest_mode_still_writes_full_file(tmp_path):
-    path = _sample(tmp_path, n=50, labeled=True)
+    _, path = _retest_copy(tmp_path, n=50, labeled=True)
     store = label_tool.Store(path, retest=True)
     target = store.indices[0]
     store.set_label(target, "portion", "", "")
@@ -129,6 +174,15 @@ def test_retest_mode_still_writes_full_file(tmp_path):
         rows = list(csv.DictReader(f))
     assert len(rows) == 50
     assert rows[target]["primary_label"] == "portion"
+
+
+def test_page_waits_for_the_save_to_land():
+    """디스크 쓰기가 실패했는데 다음 건으로 넘어가면 라벨러는 그 건을 잃는다.
+
+    JS 는 테스트가 못 돌리므로 계약이 페이지에 남아 있는지만 본다.
+    """
+    assert "res.ok" in label_tool.PAGE
+    assert "await save(r)" in label_tool.PAGE
 
 
 def test_missing_column_fails_loudly(tmp_path):
