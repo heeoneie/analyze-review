@@ -64,3 +64,5 @@ evaluation/*.retest.csv
 evaluation/labels_*.csv
 # 모델 예측 원본에도 리뷰 본문이 함께 실린다. 집계 결과만 커밋한다.
 results/eval/predictions_*.jsonl
+# 호출 캐시는 프롬프트를 통째로 저장하므로 리뷰 본문이 그대로 들어 있다.
+results/eval/cache/
