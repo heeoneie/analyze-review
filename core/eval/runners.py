@@ -193,6 +193,8 @@ def run_single_fixed(reviews: list[str], *, model: str, temperature: float,
 #: 배달 지연으로 잘못 접힌다. 아래 순서는 그 충돌들을 정리한 결과다.
 OPEN_LABEL_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # 다른 규칙의 토큰을 부분 포함하는 구체어를 먼저 둔다.
+    # "양호" 는 portion 의 "양" 을 부분 포함한다 — 문제 없음 계열의 구체어를 맨 앞에.
+    ("no_issue", ("양호", "문제없", "이상없", "불만없")),
     ("wrong_item", ("오배송", "잘못", "다른메뉴", "오주문", "바뀜", "다른음식")),
     ("rider", ("라이더", "배달원", "기사")),
     ("temperature", ("온도", "식음", "식어", "식은", "미지근", "차가", "눅눅")),
@@ -206,7 +208,7 @@ OPEN_LABEL_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("taste", ("맛", "품질", "짬", "면")),
     # no_issue 는 마지막에 가깝게 — "불만 없음" 같은 표현이 위 규칙의
     # 부분 문자열에 걸리지 않게 하되, other 보다는 앞에 둔다.
-    ("no_issue", ("문제없", "이상없", "불만없", "없음", "만족", "칭찬", "긍정", "양호")),
+    ("no_issue", ("없음", "만족", "칭찬", "긍정")),
     ("other", ("기타",)),
 )
 
@@ -401,6 +403,10 @@ class _Retriever:
         """
         import numpy as np  # pylint: disable=import-outside-toplevel
 
+        # k 가 풀 크기 이상이면 -inf 로 밀어 둔 자기 자신이 맨 뒤에 딸려 나온다.
+        k = min(k, len(self.texts) - 1)
+        if k <= 0:
+            return []
         sims = self.matrix @ self.matrix[i]
         sims = np.asarray(sims).ravel().copy()
         sims[i] = -np.inf  # leave-one-out

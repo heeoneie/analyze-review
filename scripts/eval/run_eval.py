@@ -98,6 +98,11 @@ def load_labeled(path: str) -> tuple[list[dict], dict]:
             + "\n".join(f"  #{sid}: {lbl}" for sid, lbl in bad_alt[:20])
         )
 
+    if not kept:
+        raise SystemExit(
+            f"채점할 행이 없습니다. {len(excluded)}건이 전부 {EXCLUDE} 입니다."
+        )
+
     n_alt = sum(1 for r in kept if (r.get("alt_label") or "").strip())
     meta = {
         "sample_file": os.path.basename(path),

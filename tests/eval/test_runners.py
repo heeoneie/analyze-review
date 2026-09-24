@@ -154,6 +154,15 @@ def test_retriever_returns_requested_count(retriever):
     assert len(retriever.neighbours(0, k=5)) == 5
 
 
+def test_retriever_caps_k_below_pool_size(retriever):
+    """k 가 풀 크기 이상이어도 자기 자신이 끝에 딸려 나오면 안 된다."""
+    n = len(retriever.texts)
+    for k in (n, n + 3):
+        got = retriever.neighbours(0, k=k)
+        assert len(got) == n - 1
+        assert 0 not in got
+
+
 def test_retriever_finds_lexically_similar_first(retriever):
     """'국물이 다 식어서 왔어요' 와 가장 가까운 것이 '맛있게 잘 먹었습니다' 면
     검색이 무의미하다."""
@@ -177,6 +186,9 @@ def test_retriever_finds_lexically_similar_first(retriever):
     # 시간 계열은 지연이고, 상태 계열은 온도다 (R4).
     ("배달 시간 지연", "delivery_delay"),
     ("음식이 식음", "temperature"),
+    # "양호" 는 portion 의 "양" 을 부분 포함한다.
+    ("양호", "no_issue"),
+    ("전반 양호", "no_issue"),
 ])
 def test_normalization_collision_points(raw, expected):
     assert normalize_open_label(raw) == expected
