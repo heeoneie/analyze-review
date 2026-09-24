@@ -41,6 +41,9 @@ import os
 import sqlite3
 import sys
 
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core import config, style_fit  # noqa: E402  pylint: disable=wrong-import-position
@@ -61,20 +64,24 @@ def default_db() -> str | None:
     빈 파일이나 낡은 파일이 남아 있기 쉽고, 그러면 죽은 데이터로 리포트가
     멀쩡히 나온다. 틀린 숫자를 조용히 내는 쪽이 못 찾는 쪽보다 나쁘다.
 
-    sqlite 가 아닌 DSN(postgres 등)이면 None 을 돌려준다. 이 스크립트는
-    sqlite 만 읽는다.
+    sqlite 파일이 아니면(postgres, `sqlite://` 메모리 DB, 못 읽는 URL) None 을
+    돌려준다. 이 스크립트는 sqlite 파일만 읽는다.
+
+    상대경로는 **현재 작업 디렉터리** 기준으로 푼다. SQLAlchemy 가
+    `sqlite:///var/app.db` 를 그렇게 열기 때문이다. 저장소 루트 기준으로
+    풀면 앱이 쓴 파일과 다른 파일을 조용히 읽는다 — 이 함수가 막으려는 바로
+    그 일이다. URL 해석은 앱과 같은 `make_url` 에 맡긴다.
     """
     url = os.getenv("DATABASE_URL")
     if not url:
         return _FALLBACK_DB
-    if not url.startswith("sqlite"):
+    try:
+        parsed = make_url(url)
+    except ArgumentError:
         return None
-    # sqlite:///상대경로 · sqlite:////절대경로 둘 다 앞의 "sqlite:///" 를 떼면 된다.
-    _, _, path = url.partition("sqlite:///")
-    path = path.split("?", 1)[0]
-    if not path:
+    if parsed.get_backend_name() != "sqlite" or not parsed.database:
         return None
-    return path if os.path.isabs(path) else os.path.join(_ROOT, path)
+    return os.path.abspath(parsed.database)
 
 
 def load_samples(db_path: str, store_id: int | None = None) -> list[dict]:
@@ -159,9 +166,15 @@ def build(samples: list[dict]) -> dict:
             "부정": style_fit.learning_curve(samples, positive=False),
         },
         "repetition": {
-            # 사장님이 실제로 올린 글 전부. 매크로 기준선이다.
+            # 사장님이 이 도구 없이 쓴 글. **이 매장의** 매크로 기준선이다.
+            # 다른 매장 수치나 손으로 센 값을 기준선으로 두지 않는다 — 세는
+            # 방법이 다르면 비교가 안 되고, 매장을 넘는 순간 격리가 깨진다.
+            "온보딩": style_fit.repetition([
+                s["final_reply"] for s in posted if s["origin"] == "onboarding"
+            ]),
+            # 사장님이 실제로 올린 글 전부 (온보딩 포함).
             "게시본": style_fit.repetition([s["final_reply"] for s in posted]),
-            # 우리가 만든 초안 전량. 게시본보다 이쪽이 더 반복적이면 우리 문제다.
+            # 우리가 만든 초안 전량. 온보딩보다 이쪽이 더 반복적이면 우리 문제다.
             "생성본": style_fit.repetition([s["generated_reply"] for s in drafted]),
         },
     }
@@ -210,7 +223,8 @@ def render(report: dict, store_id: int) -> str:
     lines += [
         "",
         "── 학습 곡선 — 표본이 쌓이면 덜 고치는가 ──",
-        "  표본 0-1 은 길이 학습이 아직 안 걸리는 구간이다. 이게 기준선이다.",
+        "  표본 0 은 말투 학습이 전혀 안 걸린 구간이다. 이게 기준선이다.",
+        "  (1건부터 예시와 인사말이 프롬프트에 들어간다. 길이 기준만 2건부터다.)",
     ]
     for polarity, points in report["curve"].items():
         lines.append(f"  [{polarity}]")
@@ -232,7 +246,7 @@ def render(report: dict, store_id: int) -> str:
         )
     lines += [
         "",
-        "  이 매장 사장님의 기존 답변 441건 기준선은 31% 였다 (README).",
+        "  온보딩은 사장님이 이 도구 없이 쓴 글이라 이 매장의 매크로 기준선이다.",
         "  생성본이 그보다 높으면 매크로를 줄인 게 아니라 늘린 것이다.",
     ]
 
@@ -242,8 +256,9 @@ def render(report: dict, store_id: int) -> str:
         "  편집률은 대리 지표다. 바빠서 그냥 게시했을 수도 있으므로 낮은 편집률이",
         "  '맞았다' 를 증명하지 않는다. 높은 편집률이 '안 맞았다' 는 쪽이 더 믿을 만하다.",
         "  학습 곡선은 관측이지 실험이 아니다. 표본이 쌓이는 동안 프롬프트도 바뀌었다면",
-        "  원인을 가를 수 없다. 바꾼 것은 evaluation/public/tuning_log.json 에 남긴다.",
-        "  반복률은 구두점 없이 이어 쓴 답글에서 반복을 덜 잡는다 (과소평가 방향).",
+        "  원인을 가를 수 없다. 프롬프트를 바꾼 날짜를 따로 적어 두고 곡선과 같이 본다.",
+        "  반복률은 첫 문장의 앞 두 어절, 끝 문장의 뒤 두 어절만 본다. 세 번째 어절부터",
+        "  같은 문장은 다른 계열로 세므로 반복을 덜 잡을 수는 있어도 지어내지는 않는다.",
         "  게시본 반복률에는 사장님이 직접 쓴 온보딩 답글이 섞여 있다. 우리가 만든",
         "  글만 보려면 생성본 쪽을 본다 — 그쪽은 버린 초안까지 전부 센다.",
         "",
@@ -279,8 +294,8 @@ def main() -> int:
     db = args.db or default_db()
     if db is None:
         print(
-            "DATABASE_URL 이 sqlite 가 아니라 읽을 경로를 알 수 없습니다. "
-            "--db 로 지정해 주십시오.",
+            "DATABASE_URL 에서 sqlite 파일 경로를 알 수 없습니다 "
+            "(sqlite 파일이 아니거나 메모리 DB). --db 로 지정해 주십시오.",
             file=sys.stderr,
         )
         return 1

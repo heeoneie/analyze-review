@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from core import style_fit
-from core.reply_text import openings_collide
 
 BASE = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
@@ -81,6 +80,19 @@ def test_onboarding_rows_are_not_counted():
     stats = style_fit.edit_stats(samples)
     assert stats.total == 1
     assert stats.rate == 1.0
+
+
+def test_onboarding_rows_are_excluded_even_with_a_generated_reply():
+    """생성본이 비어 있다는 우연에 기대지 않는다 — `origin` 으로 거른다."""
+    samples = [
+        _sample("가", origin="onboarding",
+                generated_reply="가 생성본입니다",
+                final_reply="가 생성본입니다"),
+        _sample("나", final_reply="나 고쳐 썼습니다"),
+    ]
+    stats = style_fit.edit_stats(samples)
+    assert stats.total == 1
+    assert stats.edited == 1
 
 
 def test_unposted_drafts_are_not_counted():
@@ -175,18 +187,27 @@ def test_closings_are_measured_too():
     assert stats.top_closing_share == 1.0
 
 
-def test_run_on_replies_under_report_repetition():
-    """알고 있는 한계다. 과소평가 방향이라 그대로 둔다.
+def test_run_on_replies_still_cluster_by_their_first_words():
+    """구두점 없이 이어 쓴 답글도 앞 두 어절이 같으면 같은 인사말 계열이다.
 
-    `first_sentence` 는 구두점이나 줄바꿈이 있어야 문장을 끊는다. 한 줄로
-    쭉 이어 쓴 답글은 통째로 한 문장이 되고, 뒷부분이 다르면 다른 인사말로
-    세어진다. 즉 이 지표는 반복을 **덜** 잡을 수는 있어도 없는 반복을
-    지어내지는 않는다. "매크로가 아니다" 를 이 숫자만으로 주장하지 않는다.
+    `first_sentence` 는 구두점이나 줄바꿈이 있어야 문장을 끊어서 한 줄로 쭉
+    이어 쓴 답글은 통째로 한 문장이 된다. 열쇠가 앞 두 어절이라 그래도 묶인다.
     """
     replies = [
         "감사합니다 고객님 다음에도 잘 부탁드립니다",
         "감사합니다 고객님 또 방문해 주세요",
     ]
+    assert style_fit.repetition(replies).distinct_openings == 1
+
+
+def test_same_words_in_a_different_order_are_a_different_family():
+    """알고 있는 한계다. 과소평가 방향이라 그대로 둔다.
+
+    앞 두 어절이 열쇠라 "감사합니다 고객님" 과 "고객님 감사합니다" 는 다른
+    계열로 센다. 이 지표는 반복을 **덜** 잡을 수는 있어도 없는 반복을
+    지어내지는 않는다. "매크로가 아니다" 를 이 숫자만으로 주장하지 않는다.
+    """
+    replies = ["감사합니다 고객님. 또 오세요.", "고객님 감사합니다. 또 오세요."]
     assert style_fit.repetition(replies).distinct_openings == 2
 
 
@@ -222,13 +243,28 @@ def _series(count, *, rating, edited_upto):
 def test_curve_buckets_by_samples_available_at_the_time():
     points = style_fit.learning_curve(_series(12, rating=5, edited_upto=12))
     labels = [p.label for p in points]
-    assert labels == ["0-1", "2-4", "5-9", "10+"]
-    assert [p.stats.total for p in points] == [2, 3, 5, 2]
+    assert labels == ["0", "1-4", "5-9", "10+"]
+    assert [p.stats.total for p in points] == [1, 4, 5, 2]
+
+
+def test_the_baseline_bucket_is_zero_samples_only():
+    """표본 1건이면 이미 예시와 인사말이 프롬프트에 들어간다.
+
+    `reply_style` 은 1/1 도 인사말 습관으로 인정한다(OPENING_HABIT_RATIO 0.5
+    초과). 0 과 1 을 한 구간으로 묶으면 학습이 걸린 답글이 "학습 꺼진 기준선"
+    에 섞인다.
+    """
+    points = style_fit.learning_curve(_series(2, rating=5, edited_upto=1))
+    assert points[0].label == "0"
+    assert points[0].stats.total == 1
+    assert points[0].stats.edited == 1
+    assert points[1].stats.total == 1
+    assert points[1].stats.edited == 0
 
 
 def test_curve_falls_when_the_style_starts_landing():
-    # 앞 2건은 고쳤고(학습 꺼진 구간) 나머지는 그대로 게시했다.
-    points = style_fit.learning_curve(_series(12, rating=5, edited_upto=2))
+    # 첫 건은 고쳤고(학습 꺼진 구간) 나머지는 그대로 게시했다.
+    points = style_fit.learning_curve(_series(12, rating=5, edited_upto=1))
     first_bucket = points[0].stats
     last_bucket = points[-1].stats
     assert first_bucket.rate == 1.0
@@ -308,7 +344,7 @@ def test_prior_count_uses_replies_posted_before_generation():
     """생성 전에 이미 게시돼 있던 답글만 그 시점의 표본으로 센다.
 
     하루에 한 건씩 만들고 곧바로 게시하면 n번째 답글의 표본은 n-1 건이다.
-    0·1번은 0-1 구간, 2번과 그 뒤는 2-4 구간에 들어간다.
+    0번은 0 구간, 1번과 그 뒤는 1-4 구간에 들어간다.
     """
     daily = [
         _sample(f"이전{i}",
@@ -320,35 +356,59 @@ def test_prior_count_uses_replies_posted_before_generation():
                     finalized_at=BASE + timedelta(days=10, hours=1))
     points = style_fit.learning_curve(daily + [later])
     assert {p.label: p.stats.total for p in points} == {
-        "0-1": 2, "2-4": 2, "5-9": 0, "10+": 0,
+        "0": 1, "1-4": 3, "5-9": 0, "10+": 0,
     }
 
 
-# 서로 겹치는 관계가 이행적이지 않은 세 문장. A~B 참, B~C 참, A~C 거짓이라
-# 군집화가 순서에 휘둘리기 쉬운 자리다.
+# 유사도로 묶던 때 군집이 순서에 휘둘리던 세 문장. 열쇠(앞 두 어절)로 세면
+# A 와 B 가 한 계열이고 C 는 따로다 — 어느 순서로 넣어도 같다.
 _A = "감사합니다 고객님 진심으로 감사드립니다"
 _B = "감사합니다 고객님"
 _C = "고객님 안녕하세요 반갑습니다 감사합니다 고객님"
 
 
-def test_the_three_sentences_are_not_transitive():
-    """아래 두 테스트가 기대는 전제. 깨지면 그 테스트들이 헛돈다."""
-    assert openings_collide(_A, _B) is True
-    assert openings_collide(_B, _C) is True
-    assert openings_collide(_A, _C) is False
-
-
 def test_repetition_does_not_depend_on_input_order():
-    """같은 데이터에서 같은 숫자가 나와야 한다.
-
-    대표 하나와만 비교하던 때는 순서에 따라 최다 군집이 66.7% 와 100% 로
-    갈렸다. 매크로 기준선 31% 와 나란히 읽는 값이라 흔들리면 안 된다.
-    """
+    """같은 데이터에서 같은 숫자가 나와야 한다. 기준선과 나란히 읽는 값이다."""
     assert style_fit.repetition([_A, _B, _C]) == style_fit.repetition([_B, _A, _C])
     assert style_fit.repetition([_C, _B, _A]) == style_fit.repetition([_A, _B, _C])
+    assert style_fit.repetition([_A, _B, _C]).top_opening_share == pytest.approx(2 / 3)
 
 
-def test_repetition_never_merges_sentences_that_do_not_collide():
-    """군집은 서로 전부 충돌하는 무리다. 그래야 반복률이 부풀지 않는다."""
-    # A 와 C 가 B 를 거쳐 한 군집에 들어가면 최다 군집이 100% 가 된다.
-    assert style_fit.repetition([_A, _B, _C]).top_opening_share < 1.0
+def test_adding_an_unrelated_reply_does_not_regroup_the_others():
+    """행 하나가 늘어도 기존 문장들의 군집은 그대로여야 한다.
+
+    유사도로 탐욕 군집화할 때는 새 문장이 먼저 대표가 되면서 기존 짝을
+    갈라놓았다. 달마다 뽑는 숫자가 사장님 습관과 무관하게 흔들리는 원인이었다.
+    """
+    pair = ["리뷰 감사드립니다. 또 오세요.", "리뷰 감사드립니다. 좋은 하루 되세요."]
+    before = style_fit.repetition(pair)
+    after = style_fit.repetition(pair + ["감사드립니다 리뷰 항상. 또 오세요."])
+    assert before.distinct_openings == 1
+    assert after.distinct_openings == 2
+    assert max(before.top_opening_share * 2, 0) == after.top_opening_share * 3
+
+
+def test_emoji_only_replies_count_as_repetition():
+    """'👍' 만으로 답한 답글 세 건은 같은 인사말 세 번이다. 세 종류가 아니다."""
+    stats = style_fit.repetition(["👍", "👍", "👍"])
+    assert stats.distinct_openings == 1
+    assert stats.top_opening_share == 1.0
+
+
+def test_leading_emoji_does_not_split_the_family():
+    replies = ["😊 감사합니다 고객님. 또 오세요.", "감사합니다 고객님! 또 오세요."]
+    assert style_fit.repetition(replies).distinct_openings == 1
+
+
+def test_similarity_survives_long_repetitive_replies():
+    """200자를 넘는 되풀이 문장에서 어절 순서만 바꿔도 크게 고친 것으로 읽히면 안 된다.
+
+    `SequenceMatcher` 의 autojunk 는 200자부터 "1% 넘게 나오는 글자" 를 잡동사니로
+    취급한다. 같은 인사말이 되풀이되는 답글은 모든 글자가 그 기준에 걸려서,
+    사장님이 마지막 인사말의 어절 순서만 바꿔도 유사도가 0.88 로 떨어졌다.
+    """
+    phrase = "감사합니다 고객님 오늘도 주문해 주셔서 정말 고맙습니다 "
+    generated = (phrase * 8).strip()
+    final = (phrase * 7 + "고객님 감사합니다 오늘도 주문해 주셔서 정말 고맙습니다").strip()
+    assert len(generated) > 200
+    assert style_fit.similarity(generated, final) > 0.95

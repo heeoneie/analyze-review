@@ -156,15 +156,47 @@ def test_default_db_follows_database_url(monkeypatch):
     assert style_report.default_db() == "/app/var/app.db"
 
 
-def test_default_db_resolves_a_relative_sqlite_url(monkeypatch):
+def test_default_db_resolves_a_relative_sqlite_url_like_the_app(tmp_path, monkeypatch):
+    """SQLAlchemy 는 상대경로를 작업 디렉터리 기준으로 연다. 여기도 같아야 한다.
+
+    저장소 루트 기준으로 풀면 `cd /srv && uvicorn ...` 으로 띄운 앱이 쓴 파일과
+    다른 파일을 조용히 읽는다.
+    """
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DATABASE_URL", "sqlite:///var/app.db")
-    assert style_report.default_db().endswith("/var/app.db")
+    assert style_report.default_db() == str(tmp_path / "var" / "app.db")
 
 
-def test_default_db_gives_up_on_non_sqlite(monkeypatch):
-    """postgres 면 이 스크립트가 읽을 수 없다. 조용히 다른 파일을 읽지 않는다."""
-    monkeypatch.setenv("DATABASE_URL", "postgresql://user@host/db")
+@pytest.mark.parametrize("url", [
+    "postgresql://user@host/db",   # 이 스크립트는 sqlite 만 읽는다
+    "sqlite://",                   # 메모리 DB 는 파일이 없다
+    "not a url",
+])
+def test_default_db_gives_up_when_there_is_no_sqlite_file(url, monkeypatch):
+    """읽을 파일을 모르면 None. 조용히 다른 파일을 읽지 않는다."""
+    monkeypatch.setenv("DATABASE_URL", url)
     assert style_report.default_db() is None
+
+
+def test_baseline_repetition_comes_from_this_stores_onboarding_rows(tmp_path):
+    """매크로 기준선은 같은 매장 사장님이 도구 없이 쓴 글(온보딩)에서 센다.
+
+    다른 매장 수치나 손으로 센 상수를 기준선으로 찍으면 매장 격리가 깨지고,
+    세는 방법이 달라 비교도 안 된다.
+    """
+    rows = [
+        (1, "onboarding", 5, None, "감사합니다 고객님. 또 오세요.", "2026-01-01T00:00", "2026-01-01T00:00"),
+        (1, "onboarding", 5, None, "감사합니다 고객님. 좋은 하루요.", "2026-01-01T00:00", "2026-01-01T00:00"),
+        (1, "generated", 5, "짬뽕 맛있으셨군요. 또 오세요.", "짬뽕 맛있으셨군요. 또 오세요.",
+         "2026-01-02T00:00", "2026-01-02T01:00"),
+    ]
+    samples = style_report.load_samples(_make_db(tmp_path / "b.db", rows))
+    report = style_report.build(samples)
+    assert report["repetition"]["온보딩"].total == 2
+    assert report["repetition"]["온보딩"].top_opening_share == 1.0
+    assert report["repetition"]["게시본"].total == 3
+    rendered = style_report.render(report, 1)
+    assert "441" not in rendered and "31%" not in rendered
 
 
 def test_unposted_drafts_count_toward_generated_repetition(tmp_path):

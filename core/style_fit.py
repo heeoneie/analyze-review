@@ -39,11 +39,12 @@ DB 를 모르는 순수 함수로 둔다 — `core/reply_style.py` 와 같은 �
 """
 
 from bisect import bisect_left
+from collections import Counter
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
 from core import config
-from core.reply_text import first_sentence, last_sentence, openings_collide
+from core.reply_text import closing_key, first_sentence, last_sentence, opening_key
 
 # 정규분포 양측 95%.
 Z_95 = 1.959963984540054
@@ -52,10 +53,13 @@ Z_95 = 1.959963984540054
 # 33% 라고 적으면 신뢰구간이 사실상 2~88% 인데 숫자만 남는다.
 MIN_SAMPLES_TO_CITE = 10
 
-# 학습 곡선 구간. 경계 2 는 임의가 아니다 — `reply_style.MIN_SAMPLES_FOR_LENGTH`
-# 가 2라서, 표본이 그 아래면 길이 기준이 아예 안 걸리고 기본값으로 생성된다.
-# 즉 0~1 구간은 "말투 학습이 꺼진 상태" 의 편집률이고 이게 기준선이 된다.
-CURVE_BUCKETS = ((0, 1), (2, 4), (5, 9), (10, None))
+# 학습 곡선 구간. 0 을 따로 두는 이유 — 표본이 **1건** 만 있어도
+# `reply_style.build_profile` 은 그 답글을 예시로 넣고, 1/1 이 `OPENING_HABIT_RATIO`
+# 를 넘으므로 인사말까지 "거의 항상 이렇게 시작한다" 로 못박는다. 길이 기준만
+# `MIN_SAMPLES_FOR_LENGTH`(2) 부터 걸린다. 그러니 "말투 학습이 꺼진 상태" 는
+# 표본 0건뿐이고, 그 구간의 편집률이 기준선이다. 0 과 1 을 한 구간으로 묶으면
+# 학습이 이미 걸린 답글이 기준선에 섞여 들어가 곡선이 평평해 보인다.
+CURVE_BUCKETS = ((0, 0), (1, 4), (5, 9), (10, None))
 
 
 def wilson_interval(successes: int, total: int, z: float = Z_95) -> tuple[float, float]:
@@ -83,7 +87,10 @@ def similarity(generated: str, final: str) -> float:
     a, b = (generated or "").strip(), (final or "").strip()
     if not a or not b:
         return 0.0
-    return SequenceMatcher(None, a, b).ratio()
+    # autojunk 를 끈다. 켜 두면 200자부터 "1% 넘게 나오는 글자" 를 전부 잡동사니로
+    # 취급해서, 같은 인사말이 되풀이되는 답글은 한 단어만 고쳐도 0.0 근처가 나온다.
+    # 답글 길이가 딱 그 경계(긍정 200자·부정 250자)에 걸쳐 있다.
+    return SequenceMatcher(None, a, b, autojunk=False).ratio()
 
 
 def _is_positive(rating: int) -> bool:
@@ -125,9 +132,10 @@ def edit_stats(samples: list[dict]) -> EditStats:
 
     세지 않는 것이 두 가지다.
 
-    `origin == "onboarding"` — 생성본이 없다. 사장님이 처음부터 직접 쓴
-    답글이라 "고쳤는가" 가 정의되지 않는다. 이걸 편집 0건으로 세면 온보딩을
-    많이 시킨 매장일수록 편집률이 좋아 보인다.
+    `origin == "onboarding"` — 사장님이 처음부터 직접 쓴 답글이라 "고쳤는가"
+    가 정의되지 않는다. 이걸 편집 0건으로 세면 온보딩을 많이 시킨 매장일수록
+    편집률이 좋아 보인다. 보통은 생성본이 비어 있어 아래 조건에 같이 걸리지만,
+    그 우연에 기대지 않고 `origin` 으로 명시해서 거른다.
 
     `final_reply` 가 빈 행 — 만들기만 하고 게시하지 않았다. 사장님이 채택
     했다는 근거가 없으므로 맞았는지 틀렸는지 알 수 없다. 이걸 "안 고쳤다"
@@ -135,7 +143,8 @@ def edit_stats(samples: list[dict]) -> EditStats:
     """
     usable = [
         s for s in samples
-        if (s.get("generated_reply") or "").strip()
+        if s.get("origin") != "onboarding"
+        and (s.get("generated_reply") or "").strip()
         and (s.get("final_reply") or "").strip()
     ]
     if not usable:
@@ -163,9 +172,11 @@ def edit_stats(samples: list[dict]) -> EditStats:
 class RepetitionStats:
     """같은 말로 시작하거나 끝나는 답글이 얼마나 되는가.
 
-    `top_opening_share` 는 가장 큰 인사말 군집의 비율이다. README 에 적힌
-    사장님 기존 답변의 31% 가 이 값의 기준선이다 — 우리가 만든 답글이 그보다
-    높으면 매크로를 더 심하게 만든 것이다.
+    `top_opening_share` 는 가장 큰 인사말 군집의 비율이다. 기준선은 같은
+    매장 사장님이 이 도구 없이 쓴 답글(온보딩 행)에 같은 함수를 돌린 값이다 —
+    우리가 만든 답글이 그보다 높으면 매크로를 더 심하게 만든 것이다. 다른
+    매장의 수치나 손으로 센 값을 기준선으로 쓰지 않는다. 세는 방법이 다르면
+    비교가 안 된다.
     """
 
     total: int = 0
@@ -175,38 +186,24 @@ class RepetitionStats:
     distinct_closings: int = 0
 
 
-def _cluster(sentences: list[str]) -> list[int]:
-    """사실상 같은 문장끼리 묶고 각 군집의 크기를 돌려준다.
+def _cluster(sentences: list[str], key) -> list[int]:
+    """열쇠가 같은 문장끼리 묶고 각 군집의 크기를 돌려준다.
 
-    `openings_collide` 는 이행적이지 않다 — A~B 이고 B~C 여도 A~C 는 아닐 수
-    있다. 그래서 군집을 만들 때 **이미 들어 있는 모든 문장과 충돌해야** 넣는다
-    (대표 하나와만 비교하지 않는다). 두 가지가 여기에 걸려 있다.
+    한때는 `openings_collide` 로 "사실상 같은 문장" 을 탐욕적으로 묶었다. 그
+    관계는 이행적이지 않아서(A~B, B~C 여도 A~C 는 아닐 수 있다) 어떤 문장이
+    먼저 대표가 되느냐에 따라 군집이 갈렸고, 입력을 정렬해도 **행 하나가
+    추가되면** 기존 문장들의 군집이 다시 짜였다. 달마다 뽑는 숫자가 사장님
+    습관과 무관한 이유로 오르내리는 셈이라 기준선과 나란히 놓을 수 없었다.
+    n² 번 비교하는 비용도 표본이 1천 건을 넘기면 수십 초였다.
 
-    첫째, 군집이 전부 서로 충돌하는 무리가 되므로 `top_opening_share` 가
-    실제보다 큰 값이 되지 않는다. 대표와만 비교하면 A~C 가 아닌데도 B 를
-    거쳐 한 군집에 들어간다. 실제로 그렇게 됐었다:
-
-        A="감사합니다 고객님 진심으로 감사드립니다"
-        B="감사합니다 고객님"
-        C="고객님 안녕하세요 반갑습니다 감사합니다 고객님"
-        (A~B 참, B~C 참, A~C 거짓)
-
-        입력 [A,B,C] → 최다 군집 66.7%
-        입력 [B,A,C] → 최다 군집 100.0%    ← 같은 데이터, 다른 숫자
-
-    둘째, 그래서 입력 순서에 따라 결과가 흔들렸다. 이 값은 매크로 기준선
-    31% 와 나란히 놓고 읽는 숫자라 행 순서로 바뀌면 안 된다. 들어온 순서를
-    먼저 정렬해 결과를 고정한다.
+    그래서 순서와 무관한 열쇠로 센다 — 첫 문장의 앞 두 어절, 끝 문장의 뒤 두
+    어절(`reply_text.opening_key` / `closing_key`). 이 단위는 임의가 아니다.
+    `reply_style._common_opening` 이 "이 사장님은 거의 항상 이렇게 시작한다"
+    로 프롬프트에 못박는 단위가 바로 앞 두 어절이라, 프롬프트가 만든 반복을
+    같은 자로 잰다. 세 번째 어절부터 같은 문장은 다른 계열로 세므로 이 값은
+    반복을 덜 잡을 수는 있어도 없는 반복을 지어내지는 않는다.
     """
-    clusters: list[list[str]] = []
-    for sentence in sorted(sentences):
-        for members in clusters:
-            if all(openings_collide(sentence, m) for m in members):
-                members.append(sentence)
-                break
-        else:
-            clusters.append([sentence])
-    return [len(c) for c in clusters]
+    return list(Counter(key(s) for s in sentences).values())
 
 
 def repetition(replies: list[str]) -> RepetitionStats:
@@ -219,8 +216,8 @@ def repetition(replies: list[str]) -> RepetitionStats:
     if not usable:
         return RepetitionStats()
 
-    openings = _cluster([first_sentence(r) for r in usable])
-    closings = _cluster([last_sentence(r) for r in usable])
+    openings = _cluster([first_sentence(r) for r in usable], opening_key)
+    closings = _cluster([last_sentence(r) for r in usable], closing_key)
 
     return RepetitionStats(
         total=len(usable),
@@ -241,7 +238,11 @@ class CurvePoint:
 
     @property
     def label(self) -> str:
-        return f"{self.low}+" if self.high is None else f"{self.low}-{self.high}"
+        if self.high is None:
+            return f"{self.low}+"
+        if self.high == self.low:
+            return str(self.low)
+        return f"{self.low}-{self.high}"
 
 
 def learning_curve(samples: list[dict], *, positive: bool | None = None) -> list[CurvePoint]:
@@ -254,7 +255,9 @@ def learning_curve(samples: list[dict], *, positive: bool | None = None) -> list
     ## 만든 시각으로 센다 — 게시한 시각이 아니다
 
     `created_at` 은 `record_generated` 가 찍고 `finalized_at` 은 `finalize`
-    가 찍는다. 둘은 다른 순간이고, 프롬프트를 만든 것은 앞쪽이다.
+    가 **처음 게시할 때 한 번** 찍는다. 둘은 다른 순간이고, 프롬프트를 만든
+    것은 앞쪽이다. (`finalize` 가 부를 때마다 시각을 옮기면 복사 버튼을 다시
+    누르는 것만으로 x축이 무너진다. 그래서 첫 시각을 유지한다.)
 
     게시 시각으로 줄을 세우면 x축을 지어낼 수 있다. 사장님이 월요일에 리뷰
     다섯 건의 답글을 한꺼번에 만들면 다섯 건 모두 표본 0건으로 생성된다.

@@ -87,12 +87,24 @@ def finalize(db: Session, sample: ReplySample, final_reply: str) -> ReplySample:
 
     생성본과 다르면 `edited` 로 표시한다. 고쳐 쓴 답글은 사장님이 무엇을
     바꾸고 싶어 하는지 알려주므로 말투 학습에서 특히 값지다.
+
+    빈 답글은 받지 않는다. 라우터는 길이 1 이상만 통과시키지만 공백만 보내면
+    `sanitize` 뒤에 빈 문자열이 남는다. 그 행은 `final_reply IS NOT NULL` 로
+    거르는 학습 풀에는 들어가는데 리포트는 게시로 세지 않아 둘이 어긋난다.
+    "게시했다" 의 뜻이 하나여야 하므로 경계에서 막는다.
+
+    `finalized_at` 은 **처음** 게시한 시각을 유지한다. 화면의 복사 버튼은
+    누를 때마다 이 함수를 부르는데, 그때마다 시각을 옮기면 학습 곡선의 x축
+    ("이 답글을 만들 때 표본이 몇 건 있었나") 이 가장 흔한 손동작으로 무너진다.
     """
     final = sanitize(final_reply)
+    if not final:
+        raise ValueError("게시한 답글이 비어 있습니다.")
     sample.final_reply = final
     sample.was_edited = (final != (sample.generated_reply or "").strip())
     sample.origin = "edited" if sample.was_edited else "generated"
-    sample.finalized_at = datetime.now(timezone.utc)
+    if sample.finalized_at is None:
+        sample.finalized_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(sample)
     return sample

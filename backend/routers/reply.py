@@ -223,7 +223,11 @@ def finalize_store_reply(
     if sample is None or sample.store_id != store.id:
         raise HTTPException(404, "기록을 찾을 수 없습니다.")
 
-    reply_history.finalize(db, sample, body.final_reply)
+    try:
+        reply_history.finalize(db, sample, body.final_reply)
+    except ValueError as exc:
+        # 공백만 보낸 경우. min_length=1 은 이걸 못 거른다.
+        raise HTTPException(422, str(exc)) from exc
     return {"recorded": True, "was_edited": sample.was_edited}
 
 
