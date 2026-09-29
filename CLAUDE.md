@@ -29,7 +29,7 @@
 
 **아직 안 되는 것**
 
-- **분석 화면이 없다.** `MetricsOverview` `TopIssuesCard` `CategoryChart` `EmergingIssues` `ActionPlan` `FileUpload` `ReplyPanel` `ReplyGuide` 는 어느 페이지에서도 import 되지 않는다. 백엔드 엔드포인트는 살아 있고 이 용도로 남겨 둔 것이지 죽은 코드가 아니다. **지우지 말 것.** (`ReplyPanel` 이 안 걸려 있으므로 `backend/routers/reply.py` 의 `/generate`·`/generate-batch` 도 지금은 부르는 화면이 없다.)
+- **분석 화면이 없다.** `MetricsOverview` `TopIssuesCard` `CategoryChart` `EmergingIssues` `ActionPlan` `FileUpload` `ReplyGuide` 는 어느 페이지에서도 import 되지 않는다. 백엔드 엔드포인트는 살아 있고 이 용도로 남겨 둔 것이지 죽은 코드가 아니다. **지우지 말 것.** `ReplyPanel` 은 `Dashboard` 의 `PriorityReviewList` 에서 쓰인다. `ReplyPanel` 은 `/reply/store/generate` 를 부르며, `backend/routers/reply.py` 의 `/generate`·`/generate-batch` 는 대시보드가 아니라 붙여넣기 화면 쪽 옛 경로라 별도로 남겨 둔다.
 - **말투가 실제로 맞는지 재는 숫자가 없다.** 예시·길이·인사말을 프롬프트에 넣고는 있지만 그게 듣는지 측정한 적이 없다. 여기에 자가 없으면 말투 학습을 더 만들어도 좋아졌다는 근거가 안 생긴다.
 - **"가게마다" 가 아니다.** `POST /auth/claim-store` 는 `config.STORE_NAME` 한 곳만 만들고 `Store.name` 이 전역 unique 라, 두 번째 사장님은 409 로 막힌다. 매장을 만드는 경로가 1회성 이관 하나뿐이다.
 - **배달앱 수집기가 없다.** 지금은 사장님이 리뷰를 복사해서 붙여넣는다.
