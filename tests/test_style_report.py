@@ -87,6 +87,23 @@ def test_edit_rate_is_computed_per_store(db_path):
     assert style_report.build(groups[2])["edit"]["전체"].rate == 0.0
 
 
+def test_json_hides_rate_when_not_citable(db_path, capsys, monkeypatch):
+    """표본이 `MIN_SAMPLES_TO_CITE` 미만이면 JSON 의 rate 도 None 이어야 한다.
+
+    텍스트 출력은 이미 citable=False 일 때 비율을 감추고 구간만 보여 준다.
+    JSON 이 숫자 rate 를 그대로 흘리면 --json 사용자가 인용 불가한 값을
+    보고서 수치로 오인할 수 있다. 매장 1 은 표본이 2건뿐이라 citable=False 다.
+    """
+    monkeypatch.setattr(sys, "argv", ["style_report.py", "--db", db_path, "--json"])
+    assert style_report.main() == 0
+    edit = json.loads(capsys.readouterr().out)["1"]["edit"]["전체"]
+    assert edit["citable"] is False
+    assert edit["rate"] is None
+    # 구간은 숫자가 아니라는 신호로 그대로 남는다.
+    assert edit["ci_low"] is not None
+    assert edit["ci_high"] is not None
+
+
 def test_reply_samples_store_id_is_not_nullable():
     """매장 없는 행을 다루는 분기를 두지 않는 근거.
 

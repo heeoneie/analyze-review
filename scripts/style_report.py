@@ -266,14 +266,28 @@ def render(report: dict, store_id: int) -> str:
     return "\n".join(lines)
 
 
+def _edit_stats_json(stats) -> dict:
+    """EditStats 를 JSON 으로 편다. 표본이 모자라면 rate 를 None 으로 둔다.
+
+    텍스트 출력은 citable=False 일 때 비율을 숨기고 건수·구간만 보여 준다.
+    JSON 도 같은 계약을 따라야 --json 사용자가 인용 불가한 수치를
+    보고서 값으로 오인하지 않는다. 구간(low/high)은 표본이 적을수록
+    수치가 아니라는 신호로 그대로 남겨 둔다.
+    """
+    data = vars(stats) | {"citable": stats.citable}
+    if not stats.citable:
+        data["rate"] = None
+    return data
+
+
 def _jsonable(report: dict) -> dict:
     """dataclass 를 dict 로 편다. 수치를 다른 도구로 넘길 때 쓴다."""
     return {
         "counts": report["counts"],
-        "edit": {k: vars(v) | {"citable": v.citable} for k, v in report["edit"].items()},
+        "edit": {k: _edit_stats_json(v) for k, v in report["edit"].items()},
         "curve": {
             polarity: [
-                {"bucket": p.label, **vars(p.stats), "citable": p.stats.citable}
+                {"bucket": p.label, **_edit_stats_json(p.stats)}
                 for p in points
             ]
             for polarity, points in report["curve"].items()
