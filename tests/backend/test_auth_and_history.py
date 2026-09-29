@@ -216,6 +216,33 @@ class TestReplyHistory:
         assert sample.was_edited is True
         assert sample.origin == "edited"
 
+    def test_refinalize_keeps_the_first_posted_time(self, db_session, store):
+        """복사 버튼을 다시 눌러도 게시 시각은 처음 것이다.
+
+        학습 곡선이 이 시각으로 "그때 표본이 몇 건이었나" 를 세므로, 누를 때마다
+        옮기면 x축이 무너진다. 답글 내용과 편집 여부는 새로 반영한다.
+        """
+        sample = reply_history.record_generated(
+            db_session, store_id=store.id, review_body="맛있어요", rating=5,
+            menu="짬뽕", generated_reply="감사합니다",
+        )
+        reply_history.finalize(db_session, sample, "감사합니다")
+        first = sample.finalized_at
+        reply_history.finalize(db_session, sample, "감사합니다! 또 오세요")
+        assert sample.finalized_at == first
+        assert sample.was_edited is True
+
+    def test_blank_final_reply_is_rejected(self, db_session, store):
+        """공백만 보내면 '게시했다' 가 되면 안 된다. 학습 풀과 리포트가 어긋난다."""
+        sample = reply_history.record_generated(
+            db_session, store_id=store.id, review_body="맛있어요", rating=5,
+            menu="짬뽕", generated_reply="감사합니다",
+        )
+        with pytest.raises(ValueError):
+            reply_history.finalize(db_session, sample, "   ")
+        assert sample.final_reply is None
+        assert sample.finalized_at is None
+
     def test_whitespace_only_change_is_not_an_edit(self, db_session, store):
         sample = reply_history.record_generated(
             db_session, store_id=store.id, review_body="맛있어요", rating=5,

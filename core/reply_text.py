@@ -99,6 +99,32 @@ def opening_shape(sentence: str) -> str:
     return ""
 
 
+# 인사말·끝맺음을 "같은 계열" 로 묶을 때 보는 어절 수. `reply_style` 이 사장님
+# 인사말 습관을 프롬프트에 못박는 단위(`OPENING_WORD_COUNTS` 의 큰 쪽)와 같다.
+HABIT_KEY_WORDS = 2
+
+
+def _word_tokens(sentence: str) -> list[str]:
+    """납작하게 만들었을 때 뭔가 남는 어절만. 이모지 하나짜리 어절은 건너뛴다."""
+    return [t for t in sentence.split() if _flatten(t)]
+
+
+def opening_key(sentence: str, words: int = HABIT_KEY_WORDS) -> str:
+    """첫 문장을 '같은 인사말 계열' 로 묶는 열쇠 — 앞 `words` 어절을 납작하게 만든 것.
+
+    띄어쓰기·문장부호·이모지 차이는 같은 계열로 본다. 이모지만 있는 문장처럼
+    납작하게 만들면 아무것도 안 남는 경우는 원문 그대로를 열쇠로 써서, 같은
+    이모지끼리는 묶이고 다른 것과는 안 묶인다.
+    """
+    return _flatten(" ".join(_word_tokens(sentence)[:words])) or sentence.strip()
+
+
+def closing_key(sentence: str, words: int = HABIT_KEY_WORDS) -> str:
+    """끝 문장을 '같은 끝맺음 계열' 로 묶는 열쇠 — 뒤 `words` 어절."""
+    tokens = _word_tokens(sentence)
+    return _flatten(" ".join(tokens[-words:] if tokens else [])) or sentence.strip()
+
+
 def _bigrams(text: str) -> set:
     return {text[i:i + 2] for i in range(len(text) - 1)} or {text}
 
